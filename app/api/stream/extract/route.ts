@@ -91,6 +91,14 @@ function processVideoData(videoData: VideoData): VideoData {
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
+  const requestId = `extract_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  // Enhanced logging
+  console.log(`[${requestId}] Stream extraction request started`, {
+    url: request.url,
+    timestamp: new Date().toISOString(),
+    userAgent: request.headers.get('user-agent')
+  });
 
   try {
     // Rate limiting
@@ -98,6 +106,7 @@ export async function GET(request: NextRequest) {
     const rateLimit = contentRateLimiter.checkLimit(clientIP);
 
     if (!rateLimit.allowed) {
+      console.log(`[${requestId}] Rate limit exceeded for IP: ${clientIP}`);
       return NextResponse.json(
         {
           error: 'Too many requests',
@@ -111,6 +120,7 @@ export async function GET(request: NextRequest) {
             'X-RateLimit-Remaining': rateLimit.remaining.toString(),
             'X-RateLimit-Reset': rateLimit.resetAt.toString(),
             'Retry-After': Math.ceil((rateLimit.resetAt - Date.now()) / 1000).toString(),
+            'X-Request-ID': requestId,
           },
         }
       );
@@ -118,28 +128,41 @@ export async function GET(request: NextRequest) {
 
     // Validate query parameters
     const { searchParams } = new URL(request.url);
+    console.log(`[${requestId}] Query parameters:`, Object.fromEntries(searchParams.entries()));
+    
     const validation = validateQuery(extractQuerySchema, searchParams);
 
     if (!validation.success) {
+      console.log(`[${requestId}] Validation failed:`, validation.error);
       return NextResponse.json(
         {
           error: 'Validation error',
           message: validation.error,
+          requestId,
         },
         { status: 400 }
       );
     }
 
     const { tmdbId, mediaType, season, episode } = validation.data;
+    console.log(`[${requestId}] Validated parameters:`, { tmdbId, mediaType, season, episode });
 
-    // Extract video stream with timeout handling (30s)
-    // The extractor service already implements timeout and retry logic
+    // Extract video stream with timeout handling (45s)
+    console.log(`[${requestId}] Starting extraction via extractor service...`);
+    const extractionStartTime = Date.now();
+    
     const videoData = await extractorService.extract(
       tmdbId,
       mediaType,
       season,
       episode
     );
+    
+    const extractionDuration = Date.now() - extractionStartTime;
+    console.log(`[${requestId}] Extraction completed in ${extractionDuration}ms`, {
+      sourcesCount: videoData.sources.length,
+      subtitlesCount: videoData.subtitles.length
+    });
 
     // Process video data to enhance quality detection
     const processedData = processVideoData(videoData);
@@ -148,6 +171,7 @@ export async function GET(request: NextRequest) {
     const bestSource = selectBestQuality(processedData.sources);
 
     const responseTime = Date.now() - startTime;
+    console.log(`[${requestId}] Stream extraction completed successfully in ${responseTime}ms`);
 
     return NextResponse.json(
       {
@@ -162,6 +186,7 @@ export async function GET(request: NextRequest) {
           subtitleCount: processedData.subtitles.length,
           bestQuality: bestSource?.quality || 'unknown',
           responseTime: `${responseTime}ms`,
+          requestId,
         },
       },
       {
@@ -172,12 +197,19 @@ export async function GET(request: NextRequest) {
           'X-RateLimit-Remaining': rateLimit.remaining.toString(),
           'X-RateLimit-Reset': rateLimit.resetAt.toString(),
           'X-Response-Time': `${responseTime}ms`,
+          'X-Request-ID': requestId,
         },
       }
     );
   } catch (error: any) {
     const responseTime = Date.now() - startTime;
-    console.error('Stream extraction API error:', error);
+    console.error(`[${requestId}] Stream extraction API error after ${responseTime}ms:`, {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause,
+      originalError: error.originalError
+    });
 
     // Handle timeout errors
     if (error.name === 'AbortError' || error.code === 'ETIMEDOUT' || error.code === 'TIMEOUT') {
@@ -198,17 +230,30 @@ export async function GET(request: NextRequest) {
 
     // Handle extractor service unavailable
     if (error.code === 'NETWORK_ERROR' || error.statusCode === 503) {
+      console.log(`[${requestId}] Service unavailable error detected`, {
+        errorCode: error.code,
+        statusCode: error.statusCode,
+        message: error.message
+      });
+      
       return NextResponse.json(
         {
           error: 'Service unavailable',
           message: 'Stream extraction service is temporarily unavailable. Please try again later.',
           retryable: true,
+          requestId,
+          debug: {
+            errorCode: error.code,
+            originalMessage: error.message,
+            duration: responseTime
+          }
         },
         { 
           status: 503,
           headers: {
             'Retry-After': '60',
             'X-Response-Time': `${responseTime}ms`,
+            'X-Request-ID': requestId,
           },
         }
       );
@@ -267,16 +312,31 @@ export async function GET(request: NextRequest) {
     }
 
     // Generic error response
+    console.log(`[${requestId}] Returning generic error response`, {
+      errorName: error.name,
+      errorMessage: error.message,
+      errorCode: error.code,
+      statusCode: error.statusCode
+    });
+    
     return NextResponse.json(
       {
         error: 'Internal server error',
         message: 'Failed to extract video stream. Please try again.',
         retryable: error.retryable || false,
+        requestId,
+        debug: {
+          errorType: error.name,
+          originalMessage: error.message,
+          duration: responseTime,
+          timestamp: new Date().toISOString()
+        }
       },
       { 
         status: 500,
         headers: {
           'X-Response-Time': `${responseTime}ms`,
+          'X-Request-ID': requestId,
         },
       }
     );

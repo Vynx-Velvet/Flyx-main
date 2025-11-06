@@ -6,24 +6,36 @@ import { NextResponse } from 'next/server';
  * Chain: VidSrc → CloudNestra → ProRCP → Shadowlands
  */
 
-// Utility function for logging
+// Utility function for enhanced logging
 function createLogger(requestId) {
   return {
     info: (message, data = {}) => {
-      console.log(`[${requestId}] INFO: ${message}`, JSON.stringify(data, null, 2));
+      const timestamp = new Date().toISOString();
+      console.log(`[${timestamp}] [${requestId}] INFO: ${message}`, JSON.stringify(data, null, 2));
     },
     warn: (message, data = {}) => {
-      console.warn(`[${requestId}] WARN: ${message}`, JSON.stringify(data, null, 2));
+      const timestamp = new Date().toISOString();
+      console.warn(`[${timestamp}] [${requestId}] WARN: ${message}`, JSON.stringify(data, null, 2));
     },
     error: (message, error = null, data = {}) => {
-      console.error(`[${requestId}] ERROR: ${message}`, {
+      const timestamp = new Date().toISOString();
+      console.error(`[${timestamp}] [${requestId}] ERROR: ${message}`, {
         error: error ? {
           name: error.name,
           message: error.message,
-          stack: error.stack
+          stack: error.stack,
+          cause: error.cause
         } : null,
         ...data
       });
+    },
+    debug: (message, data = {}) => {
+      const timestamp = new Date().toISOString();
+      console.log(`[${timestamp}] [${requestId}] DEBUG: ${message}`, JSON.stringify(data, null, 2));
+    },
+    step: (stepNumber, stepName, data = {}) => {
+      const timestamp = new Date().toISOString();
+      console.log(`[${timestamp}] [${requestId}] STEP ${stepNumber}: ${stepName}`, JSON.stringify(data, null, 2));
     }
   };
 }
@@ -33,9 +45,14 @@ function generateRequestId() {
   return `shadowlands_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-// Extract CloudNestra URL from VidSrc HTML
+// Extract CloudNestra URL from VidSrc HTML with enhanced debugging
 function extractCloudNestraUrl(html, logger) {
-  logger.info('Extracting CloudNestra URL from VidSrc HTML...');
+  logger.debug('Starting CloudNestra URL extraction', {
+    htmlLength: html.length,
+    containsCloudnestra: html.includes('cloudnestra'),
+    containsIframe: html.includes('iframe'),
+    containsRcp: html.includes('rcp')
+  });
   
   const patterns = [
     /<iframe[^>]*src\s*=\s*["']([^"']*cloudnestra\.com\/rcp[^"']*)["'][^>]*>/gi,
@@ -45,9 +62,16 @@ function extractCloudNestraUrl(html, logger) {
     /\/\/cloudnestra\.com\/rcp\/[^\s"'>]*/gi
   ];
 
-  for (const pattern of patterns) {
+  for (let i = 0; i < patterns.length; i++) {
+    const pattern = patterns[i];
+    logger.debug(`Testing pattern ${i + 1}`, { pattern: pattern.toString() });
+    
     const matches = html.match(pattern);
     if (matches) {
+      logger.debug(`Pattern ${i + 1} found ${matches.length} matches`, { 
+        matches: matches.slice(0, 3) // Log first 3 matches
+      });
+      
       for (const match of matches) {
         let url = match;
         
@@ -74,14 +98,28 @@ function extractCloudNestraUrl(html, logger) {
             url = url.substring(0, urlEndIndex);
           }
           
-          logger.info('Found CloudNestra URL', { url });
+          logger.info('CloudNestra URL extracted successfully', { 
+            url,
+            patternUsed: i + 1,
+            originalMatch: match.substring(0, 100) + '...'
+          });
           return url;
         }
       }
+    } else {
+      logger.debug(`Pattern ${i + 1} found no matches`);
     }
   }
   
-  logger.error('CloudNestra URL not found in VidSrc HTML');
+  // Additional debugging for failure case
+  logger.error('CloudNestra URL extraction failed', null, {
+    htmlContainsCloudnestra: html.includes('cloudnestra'),
+    htmlContainsRcp: html.includes('rcp'),
+    htmlContainsIframe: html.includes('iframe'),
+    htmlSample: html.substring(0, 1000) + '...',
+    patternsAttempted: patterns.length
+  });
+  
   return null;
 }
 
@@ -232,7 +270,7 @@ function extractShadowlandsUrl(html, logger) {
   return null;
 }
 
-// Main extraction function
+// Main extraction function with enhanced debugging
 async function extractShadowlandsChain(tmdbId, season, episode, requestId) {
   const logger = createLogger(requestId);
   const startTime = Date.now();
@@ -246,54 +284,157 @@ async function extractShadowlandsChain(tmdbId, season, episode, requestId) {
       vidsrcUrl = `https://vidsrc.xyz/embed/movie/${tmdbId}`;
     }
     
-    logger.info('Starting extraction chain', { vidsrcUrl, tmdbId, season, episode });
-    
-    // Step 1: Fetch VidSrc
-    logger.info('Step 1: Fetching VidSrc page');
-    const vidsrcResponse = await fetch(vidsrcUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
-      }
+    logger.info('Starting extraction chain', { 
+      vidsrcUrl, 
+      tmdbId, 
+      season, 
+      episode,
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     });
     
+    // Step 1: Fetch VidSrc with detailed logging
+    logger.step(1, 'Fetching VidSrc page', { url: vidsrcUrl });
+    
+    const vidsrcStartTime = Date.now();
+    let vidsrcResponse;
+    
+    try {
+      vidsrcResponse = await fetch(vidsrcUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      const vidsrcDuration = Date.now() - vidsrcStartTime;
+      logger.debug('VidSrc fetch completed', { 
+        status: vidsrcResponse.status,
+        statusText: vidsrcResponse.statusText,
+        duration: vidsrcDuration,
+        headers: Object.fromEntries(vidsrcResponse.headers.entries())
+      });
+      
+    } catch (fetchError) {
+      const vidsrcDuration = Date.now() - vidsrcStartTime;
+      logger.error('VidSrc fetch failed', fetchError, { 
+        duration: vidsrcDuration,
+        url: vidsrcUrl
+      });
+      throw new Error(`VidSrc fetch failed: ${fetchError.message}`);
+    }
+    
     if (!vidsrcResponse.ok) {
+      logger.error('VidSrc returned error status', null, {
+        status: vidsrcResponse.status,
+        statusText: vidsrcResponse.statusText,
+        headers: Object.fromEntries(vidsrcResponse.headers.entries())
+      });
       throw new Error(`VidSrc returned ${vidsrcResponse.status}: ${vidsrcResponse.statusText}`);
     }
     
-    const vidsrcHtml = await vidsrcResponse.text();
-    logger.info('VidSrc HTML received', { bytes: vidsrcHtml.length });
+    let vidsrcHtml;
+    try {
+      vidsrcHtml = await vidsrcResponse.text();
+      logger.info('VidSrc HTML received', { 
+        bytes: vidsrcHtml.length,
+        contentType: vidsrcResponse.headers.get('content-type'),
+        preview: vidsrcHtml.substring(0, 200) + '...'
+      });
+    } catch (textError) {
+      logger.error('Failed to read VidSrc response text', textError);
+      throw new Error(`Failed to read VidSrc response: ${textError.message}`);
+    }
     
-    // Step 2: Extract CloudNestra URL
+    // Step 2: Extract CloudNestra URL with detailed logging
+    logger.step(2, 'Extracting CloudNestra URL from VidSrc HTML');
     const cloudNestraUrl = extractCloudNestraUrl(vidsrcHtml, logger);
+    
     if (!cloudNestraUrl) {
+      logger.error('CloudNestra URL extraction failed', null, {
+        htmlLength: vidsrcHtml.length,
+        htmlPreview: vidsrcHtml.substring(0, 500),
+        searchPatterns: [
+          'cloudnestra.com/rcp',
+          'iframe',
+          'src='
+        ]
+      });
       throw new Error('CloudNestra URL not found in VidSrc HTML');
     }
     
-    // Step 3: Fetch CloudNestra
-    logger.info('Step 3: Fetching CloudNestra page');
-    const cloudNestraResponse = await fetch(cloudNestraUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Referer': vidsrcUrl
-      }
-    });
+    // Step 3: Fetch CloudNestra with detailed logging
+    logger.step(3, 'Fetching CloudNestra page', { url: cloudNestraUrl });
+    
+    const cloudNestraStartTime = Date.now();
+    let cloudNestraResponse;
+    
+    try {
+      cloudNestraResponse = await fetch(cloudNestraUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Referer': vidsrcUrl
+        }
+      });
+      
+      const cloudNestraDuration = Date.now() - cloudNestraStartTime;
+      logger.debug('CloudNestra fetch completed', { 
+        status: cloudNestraResponse.status,
+        statusText: cloudNestraResponse.statusText,
+        duration: cloudNestraDuration,
+        headers: Object.fromEntries(cloudNestraResponse.headers.entries())
+      });
+      
+    } catch (fetchError) {
+      const cloudNestraDuration = Date.now() - cloudNestraStartTime;
+      logger.error('CloudNestra fetch failed', fetchError, { 
+        duration: cloudNestraDuration,
+        url: cloudNestraUrl
+      });
+      throw new Error(`CloudNestra fetch failed: ${fetchError.message}`);
+    }
     
     if (!cloudNestraResponse.ok) {
+      logger.error('CloudNestra returned error status', null, {
+        status: cloudNestraResponse.status,
+        statusText: cloudNestraResponse.statusText,
+        headers: Object.fromEntries(cloudNestraResponse.headers.entries())
+      });
       throw new Error(`CloudNestra returned ${cloudNestraResponse.status}: ${cloudNestraResponse.statusText}`);
     }
     
-    const cloudNestraHtml = await cloudNestraResponse.text();
-    logger.info('CloudNestra HTML received', { bytes: cloudNestraHtml.length });
+    let cloudNestraHtml;
+    try {
+      cloudNestraHtml = await cloudNestraResponse.text();
+      logger.info('CloudNestra HTML received', { 
+        bytes: cloudNestraHtml.length,
+        contentType: cloudNestraResponse.headers.get('content-type'),
+        preview: cloudNestraHtml.substring(0, 200) + '...'
+      });
+    } catch (textError) {
+      logger.error('Failed to read CloudNestra response text', textError);
+      throw new Error(`Failed to read CloudNestra response: ${textError.message}`);
+    }
     
-    // Step 4: Extract ProRCP URL
+    // Step 4: Extract ProRCP URL with detailed logging
+    logger.step(4, 'Extracting ProRCP URL from CloudNestra HTML');
     const proRcpPath = extractProRcpUrl(cloudNestraHtml, logger);
+    
     if (!proRcpPath) {
+      logger.error('ProRCP URL extraction failed', null, {
+        htmlLength: cloudNestraHtml.length,
+        htmlPreview: cloudNestraHtml.substring(0, 500),
+        searchPatterns: [
+          'prorcp',
+          'iframe',
+          'src:',
+          'jQuery'
+        ]
+      });
       throw new Error('ProRCP URL not found in CloudNestra HTML');
     }
     
@@ -301,33 +442,100 @@ async function extractShadowlandsChain(tmdbId, season, episode, requestId) {
       ? proRcpPath 
       : `https://cloudnestra.com${proRcpPath}`;
     
-    // Step 5: Fetch ProRCP
-    logger.info('Step 5: Fetching ProRCP page');
-    const proRcpResponse = await fetch(proRcpUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Referer': cloudNestraUrl
-      }
+    logger.debug('ProRCP URL constructed', { 
+      originalPath: proRcpPath,
+      finalUrl: proRcpUrl
     });
     
+    // Step 5: Fetch ProRCP with detailed logging
+    logger.step(5, 'Fetching ProRCP page', { url: proRcpUrl });
+    
+    const proRcpStartTime = Date.now();
+    let proRcpResponse;
+    
+    try {
+      proRcpResponse = await fetch(proRcpUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Referer': cloudNestraUrl
+        }
+      });
+      
+      const proRcpDuration = Date.now() - proRcpStartTime;
+      logger.debug('ProRCP fetch completed', { 
+        status: proRcpResponse.status,
+        statusText: proRcpResponse.statusText,
+        duration: proRcpDuration,
+        headers: Object.fromEntries(proRcpResponse.headers.entries())
+      });
+      
+    } catch (fetchError) {
+      const proRcpDuration = Date.now() - proRcpStartTime;
+      logger.error('ProRCP fetch failed', fetchError, { 
+        duration: proRcpDuration,
+        url: proRcpUrl
+      });
+      throw new Error(`ProRCP fetch failed: ${fetchError.message}`);
+    }
+    
     if (!proRcpResponse.ok) {
+      logger.error('ProRCP returned error status', null, {
+        status: proRcpResponse.status,
+        statusText: proRcpResponse.statusText,
+        headers: Object.fromEntries(proRcpResponse.headers.entries())
+      });
       throw new Error(`ProRCP returned ${proRcpResponse.status}: ${proRcpResponse.statusText}`);
     }
     
-    const proRcpHtml = await proRcpResponse.text();
-    logger.info('ProRCP HTML received', { bytes: proRcpHtml.length });
+    let proRcpHtml;
+    try {
+      proRcpHtml = await proRcpResponse.text();
+      logger.info('ProRCP HTML received', { 
+        bytes: proRcpHtml.length,
+        contentType: proRcpResponse.headers.get('content-type'),
+        preview: proRcpHtml.substring(0, 200) + '...'
+      });
+    } catch (textError) {
+      logger.error('Failed to read ProRCP response text', textError);
+      throw new Error(`Failed to read ProRCP response: ${textError.message}`);
+    }
     
-    // Step 6: Extract Shadowlands URL
+    // Step 6: Extract Shadowlands URL with detailed logging
+    logger.step(6, 'Extracting Shadowlands URL from ProRCP HTML');
     const shadowlandsUrl = extractShadowlandsUrl(proRcpHtml, logger);
+    
     if (!shadowlandsUrl) {
+      logger.error('Shadowlands URL extraction failed', null, {
+        htmlLength: proRcpHtml.length,
+        htmlPreview: proRcpHtml.substring(0, 500),
+        searchPatterns: [
+          'shadowlands',
+          '.m3u8',
+          'Playerjs',
+          'file:',
+          'source:'
+        ]
+      });
       throw new Error('Shadowlands URL not found in ProRCP HTML');
     }
     
-    const duration = Date.now() - startTime;
-    logger.info('Extraction chain complete', { duration, shadowlandsUrl });
+    // Validate the extracted URL
+    logger.debug('Shadowlands URL validation', {
+      url: shadowlandsUrl,
+      isValidUrl: shadowlandsUrl.startsWith('http'),
+      containsM3u8: shadowlandsUrl.includes('.m3u8'),
+      containsShadowlands: shadowlandsUrl.includes('shadowlands')
+    });
     
-    return {
+    const duration = Date.now() - startTime;
+    logger.info('Extraction chain completed successfully', { 
+      totalDuration: duration,
+      shadowlandsUrl: shadowlandsUrl.substring(0, 100) + '...',
+      steps: 6
+    });
+    
+    const result = {
       success: true,
       streamUrl: shadowlandsUrl,
       streamType: 'hls',
@@ -345,67 +553,186 @@ async function extractShadowlandsChain(tmdbId, season, episode, requestId) {
         season,
         episode,
         duration,
-        requestId
+        requestId,
+        timestamp: new Date().toISOString()
       }
     };
     
+    logger.debug('Final result', { 
+      success: result.success,
+      streamType: result.streamType,
+      server: result.server,
+      requiresProxy: result.requiresProxy
+    });
+    
+    return result;
+    
   } catch (error) {
-    logger.error('Extraction failed', error);
-    throw error;
+    const duration = Date.now() - startTime;
+    logger.error('Extraction chain failed', error, { 
+      totalDuration: duration,
+      failurePoint: error.message,
+      tmdbId,
+      season,
+      episode
+    });
+    
+    // Re-throw with enhanced error information
+    const enhancedError = new Error(`Extraction failed after ${duration}ms: ${error.message}`);
+    enhancedError.originalError = error;
+    enhancedError.duration = duration;
+    enhancedError.requestId = requestId;
+    throw enhancedError;
   }
 }
 
-// GET handler
+// GET handler with enhanced debugging
 export async function GET(request) {
   const requestId = generateRequestId();
   const logger = createLogger(requestId);
   const startTime = Date.now();
   
   try {
+    // Log request details
+    logger.info('=== EXTRACTION REQUEST STARTED ===', {
+      requestId,
+      timestamp: new Date().toISOString(),
+      url: request.url,
+      method: request.method,
+      headers: Object.fromEntries(request.headers.entries())
+    });
+    
     // Parse query parameters
     const { searchParams } = new URL(request.url);
     const tmdbId = searchParams.get('tmdbId') || searchParams.get('movieId');
     const season = searchParams.get('season') || searchParams.get('seasonId');
     const episode = searchParams.get('episode') || searchParams.get('episodeId');
     
+    // Log all parameters
+    logger.debug('Request parameters parsed', {
+      tmdbId,
+      season,
+      episode,
+      allParams: Object.fromEntries(searchParams.entries())
+    });
+    
     // Validate required parameters
     if (!tmdbId) {
+      logger.warn('Missing required parameter', { 
+        provided: Object.fromEntries(searchParams.entries()),
+        required: ['tmdbId', 'movieId']
+      });
+      
       return NextResponse.json(
         {
           success: false,
           error: 'Missing required parameter: tmdbId or movieId',
-          requestId
+          requestId,
+          providedParams: Object.fromEntries(searchParams.entries())
         },
         { status: 400 }
       );
     }
     
-    logger.info('Extraction request received', {
+    // Determine content type
+    const contentType = (season && episode) ? 'tv' : 'movie';
+    logger.info('Content type determined', {
+      contentType,
       tmdbId,
       season,
-      episode,
-      timestamp: new Date().toISOString()
+      episode
     });
     
-    // Perform extraction
-    const result = await extractShadowlandsChain(tmdbId, season, episode, requestId);
+    // Perform extraction with timeout
+    logger.info('Starting extraction process...');
+    const extractionStartTime = Date.now();
     
-    // Return successful response
-    return NextResponse.json(result);
+    const result = await Promise.race([
+      extractShadowlandsChain(tmdbId, season, episode, requestId),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Extraction timeout after 60 seconds')), 60000)
+      )
+    ]);
+    
+    const extractionDuration = Date.now() - extractionStartTime;
+    logger.info('Extraction completed successfully', {
+      duration: extractionDuration,
+      resultKeys: Object.keys(result)
+    });
+    
+    // Add response metadata
+    const response = {
+      ...result,
+      metadata: {
+        ...result.metadata,
+        extractionDuration,
+        totalDuration: Date.now() - startTime,
+        contentType,
+        serverTimestamp: new Date().toISOString()
+      }
+    };
+    
+    logger.info('=== EXTRACTION REQUEST COMPLETED ===', {
+      success: true,
+      duration: Date.now() - startTime
+    });
+    
+    return NextResponse.json(response, {
+      headers: {
+        'X-Request-ID': requestId,
+        'X-Extraction-Duration': extractionDuration.toString(),
+        'X-Content-Type': contentType
+      }
+    });
     
   } catch (error) {
     const duration = Date.now() - startTime;
-    logger.error('Request failed', error, { duration });
     
-    return NextResponse.json(
-      {
-        success: false,
-        error: error.message,
-        requestId,
-        duration
-      },
-      { status: 500 }
-    );
+    // Determine error type and status code
+    let statusCode = 500;
+    let errorType = 'INTERNAL_ERROR';
+    
+    if (error.message.includes('timeout')) {
+      statusCode = 504;
+      errorType = 'TIMEOUT_ERROR';
+    } else if (error.message.includes('fetch failed') || error.message.includes('network')) {
+      statusCode = 503;
+      errorType = 'NETWORK_ERROR';
+    } else if (error.message.includes('not found')) {
+      statusCode = 404;
+      errorType = 'EXTRACTION_ERROR';
+    }
+    
+    logger.error('=== EXTRACTION REQUEST FAILED ===', error, { 
+      duration,
+      errorType,
+      statusCode,
+      originalMessage: error.message,
+      stack: error.stack
+    });
+    
+    const errorResponse = {
+      success: false,
+      error: error.message,
+      errorType,
+      requestId,
+      duration,
+      timestamp: new Date().toISOString(),
+      debug: {
+        originalError: error.originalError?.message,
+        failurePoint: error.message,
+        requestDuration: duration
+      }
+    };
+    
+    return NextResponse.json(errorResponse, { 
+      status: statusCode,
+      headers: {
+        'X-Request-ID': requestId,
+        'X-Error-Type': errorType,
+        'X-Request-Duration': duration.toString()
+      }
+    });
   }
 }
 
