@@ -24,9 +24,9 @@
     "analytics:init": "bun scripts/init-analytics.js"
   },
   "dependencies": {
-    "@types/better-sqlite3": "^7.6.13",
+    "@types/better-sqlite3": "7.6.13",
     "bcryptjs": "3.0.3",
-    "better-sqlite3": "^12.4.1",
+    "better-sqlite3": "12.4.1",
     "framer-motion": "^12.23.12",
     "hls.js": "^1.6.10",
     "jsonwebtoken": "9.0.2",

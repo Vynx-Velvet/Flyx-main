@@ -1,6 +1,6 @@
 /**
  * Database Connection Management - Cross-platform SQLite
- * Uses Bun's SQLite in development and better-sqlite3 in production
+ * Uses Bun's SQLite in Bun runtime and better-sqlite3 in Node.js
  */
 
 import * as path from 'path';
@@ -11,23 +11,27 @@ import { ALL_TABLES, SCHEMA_VERSION, TABLES } from './schema';
 let Database: any;
 let isBunRuntime = false;
 
-try {
-  // Check if we're running in Bun
-  if (typeof Bun !== 'undefined') {
-    Database = require('bun:sqlite').Database;
+// Detect runtime and load appropriate SQLite implementation
+if (typeof Bun !== 'undefined') {
+  // Running in Bun
+  try {
+    const { Database: BunDatabase } = require('bun:sqlite');
+    Database = BunDatabase;
     isBunRuntime = true;
-  } else {
-    // Fallback to better-sqlite3 for Node.js
+    console.log('Using Bun SQLite');
+  } catch (error) {
+    console.warn('Bun SQLite not available, falling back to better-sqlite3');
     Database = require('better-sqlite3');
     isBunRuntime = false;
   }
-} catch (error) {
-  // If bun:sqlite fails, try better-sqlite3
+} else {
+  // Running in Node.js (production)
   try {
     Database = require('better-sqlite3');
     isBunRuntime = false;
-  } catch (fallbackError) {
-    console.error('Failed to load SQLite database:', error, fallbackError);
+    console.log('Using better-sqlite3 for Node.js');
+  } catch (error) {
+    console.error('better-sqlite3 not available:', error);
     throw new Error('No SQLite implementation available');
   }
 }
@@ -67,15 +71,23 @@ class DatabaseConnection {
     }
 
     try {
-      // Create database connection based on runtime
-      if (isBunRuntime) {
-        this.db = new Database(this.dbPath);
-      } else {
-        this.db = new Database(this.dbPath);
+      // Ensure database directory exists with proper permissions
+      const dbDir = path.dirname(this.dbPath);
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true, mode: 0o755 });
       }
 
-      // Enable WAL mode for better concurrency
-      this.db.exec('PRAGMA journal_mode = WAL;');
+      // Create database connection
+      this.db = new Database(this.dbPath);
+
+      // Configure database settings
+      try {
+        // Enable WAL mode for better concurrency (may fail in some environments)
+        this.db.exec('PRAGMA journal_mode = WAL;');
+      } catch (walError) {
+        console.warn('WAL mode not available, using default journal mode');
+        this.db.exec('PRAGMA journal_mode = DELETE;');
+      }
       
       // Enable foreign keys
       this.db.exec('PRAGMA foreign_keys = ON;');
@@ -98,6 +110,8 @@ class DatabaseConnection {
       console.log(`✓ SQLite database initialized successfully (${isBunRuntime ? 'Bun' : 'Node.js'} runtime)`);
     } catch (error) {
       console.error('Failed to initialize database:', error);
+      console.error('Database path:', this.dbPath);
+      console.error('Current working directory:', process.cwd());
       throw new Error(`Database initialization failed: ${error}`);
     }
   }
@@ -151,12 +165,14 @@ class DatabaseConnection {
     const db = this.getDatabase();
     if (isBunRuntime) {
       // Bun SQLite transaction syntax
-      return db.transaction(() => {
+      const transactionFn = db.transaction(() => {
         return callback(db);
-      })();
+      });
+      return transactionFn();
     } else {
       // better-sqlite3 transaction syntax
-      return db.transaction(callback)(db);
+      const transactionFn = db.transaction(callback);
+      return transactionFn();
     }
   }
 
