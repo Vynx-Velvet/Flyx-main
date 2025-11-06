@@ -39,7 +39,7 @@ export const ContentCard: React.FC<ContentCardProps> = ({
   });
 
   const handleClick = () => {
-    onSelect?.(item.id);
+    onSelect?.(String(item.id));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -50,8 +50,9 @@ export const ContentCard: React.FC<ContentCardProps> = ({
   };
 
   // Format rating to 1 decimal place
-  const formattedRating = item.rating.toFixed(1);
-  const ratingPercentage = (item.rating / 10) * 100;
+  const rating = item.rating || item.vote_average || 0;
+  const formattedRating = rating.toFixed(1);
+  const ratingPercentage = (rating / 10) * 100;
 
   // Get rating color based on score
   const getRatingColor = (rating: number) => {
@@ -81,8 +82,8 @@ export const ContentCard: React.FC<ContentCardProps> = ({
                 )}
                 
                 <Image
-                  src={item.posterPath}
-                  alt={item.title}
+                  src={item.posterPath || item.poster_path || ''}
+                  alt={item.title || item.name || 'Content'}
                   fill
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                   className={`object-cover transition-opacity duration-500 ${
@@ -101,7 +102,7 @@ export const ContentCard: React.FC<ContentCardProps> = ({
                     {item.mediaType === 'movie' ? '🎬' : '📺'}
                   </div>
                   <p className="text-sm text-gray-400 font-medium line-clamp-2">
-                    {item.title}
+                    {item.title || item.name || 'Untitled'}
                   </p>
                 </div>
               </div>
@@ -136,11 +137,11 @@ export const ContentCard: React.FC<ContentCardProps> = ({
                     stroke="currentColor"
                     strokeWidth="2"
                     strokeDasharray={`${ratingPercentage} 100`}
-                    className={getRatingColor(item.rating)}
+                    className={getRatingColor(rating)}
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className={`text-xs font-bold ${getRatingColor(item.rating)}`}>
+                  <span className={`text-xs font-bold ${getRatingColor(rating)}`}>
                     {formattedRating}
                   </span>
                 </div>
@@ -160,12 +161,12 @@ export const ContentCard: React.FC<ContentCardProps> = ({
           {/* Content info */}
           <div className="p-4 space-y-2">
             <h3 className="text-base font-bold text-white line-clamp-2 leading-tight">
-              {item.title}
+              {item.title || item.name || 'Untitled'}
             </h3>
 
             <div className="flex items-center gap-2 text-xs text-gray-400">
-              {item.releaseDate && (
-                <span>{new Date(item.releaseDate).getFullYear()}</span>
+              {(item.releaseDate || item.release_date || item.first_air_date) && (
+                <span>{new Date(item.releaseDate || item.release_date || item.first_air_date || '').getFullYear()}</span>
               )}
               {item.genres && item.genres.length > 0 && (
                 <>

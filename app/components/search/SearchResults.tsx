@@ -163,11 +163,11 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                           </span>
                         </>
                       )}
-                      {result.rating > 0 && (
+                      {(result.rating || 0) > 0 && (
                         <>
                           <span className={styles.separator}>•</span>
                           <span className={styles.rating}>
-                            ⭐ {result.rating.toFixed(1)}
+                            ⭐ {(result.rating || 0).toFixed(1)}
                           </span>
                         </>
                       )}
