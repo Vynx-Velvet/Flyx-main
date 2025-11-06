@@ -3,15 +3,14 @@
  * Run this to set up the database for the first time
  */
 
-import { initializeDatabase, getMigrationManager } from '@/lib/db';
-import { queries } from '@/lib/db/queries';
+import { initializeDatabase, getMigrationManager, DatabaseConnection } from '@/lib/db';
 
 async function main() {
   console.log('🚀 Initializing Flyx database...\n');
 
   try {
     // Initialize database and run migrations
-    const db = await initializeDatabase();
+    await initializeDatabase();
     console.log('');
 
     // Show migration status
@@ -25,17 +24,11 @@ async function main() {
     console.log(`   Applied Migrations: ${status.appliedMigrations.length}`);
     console.log('');
 
-    // Show database stats
-    const stats = db.getStats();
-    console.log('💾 Database Statistics:');
-    console.log(`   Size: ${(stats.sizeBytes / 1024 / 1024).toFixed(2)} MB`);
-    console.log(`   Pages: ${stats.pageCount}`);
-    console.log(`   Page Size: ${stats.pageSize} bytes`);
-    console.log(`   Free Pages: ${stats.freePages}`);
-    console.log('');
+    // Get database connection instance for stats and health check
+    const dbConnection = DatabaseConnection.getInstance();
 
     // Health check
-    const isHealthy = db.healthCheck();
+    const isHealthy = dbConnection.healthCheck();
     console.log(`🏥 Health Check: ${isHealthy ? '✓ Healthy' : '✗ Unhealthy'}`);
     console.log('');
 
@@ -59,7 +52,7 @@ async function main() {
     console.log('✅ Database initialization complete!\n');
     
     // Close connection
-    db.close();
+    dbConnection.close();
     process.exit(0);
   } catch (error) {
     console.error('❌ Database initialization failed:', error);
