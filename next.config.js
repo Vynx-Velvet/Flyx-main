@@ -16,7 +16,6 @@ const nextConfig = {
   // Optimizations for Bun runtime
   experimental: {
     optimizePackageImports: ['framer-motion', 'lucide-react', 'recharts'],
-    optimizeCss: true,
   },
   // Performance optimizations
   compiler: {
