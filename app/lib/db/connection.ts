@@ -1,15 +1,15 @@
 /**
- * Database Connection Management using better-sqlite3
+ * Database Connection Management using Bun's built-in SQLite
  */
 
-import Database from 'better-sqlite3';
+import { Database } from 'bun:sqlite';
 import path from 'path';
 import fs from 'fs';
 import { ALL_TABLES, SCHEMA_VERSION, TABLES } from './schema';
 
 class DatabaseConnection {
   private static instance: DatabaseConnection | null = null;
-  private db: Database.Database | null = null;
+  private db: Database | null = null;
   private dbPath: string;
   private isInitialized = false;
 
@@ -42,7 +42,7 @@ class DatabaseConnection {
     }
 
     try {
-      // Create database connection using better-sqlite3
+      // Create database connection using Bun's SQLite
       this.db = new Database(this.dbPath);
 
       // Enable WAL mode for better concurrency
@@ -94,7 +94,7 @@ class DatabaseConnection {
   /**
    * Get database instance
    */
-  getDatabase(): Database.Database {
+  getDatabase(): Database {
     if (!this.db || !this.isInitialized) {
       throw new Error('Database not initialized. Call initialize() first.');
     }
@@ -118,7 +118,7 @@ class DatabaseConnection {
   /**
    * Execute multiple queries in a transaction
    */
-  transaction<T>(callback: (db: Database.Database) => T): T {
+  transaction<T>(callback: (db: Database) => T): T {
     const db = this.getDatabase();
     return db.transaction(() => {
       return callback(db);

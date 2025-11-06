@@ -91,7 +91,7 @@ function getLocationFromIP(_ip: string): { country?: string; region?: string } {
 }
 
 export async function POST(request: NextRequest) {
-  const requestId = `analytics_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = `analytics_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   const startTime = Date.now();
   
   console.log(`[${requestId}] === ANALYTICS TRACKING REQUEST STARTED ===`, {

@@ -5,7 +5,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { initializeDB, getDB } from '@/lib/db/connection';
@@ -48,22 +47,24 @@ export async function POST(request: NextRequest) {
       { expiresIn: '24h' }
     );
 
-    // Set secure cookie
-    const cookieStore = cookies();
-    cookieStore.set(ADMIN_COOKIE, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60, // 24 hours
-    });
-
-    return NextResponse.json({
+    // Create response with cookie
+    const response = NextResponse.json({
       success: true,
       user: {
         id: admin.id,
         username: admin.username,
       },
     });
+
+    // Set secure cookie
+    response.cookies.set(ADMIN_COOKIE, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60, // 24 hours
+    });
+
+    return response;
   } catch (error) {
     console.error('Admin auth error:', error);
     return NextResponse.json(
@@ -75,10 +76,12 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE() {
   try {
-    const cookieStore = cookies();
-    cookieStore.delete(ADMIN_COOKIE);
+    const response = NextResponse.json({ success: true });
+    
+    // Delete cookie
+    response.cookies.delete(ADMIN_COOKIE);
 
-    return NextResponse.json({ success: true });
+    return response;
   } catch (error) {
     console.error('Admin logout error:', error);
     return NextResponse.json(

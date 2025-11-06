@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAnalytics } from '../components/analytics/AnalyticsProvider';
 import OverviewStats from './components/OverviewStats';
 import AnalyticsCharts from './components/AnalyticsCharts';
 import ContentStats from './components/ContentStats';
@@ -12,6 +13,7 @@ interface User {
 }
 
 export default function AdminPage() {
+  const { trackPageView, trackEvent } = useAnalytics();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
@@ -25,6 +27,17 @@ export default function AdminPage() {
   useEffect(() => {
     checkAuth();
   }, []);
+
+  // Track page view when component mounts and user is authenticated
+  useEffect(() => {
+    if (user) {
+      trackPageView('/admin');
+      trackEvent('admin_access', { 
+        username: user.username,
+        timestamp: Date.now()
+      });
+    }
+  }, [user, trackPageView, trackEvent]);
 
   const checkAuth = async () => {
     try {
@@ -58,8 +71,21 @@ export default function AdminPage() {
         setUser(data.user);
         setUsername('');
         setPassword('');
+        
+        // Track successful login
+        trackEvent('admin_login', { 
+          username: data.user.username,
+          timestamp: Date.now()
+        });
       } else {
         setError(data.error || 'Login failed');
+        
+        // Track failed login attempt
+        trackEvent('admin_login_failed', { 
+          username: username,
+          error: data.error,
+          timestamp: Date.now()
+        });
       }
     } catch (err) {
       setError('Network error. Please try again.');
@@ -70,6 +96,14 @@ export default function AdminPage() {
 
   const handleLogout = async () => {
     try {
+      // Track logout before clearing user
+      if (user) {
+        trackEvent('admin_logout', { 
+          username: user.username,
+          timestamp: Date.now()
+        });
+      }
+      
       await fetch('/api/admin/auth', { method: 'DELETE' });
       setUser(null);
     } catch (err) {
@@ -563,7 +597,15 @@ export default function AdminPage() {
           ].map((tab) => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => {
+                setActiveTab(tab.key);
+                // Track tab navigation
+                trackEvent('admin_tab_change', {
+                  from_tab: activeTab,
+                  to_tab: tab.key,
+                  timestamp: Date.now()
+                });
+              }}
               style={{
                 padding: '18px 0',
                 background: 'none',
