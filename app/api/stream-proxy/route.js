@@ -4,96 +4,80 @@ import { NextResponse } from 'next/server';
 const rateLimitStore = new Map();
 const connectionPool = new Map();
 
-// Enhanced logger for stream-proxy debugging with VERY VISIBLE output
+// VERCEL-COMPATIBLE logger - uses console.error for everything to ensure logs appear
 function createLogger(requestId) {
   const timestamp = () => new Date().toISOString();
+  const log = (...args) => console.error(...args); // Vercel shows stderr better
   
   return {
     info: (message, data = {}) => {
-      console.log(`\n🔵 [${timestamp()}] [${requestId}] INFO: ${message}`);
+      log(`[${timestamp()}] [${requestId}] INFO: ${message}`);
       if (Object.keys(data).length > 0) {
-        console.log(`📊 Data:`, JSON.stringify(data, null, 2));
+        log('DATA:', JSON.stringify(data, null, 2));
       }
-      console.log('─'.repeat(80));
     },
     warn: (message, data = {}) => {
-      console.warn(`\n🟡 [${timestamp()}] [${requestId}] WARN: ${message}`);
+      log(`[${timestamp()}] [${requestId}] WARN: ${message}`);
       if (Object.keys(data).length > 0) {
-        console.warn(`⚠️  Data:`, JSON.stringify(data, null, 2));
+        log('DATA:', JSON.stringify(data, null, 2));
       }
-      console.log('─'.repeat(80));
     },
     error: (message, error = null, data = {}) => {
-      console.error(`\n🔴 [${timestamp()}] [${requestId}] ERROR: ${message}`);
+      log(`[${timestamp()}] [${requestId}] ERROR: ${message}`);
       if (error) {
-        console.error(`💥 Error Details:`, {
+        log('ERROR DETAILS:', {
           name: error.name,
           message: error.message,
-          stack: error.stack?.split('\n').slice(0, 5).join('\n'), // First 5 lines of stack
+          stack: error.stack?.split('\n').slice(0, 10).join('\n'),
           cause: error.cause,
           code: error.code
         });
       }
       if (Object.keys(data).length > 0) {
-        console.error(`📋 Additional Data:`, JSON.stringify(data, null, 2));
+        log('ADDITIONAL DATA:', JSON.stringify(data, null, 2));
       }
-      console.log('═'.repeat(80));
     },
     debug: (message, data = {}) => {
-      console.log(`\n🔍 [${timestamp()}] [${requestId}] DEBUG: ${message}`);
+      log(`[${timestamp()}] [${requestId}] DEBUG: ${message}`);
       if (Object.keys(data).length > 0) {
-        console.log(`🐛 Debug Data:`, JSON.stringify(data, null, 2));
+        log('DEBUG DATA:', JSON.stringify(data, null, 2));
       }
-      console.log('─'.repeat(80));
     },
     timing: (label, startTime) => {
       const duration = Date.now() - startTime;
-      console.log(`\n⏱️  [${timestamp()}] [${requestId}] TIMING: ${label} took ${duration}ms`);
-      console.log('─'.repeat(80));
+      log(`[${timestamp()}] [${requestId}] TIMING: ${label} took ${duration}ms`);
       return duration;
     },
     request: (method, url, headers = {}) => {
-      console.log(`\n🌐 [${timestamp()}] [${requestId}] ${method} REQUEST: ${url}`);
-      console.log(`📤 Headers:`, Object.fromEntries(
-        Object.entries(headers).map(([k, v]) => [k, typeof v === 'string' && v.length > 100 ? v.substring(0, 100) + '...' : v])
-      ));
-      console.log('─'.repeat(80));
+      log(`[${timestamp()}] [${requestId}] ${method} REQUEST: ${url}`);
+      log('HEADERS:', JSON.stringify(headers, null, 2));
     },
     response: (status, headers = {}, contentPreview = '') => {
-      console.log(`\n📥 [${timestamp()}] [${requestId}] RESPONSE: ${status}`);
-      console.log(`📋 Response Headers:`, Object.fromEntries(
-        Object.entries(headers).map(([k, v]) => [k, typeof v === 'string' && v.length > 100 ? v.substring(0, 100) + '...' : v])
-      ));
+      log(`[${timestamp()}] [${requestId}] RESPONSE: ${status}`);
+      log('RESPONSE HEADERS:', JSON.stringify(headers, null, 2));
       if (contentPreview) {
-        console.log(`📄 Content Preview:`, contentPreview.substring(0, 200) + (contentPreview.length > 200 ? '...' : ''));
+        log('CONTENT PREVIEW:', contentPreview.substring(0, 200));
       }
-      console.log('─'.repeat(80));
     },
     success: (message, data = {}) => {
-      console.log(`\n✅ [${timestamp()}] [${requestId}] SUCCESS: ${message}`);
+      log(`[${timestamp()}] [${requestId}] SUCCESS: ${message}`);
       if (Object.keys(data).length > 0) {
-        console.log(`🎉 Success Data:`, JSON.stringify(data, null, 2));
+        log('SUCCESS DATA:', JSON.stringify(data, null, 2));
       }
-      console.log('═'.repeat(80));
     },
     step: (stepNumber, stepName, data = {}) => {
-      console.log(`\n📍 [${timestamp()}] [${requestId}] STEP ${stepNumber}: ${stepName}`);
+      log(`[${timestamp()}] [${requestId}] STEP ${stepNumber}: ${stepName}`);
       if (Object.keys(data).length > 0) {
-        console.log(`📝 Step Data:`, JSON.stringify(data, null, 2));
+        log('STEP DATA:', JSON.stringify(data, null, 2));
       }
-      console.log('─'.repeat(80));
     },
     memory: () => {
-      if (global.gc) {
-        global.gc();
+      try {
+        const usage = process.memoryUsage();
+        log(`[${timestamp()}] [${requestId}] MEMORY: RSS=${Math.round(usage.rss / 1024 / 1024)}MB Heap=${Math.round(usage.heapUsed / 1024 / 1024)}MB`);
+      } catch (e) {
+        // Memory info not available
       }
-      const usage = process.memoryUsage();
-      console.log(`\n💾 [${timestamp()}] [${requestId}] MEMORY USAGE:`);
-      console.log(`   RSS: ${Math.round(usage.rss / 1024 / 1024)}MB`);
-      console.log(`   Heap Used: ${Math.round(usage.heapUsed / 1024 / 1024)}MB`);
-      console.log(`   Heap Total: ${Math.round(usage.heapTotal / 1024 / 1024)}MB`);
-      console.log(`   External: ${Math.round(usage.external / 1024 / 1024)}MB`);
-      console.log('─'.repeat(80));
     }
   };
 }
@@ -128,24 +112,23 @@ function generateRequestId() {
   return `proxy_${Date.now()}`;
 }
 
-// Startup logging (after all configs are defined)
-console.log('\n🚀 STREAM-PROXY ROUTE LOADED');
-console.log('═'.repeat(80));
-console.log('📅 Loaded at:', new Date().toISOString());
-console.log('🔧 Rate Limit Config:', {
+// Startup logging (after all configs are defined) - using console.error for Vercel
+console.error('='.repeat(80));
+console.error('STREAM-PROXY ROUTE LOADED AT:', new Date().toISOString());
+console.error('RATE LIMIT CONFIG:', JSON.stringify({
   windowMs: RATE_LIMIT_CONFIG.windowMs,
   maxRequests: RATE_LIMIT_CONFIG.maxRequests,
   blockDuration: RATE_LIMIT_CONFIG.blockDuration
-});
-console.log('🔄 Retry Config:', {
+}));
+console.error('RETRY CONFIG:', JSON.stringify({
   maxRetries: RETRY_CONFIG.maxRetries,
   baseDelay: RETRY_CONFIG.baseDelay
-});
-console.log('🔗 Connection Config:', {
+}));
+console.error('CONNECTION CONFIG:', JSON.stringify({
   maxConnections: CONNECTION_POOL_CONFIG.maxConnections,
   timeout: CONNECTION_POOL_CONFIG.timeout
-});
-console.log('═'.repeat(80));
+}));
+console.error('='.repeat(80));
 
 // Enhanced rate limiting
 function checkRateLimit(clientIp, logger, isLightningbolt = false) {
@@ -281,8 +264,9 @@ async function fetchWithHeaderFallback(url, baseOptions, logger, userAgent, sour
   }
   
   try {
-    console.log('\n🌐🌐🌐 MAKING FETCH REQUEST 🌐🌐🌐');
-    console.log('═'.repeat(100));
+    console.error('='.repeat(80));
+    console.error('MAKING FETCH REQUEST');
+    console.error('='.repeat(80));
     
     logger.step(1, 'FETCH PREPARATION', {
       targetUrl: url.substring(0, 150) + (url.length > 150 ? '...' : ''),
@@ -317,8 +301,9 @@ async function fetchWithHeaderFallback(url, baseOptions, logger, userAgent, sour
       timestamp: new Date().toISOString()
     });
     
-    console.log('\n📡📡📡 FETCH RESPONSE RECEIVED 📡📡📡');
-    console.log('═'.repeat(100));
+    console.error('='.repeat(80));
+    console.error('FETCH RESPONSE RECEIVED');
+    console.error('='.repeat(80));
     
     logger.response(response.status, Object.fromEntries(response.headers.entries()));
     
@@ -365,8 +350,9 @@ async function fetchWithHeaderFallback(url, baseOptions, logger, userAgent, sour
     // Only retry server errors once
     const isRetryableError = response.status >= 500;
     
-    console.log('\n❌❌❌ FETCH FAILED - ANALYZING ERROR ❌❌❌');
-    console.log('═'.repeat(100));
+    console.error('='.repeat(80));
+    console.error('FETCH FAILED - ANALYZING ERROR');
+    console.error('='.repeat(80));
     
     logger.error('🚨 FETCH FAILED', null, {
       status: response.status,
@@ -398,8 +384,9 @@ async function fetchWithHeaderFallback(url, baseOptions, logger, userAgent, sour
     return response;
     
   } catch (error) {
-    console.log('\n💥💥💥 FETCH EXCEPTION CAUGHT 💥💥💥');
-    console.log('═'.repeat(100));
+    console.error('='.repeat(80));
+    console.error('FETCH EXCEPTION CAUGHT');
+    console.error('='.repeat(80));
     
     logger.error('FETCH EXCEPTION', error, {
       errorName: error.name,
@@ -644,13 +631,13 @@ export async function GET(request) {
   const requestStartTime = Date.now();
   const clientIp = getClientIp(request);
 
-  // SUPER VISIBLE REQUEST START
-  console.log('\n🚨🚨🚨 STREAM-PROXY REQUEST INCOMING 🚨🚨🚨');
-  console.log('═'.repeat(100));
-  console.log(`REQUEST ID: ${requestId}`);
-  console.log(`TIMESTAMP: ${new Date().toISOString()}`);
-  console.log(`CLIENT IP: ${clientIp}`);
-  console.log('═'.repeat(100));
+  // SUPER VISIBLE REQUEST START - using console.error for Vercel visibility
+  console.error('='.repeat(80));
+  console.error('STREAM-PROXY REQUEST INCOMING');
+  console.error(`REQUEST ID: ${requestId}`);
+  console.error(`TIMESTAMP: ${new Date().toISOString()}`);
+  console.error(`CLIENT IP: ${clientIp}`);
+  console.error('='.repeat(80));
   
   logger.request('GET', request.url, {
     'user-agent': request.headers.get('user-agent'),
@@ -702,12 +689,43 @@ export async function GET(request) {
   const streamUrl = searchParams.get('url');
   const source = searchParams.get('source'); // 'vidsrc', 'embed.su', 'shadowlands', etc.
 
+  // IMMEDIATE URL VALIDATION - catch bad URLs early
   logger.info('URL Parameters Parsed', {
     fullRequestUrl: request.url,
     streamUrl: streamUrl ? streamUrl.substring(0, 150) + (streamUrl.length > 150 ? '...' : '') : 'NULL',
+    streamUrlLength: streamUrl?.length || 0,
     source: source || 'NULL',
     allParams: Object.fromEntries(searchParams.entries())
   });
+
+  // Early validation - check if URL is missing or malformed
+  if (!streamUrl || streamUrl.trim() === '') {
+    logger.error('MISSING STREAM URL', null, {
+      providedUrl: streamUrl,
+      allParams: Object.fromEntries(searchParams.entries())
+    });
+    return NextResponse.json({
+      success: false,
+      error: 'Stream URL parameter is required and cannot be empty',
+      requestId,
+      providedUrl: streamUrl
+    }, { status: 400 });
+  }
+
+  // Check if URL looks incomplete (like "https://.m3u8")
+  if (streamUrl.includes('://.') || streamUrl.match(/https?:\/\/[^\/]*\.m3u8/) && streamUrl.length < 30) {
+    logger.error('MALFORMED STREAM URL DETECTED', null, {
+      providedUrl: streamUrl,
+      urlLength: streamUrl.length,
+      issue: 'URL appears incomplete or malformed'
+    });
+    return NextResponse.json({
+      success: false,
+      error: 'Stream URL appears to be malformed or incomplete',
+      requestId,
+      providedUrl: streamUrl
+    }, { status: 400 });
+  }
 
   // Rate limiting check (Requirement 5.3)
   const isLightningboltUrl = (streamUrl?.includes('lightningbolt') || streamUrl?.includes('lightningbolts.ru')) || false;
@@ -1182,8 +1200,9 @@ export async function GET(request) {
     }
 
   } catch (error) {
-    console.log('\n💀💀💀 STREAM PROXY FATAL ERROR 💀💀💀');
-    console.log('═'.repeat(100));
+    console.error('='.repeat(80));
+    console.error('STREAM PROXY FATAL ERROR');
+    console.error('='.repeat(80));
     
     logger.error('STREAM PROXY FAILED WITH EXCEPTION', error, {
       streamUrl: streamUrl?.substring(0, 150),

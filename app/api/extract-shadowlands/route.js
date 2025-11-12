@@ -6,20 +6,21 @@ import { NextResponse } from 'next/server';
  * Chain: VidSrc → CloudNestra → ProRCP → Shadowlands
  */
 
-// Utility function for enhanced logging
+// VERCEL-COMPATIBLE logger - uses console.error for visibility
 function createLogger(requestId) {
+  const log = (...args) => console.error(...args);
   return {
     info: (message, data = {}) => {
       const timestamp = new Date().toISOString();
-      console.log(`[${timestamp}] [${requestId}] INFO: ${message}`, JSON.stringify(data, null, 2));
+      log(`[${timestamp}] [${requestId}] INFO: ${message}`, JSON.stringify(data, null, 2));
     },
     warn: (message, data = {}) => {
       const timestamp = new Date().toISOString();
-      console.warn(`[${timestamp}] [${requestId}] WARN: ${message}`, JSON.stringify(data, null, 2));
+      log(`[${timestamp}] [${requestId}] WARN: ${message}`, JSON.stringify(data, null, 2));
     },
     error: (message, error = null, data = {}) => {
       const timestamp = new Date().toISOString();
-      console.error(`[${timestamp}] [${requestId}] ERROR: ${message}`, {
+      log(`[${timestamp}] [${requestId}] ERROR: ${message}`, JSON.stringify({
         error: error ? {
           name: error.name,
           message: error.message,
@@ -27,15 +28,15 @@ function createLogger(requestId) {
           cause: error.cause
         } : null,
         ...data
-      });
+      }, null, 2));
     },
     debug: (message, data = {}) => {
       const timestamp = new Date().toISOString();
-      console.log(`[${timestamp}] [${requestId}] DEBUG: ${message}`, JSON.stringify(data, null, 2));
+      log(`[${timestamp}] [${requestId}] DEBUG: ${message}`, JSON.stringify(data, null, 2));
     },
     step: (stepNumber, stepName, data = {}) => {
       const timestamp = new Date().toISOString();
-      console.log(`[${timestamp}] [${requestId}] STEP ${stepNumber}: ${stepName}`, JSON.stringify(data, null, 2));
+      log(`[${timestamp}] [${requestId}] STEP ${stepNumber}: ${stepName}`, JSON.stringify(data, null, 2));
     }
   };
 }
@@ -275,6 +276,15 @@ function extractShadowlandsUrl(html, logger) {
         
         url = url.trim();
         
+        logger.debug('Processing potential URL match', {
+          rawMatch: match.substring(0, 150),
+          extractedUrl: url.substring(0, 150),
+          urlLength: url.length,
+          hasM3u8: url.includes('.m3u8'),
+          hasProtocol: url.startsWith('http'),
+          patternIndex: i + 1
+        });
+        
         // Check if it's a valid stream URL
         if (url.includes('.m3u8')) {
           // Handle multiple URLs separated by " or "
@@ -301,7 +311,23 @@ function extractShadowlandsUrl(html, logger) {
           // Replace server placeholders with actual server names
           url = replacePlaceholders(url, logger);
           
-          logger.info('Selected Shadowlands URL', { url: url.substring(0, 80) + '...' });
+          // CRITICAL VALIDATION - ensure URL is complete
+          if (!url.includes('://') || url.match(/https?:\/\/\./) || url.length < 30) {
+            logger.error('MALFORMED URL DETECTED AFTER EXTRACTION', null, {
+              extractedUrl: url,
+              urlLength: url.length,
+              hasProtocol: url.includes('://'),
+              hasEmptyHost: url.match(/https?:\/\/\./),
+              originalMatch: match.substring(0, 200)
+            });
+            continue; // Skip this match and try the next one
+          }
+          
+          logger.info('Selected Shadowlands URL', { 
+            url: url.substring(0, 100) + '...',
+            urlLength: url.length,
+            urlValid: true
+          });
           return url;
         }
       }
