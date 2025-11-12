@@ -669,6 +669,8 @@ export async function GET(request) {
     )
   });
   
+  console.error('FULL REQUEST URL:', request.url);
+  
   logger.memory();
 
   // Enhanced request validation (Requirement 4.2)

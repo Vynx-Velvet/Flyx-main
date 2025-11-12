@@ -348,6 +348,15 @@ function extractShadowlandsUrl(html, logger) {
           // Replace server placeholders with actual server names
           url = replacePlaceholders(url, logger);
           
+          // Check if URL contains dots that might be encoding artifacts
+          if (url.includes('/.') && !url.includes('/.well-known')) {
+            logger.warn('URL contains suspicious dots - may be encoded', {
+              url: url.substring(0, 150),
+              dotCount: (url.match(/\./g) || []).length,
+              hasSuspiciousDots: url.match(/\/[A-Za-z0-9]+\.[A-Za-z0-9]+\./g)
+            });
+          }
+          
           // CRITICAL VALIDATION - ensure URL is complete
           if (!url.includes('://') || url.match(/https?:\/\/\./) || url.length < 30) {
             logger.error('MALFORMED URL DETECTED AFTER EXTRACTION', null, {
