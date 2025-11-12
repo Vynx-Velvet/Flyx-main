@@ -239,16 +239,38 @@ async function fetchWithHeaderFallback(url, baseOptions, logger, userAgent, sour
   let options;
   
   if (isShadowlands) {
-    // For shadowlands URLs, fetch directly without any header modifications
-    logger.info('Fetching shadowlands URL directly without header modifications', {
-      url: url.substring(0, 100)
+    // For shadowlands URLs, use proper referer chain
+    logger.info('Fetching shadowlands URL with proper referer chain', {
+      url: url.substring(0, 100),
+      source: source
     });
+    
+    // Build proper referer chain: vidsrc.xyz -> cloudnestra.com -> prorcp
+    const headers = {
+      'User-Agent': userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': '*/*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Referer': 'https://cloudnestra.com/',
+      'Origin': 'https://cloudnestra.com',
+      'Sec-Fetch-Dest': 'empty',
+      'Sec-Fetch-Mode': 'cors',
+      'Sec-Fetch-Site': 'cross-site'
+    };
+    
+    // Preserve range header if present
+    if (baseOptions.headers?.Range) {
+      headers['Range'] = baseOptions.headers.Range;
+    }
     
     options = {
       ...baseOptions,
-      // Only preserve range header if present, no other headers
-      headers: baseOptions.headers?.Range ? { 'Range': baseOptions.headers.Range } : {}
+      headers: headers
     };
+    
+    logger.debug('Shadowlands request headers', {
+      headers: headers,
+      hasRange: !!headers['Range']
+    });
   } else {
     // Use simplified headers for non-shadowlands URLs
     const headers = getSimplifiedHeaders(url, userAgent, source);
