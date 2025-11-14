@@ -41,10 +41,43 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Extract stream using CloudStream pure fetch method
+    // Use the new RCP extraction system
     console.log('Extracting stream:', { tmdbId, type, season, episode });
-    const result = await extractCloudStream(tmdbId, type, season, episode);
-    console.log('Extraction result:', result);
+    
+    // Import the RCP extractor
+    const { extractFromProvider } = await import('@/app/lib/services/rcp/index');
+    
+    // Try providers in order: vidsrc, 2embed, superembed
+    const providers = ['vidsrc', '2embed', 'superembed'] as const;
+    let result = null;
+    
+    for (const provider of providers) {
+      console.log(`Trying provider: ${provider}`);
+      try {
+        result = await extractFromProvider({
+          provider,
+          tmdbId,
+          type,
+          season,
+          episode,
+        });
+        
+        if (result.success) {
+          console.log(`✓ ${provider} succeeded!`);
+          break;
+        } else {
+          console.log(`✗ ${provider} failed: ${result.error}`);
+        }
+      } catch (err) {
+        console.log(`✗ ${provider} error:`, err);
+      }
+    }
+    
+    if (!result) {
+      result = { success: false, error: 'All providers failed' };
+    }
+    
+    console.log('Final extraction result:', result);
 
     if (!result.success) {
       console.error('Extraction failed:', result.error);
