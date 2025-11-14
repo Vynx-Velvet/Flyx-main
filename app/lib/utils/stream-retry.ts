@@ -65,7 +65,7 @@ export class StreamRetryManager {
 
     try {
       // Build extraction URL
-      let extractUrl = `/api/stream/extract?tmdbId=${tmdbId}&mediaType=${mediaType}`;
+      let extractUrl = `/api/stream/extract?tmdbId=${tmdbId}&type=${mediaType}`;
       if (season) extractUrl += `&season=${season}`;
       if (episode) extractUrl += `&episode=${episode}`;
 
