@@ -26,6 +26,10 @@
     "analytics:init": "bun scripts/init-analytics.js"
   },
   "dependencies": {
+    "@babel/generator": "^7.28.5",
+    "@babel/parser": "^7.28.5",
+    "@babel/traverse": "^7.28.5",
+    "@babel/types": "^7.28.5",
     "@neondatabase/serverless": "1.0.2",
     "@types/better-sqlite3": "7.6.13",
     "bcryptjs": "3.0.3",
@@ -37,6 +41,9 @@
     "lucide-react": "^0.542.0",
     "nanoid": "^5.0.4",
     "next": "^14.2.0",
+    "puppeteer": "^24.29.1",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-syntax-highlighter": "^15.6.6",

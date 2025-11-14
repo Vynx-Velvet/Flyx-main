@@ -700,20 +700,17 @@ async function extractShadowlandsChain(tmdbId, season, episode, requestId) {
   }
 }
 
-// GET handler with enhanced debugging
+// GET handler with CloudStream pure fetch method
 export async function GET(request) {
   const requestId = generateRequestId();
   const logger = createLogger(requestId);
   const startTime = Date.now();
   
   try {
-    // Log request details
     logger.info('=== EXTRACTION REQUEST STARTED ===', {
       requestId,
       timestamp: new Date().toISOString(),
-      url: request.url,
-      method: request.method,
-      headers: Object.fromEntries(request.headers.entries())
+      url: request.url
     });
     
     // Parse query parameters
@@ -722,27 +719,20 @@ export async function GET(request) {
     const season = searchParams.get('season') || searchParams.get('seasonId');
     const episode = searchParams.get('episode') || searchParams.get('episodeId');
     
-    // Log all parameters
     logger.debug('Request parameters parsed', {
       tmdbId,
       season,
-      episode,
-      allParams: Object.fromEntries(searchParams.entries())
+      episode
     });
     
     // Validate required parameters
     if (!tmdbId) {
-      logger.warn('Missing required parameter', { 
-        provided: Object.fromEntries(searchParams.entries()),
-        required: ['tmdbId', 'movieId']
-      });
-      
+      logger.warn('Missing required parameter');
       return NextResponse.json(
         {
           success: false,
           error: 'Missing required parameter: tmdbId or movieId',
-          requestId,
-          providedParams: Object.fromEntries(searchParams.entries())
+          requestId
         },
         { status: 400 }
       );
@@ -750,39 +740,59 @@ export async function GET(request) {
     
     // Determine content type
     const contentType = (season && episode) ? 'tv' : 'movie';
-    logger.info('Content type determined', {
-      contentType,
-      tmdbId,
-      season,
-      episode
-    });
+    logger.info('Content type determined', { contentType, tmdbId, season, episode });
     
-    // Perform extraction with timeout
-    logger.info('Starting extraction process...');
+    // Use CloudStream pure fetch method
+    logger.info('Using CloudStream pure fetch extraction...');
     const extractionStartTime = Date.now();
     
+    // Import the CloudStream extractor
+    const { extractCloudStream } = await import('@/app/lib/services/cloudstream-pure-fetch');
+    
     const result = await Promise.race([
-      extractShadowlandsChain(tmdbId, season, episode, requestId),
+      extractCloudStream(tmdbId, contentType, season ? parseInt(season) : undefined, episode ? parseInt(episode) : undefined),
       new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Extraction timeout after 60 seconds')), 60000)
       )
     ]);
     
     const extractionDuration = Date.now() - extractionStartTime;
+    
+    if (!result.success) {
+      logger.error('CloudStream extraction failed', null, { error: result.error });
+      return NextResponse.json(
+        {
+          success: false,
+          error: result.error || 'Extraction failed',
+          requestId,
+          duration: extractionDuration
+        },
+        { status: 404 }
+      );
+    }
+    
     logger.info('Extraction completed successfully', {
       duration: extractionDuration,
-      resultKeys: Object.keys(result)
+      method: result.method
     });
     
-    // Add response metadata
+    // Format response
     const response = {
-      ...result,
+      success: true,
+      streamUrl: result.url,
+      streamType: 'hls',
+      server: 'cloudstream',
+      extractionMethod: result.method,
+      requiresProxy: false, // Direct M3U8 URL
       metadata: {
-        ...result.metadata,
+        tmdbId,
+        season,
+        episode,
         extractionDuration,
         totalDuration: Date.now() - startTime,
         contentType,
-        serverTimestamp: new Date().toISOString()
+        requestId,
+        timestamp: new Date().toISOString()
       }
     };
     
@@ -802,14 +812,13 @@ export async function GET(request) {
   } catch (error) {
     const duration = Date.now() - startTime;
     
-    // Determine error type and status code
     let statusCode = 500;
     let errorType = 'INTERNAL_ERROR';
     
     if (error.message.includes('timeout')) {
       statusCode = 504;
       errorType = 'TIMEOUT_ERROR';
-    } else if (error.message.includes('fetch failed') || error.message.includes('network')) {
+    } else if (error.message.includes('fetch failed')) {
       statusCode = 503;
       errorType = 'NETWORK_ERROR';
     } else if (error.message.includes('not found')) {
@@ -820,31 +829,21 @@ export async function GET(request) {
     logger.error('=== EXTRACTION REQUEST FAILED ===', error, { 
       duration,
       errorType,
-      statusCode,
-      originalMessage: error.message,
-      stack: error.stack
+      statusCode
     });
     
-    const errorResponse = {
+    return NextResponse.json({ 
       success: false,
       error: error.message,
       errorType,
       requestId,
       duration,
-      timestamp: new Date().toISOString(),
-      debug: {
-        originalError: error.originalError?.message,
-        failurePoint: error.message,
-        requestDuration: duration
-      }
-    };
-    
-    return NextResponse.json(errorResponse, { 
+      timestamp: new Date().toISOString()
+    }, { 
       status: statusCode,
       headers: {
         'X-Request-ID': requestId,
-        'X-Error-Type': errorType,
-        'X-Request-Duration': duration.toString()
+        'X-Error-Type': errorType
       }
     });
   }

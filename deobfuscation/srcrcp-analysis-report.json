@@ -1,0 +1,209 @@
+{
+  "metadata": {
+    "tmdbId": "872585",
+    "type": "movie",
+    "season": null,
+    "episode": null,
+    "timestamp": "2025-11-12T23:12:27.740Z",
+    "srcrcpUrl": "https://cloudnestra.com/srcrcp/MDdkOTAxZDgzMWIzNTEwZDc5NDY4OWU3NTAxZWU4NWU6UkVWdGVWQm9lSGN5YmpkNmNYSTJSbW8xTkhFck9WbG9hME52WlZwM1FuUjJZVmd2TWtwakswcFpVVEZOUjBFM2NFazRXVEpvVVZoTUt6Wm9NakJ4WjJGMWRHSjBkalJvTm5kQldHaFBjV1U1ZEhOaFQwbHZZVU5QYVdWME4yNHJPWFpVZVZSMVZFOW5iRzVxWWxWTE9YUXpNWEZoT1haSlNVSm9hM0J4YzJ0SlJVazNiR0pDZFZoa2RXc3ZNVUZwYkZkdVlXbE9jbTFwT1doMFpsWkRVMHhPWXpWd0wzZHdNRnBFSzNkTk9Xb3pjRmRzWmtoV1lqWklaV1l4V201Uw"
+  },
+  "summary": {
+    "totalScripts": 9,
+    "externalScripts": 4,
+    "inlineScripts": 6,
+    "totalSize": 133818
+  },
+  "analysis": [
+    {
+      "filename": "external-0.js",
+      "size": 89947,
+      "patterns": {
+        "hasM3u8": false,
+        "hasFile": true,
+        "hasPlayerjs": false,
+        "hasSource": false,
+        "hasFetch": true,
+        "hasAjax": false,
+        "hasBase64": false,
+        "hasCrypto": false,
+        "hasEval": false,
+        "hasObfuscation": true
+      },
+      "apiEndpoints": [],
+      "m3u8References": [],
+      "suspiciousFunctions": [
+        {
+          "name": "pe",
+          "snippet": "function pe(e,t){var n=t&&e,r=n&&1===e.nodeType&&1===t.nodeType&&e.sourceIndex-t.sourceIndex;if(r)return r;if(n)while(n=n.nextSibling)if(n===t)return-1;return e?1:-1}..."
+        }
+      ]
+    },
+    {
+      "filename": "external-2.js",
+      "size": 17664,
+      "patterns": {
+        "hasM3u8": false,
+        "hasFile": false,
+        "hasPlayerjs": false,
+        "hasSource": false,
+        "hasFetch": false,
+        "hasAjax": false,
+        "hasBase64": false,
+        "hasCrypto": false,
+        "hasEval": false,
+        "hasObfuscation": false
+      },
+      "apiEndpoints": [
+        "https://theajack.github.io/disable-devtool/404.html?h="
+      ],
+      "m3u8References": [],
+      "suspiciousFunctions": []
+    },
+    {
+      "filename": "external-3.js",
+      "size": 19948,
+      "patterns": {
+        "hasM3u8": false,
+        "hasFile": false,
+        "hasPlayerjs": false,
+        "hasSource": false,
+        "hasFetch": true,
+        "hasAjax": false,
+        "hasBase64": false,
+        "hasCrypto": true,
+        "hasEval": false,
+        "hasObfuscation": false
+      },
+      "apiEndpoints": [
+        "https://cloudflareinsights.com/cdn-cgi/rum"
+      ],
+      "m3u8References": [],
+      "suspiciousFunctions": [
+        {
+          "name": "I",
+          "snippet": "function I(){if(p&&p.serverTiming){for(var e=[],t=0,n=[\"navigation\",\"resource\"];t<n.length;t++)for(var r=n[t],i=0,o=s.getEntriesByType(r);i<o.length;i++){var a=o[i],c=a.name,u=a.serverTiming;if(u){if(..."
+        }
+      ]
+    },
+    {
+      "filename": "inline-0.js",
+      "size": 168,
+      "patterns": {
+        "hasM3u8": false,
+        "hasFile": false,
+        "hasPlayerjs": false,
+        "hasSource": false,
+        "hasFetch": false,
+        "hasAjax": false,
+        "hasBase64": false,
+        "hasCrypto": false,
+        "hasEval": false,
+        "hasObfuscation": false
+      },
+      "apiEndpoints": [
+        "https://www.2embed.skin/movie/tt15398776"
+      ],
+      "m3u8References": [],
+      "suspiciousFunctions": []
+    },
+    {
+      "filename": "inline-1.js",
+      "size": 658,
+      "patterns": {
+        "hasM3u8": false,
+        "hasFile": false,
+        "hasPlayerjs": false,
+        "hasSource": false,
+        "hasFetch": false,
+        "hasAjax": false,
+        "hasBase64": false,
+        "hasCrypto": false,
+        "hasEval": false,
+        "hasObfuscation": false
+      },
+      "apiEndpoints": [],
+      "m3u8References": [],
+      "suspiciousFunctions": []
+    },
+    {
+      "filename": "inline-2.js",
+      "size": 2624,
+      "patterns": {
+        "hasM3u8": false,
+        "hasFile": false,
+        "hasPlayerjs": false,
+        "hasSource": false,
+        "hasFetch": false,
+        "hasAjax": false,
+        "hasBase64": false,
+        "hasCrypto": false,
+        "hasEval": false,
+        "hasObfuscation": true
+      },
+      "apiEndpoints": [],
+      "m3u8References": [],
+      "suspiciousFunctions": []
+    },
+    {
+      "filename": "inline-3.js",
+      "size": 1007,
+      "patterns": {
+        "hasM3u8": false,
+        "hasFile": false,
+        "hasPlayerjs": false,
+        "hasSource": false,
+        "hasFetch": false,
+        "hasAjax": false,
+        "hasBase64": false,
+        "hasCrypto": false,
+        "hasEval": false,
+        "hasObfuscation": false
+      },
+      "apiEndpoints": [],
+      "m3u8References": [],
+      "suspiciousFunctions": []
+    },
+    {
+      "filename": "inline-4.js",
+      "size": 900,
+      "patterns": {
+        "hasM3u8": false,
+        "hasFile": false,
+        "hasPlayerjs": false,
+        "hasSource": false,
+        "hasFetch": false,
+        "hasAjax": false,
+        "hasBase64": false,
+        "hasCrypto": false,
+        "hasEval": false,
+        "hasObfuscation": false
+      },
+      "apiEndpoints": [],
+      "m3u8References": [],
+      "suspiciousFunctions": []
+    },
+    {
+      "filename": "inline-5.js",
+      "size": 902,
+      "patterns": {
+        "hasM3u8": false,
+        "hasFile": false,
+        "hasPlayerjs": false,
+        "hasSource": false,
+        "hasFetch": false,
+        "hasAjax": false,
+        "hasBase64": false,
+        "hasCrypto": false,
+        "hasEval": false,
+        "hasObfuscation": false
+      },
+      "apiEndpoints": [],
+      "m3u8References": [],
+      "suspiciousFunctions": []
+    }
+  ],
+  "recommendations": [
+    "✓ API calls found - check apiEndpoints in analysis",
+    "⚠️  Encryption detected - may need to reverse engineer crypto logic"
+  ]
+}

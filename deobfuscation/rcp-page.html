@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html"/>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.0-2/css/all.min.css" integrity="" crossorigin="anonymous"/>
+<link rel="stylesheet" href="/style_rcp-e600e6.css?t=1744906951"/>
+
+<style>
+    body {
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    }
+    .hidden {
+        display:none;
+    }
+    
+    #asdf {
+        width: 0px;
+        height: 0px;
+    }
+    
+    #iframe_title {
+        position: absolute;
+        top: calc(50% + 45px);
+        font-size: 1.1em;
+        text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+        width: calc(100% - 30px);
+        text-align: center;
+        padding: 0px 15px;
+    }
+</style>
+</head>
+<body data-i="30472557"  >
+    
+    
+        <!--<div id="pop_asdf" style="position:absolute; width:100%; height:100%; z-index:2147483650; pointer-events: none;"></div>-->
+        
+    <!--<div id="loading_overlay"></div>-->
+    <div id="the_frame" style="background-image: none;">
+                <div id="pl_but_background" style="background-image: url('//image.tmdb.org/t/p/w780/kfXgo2rMF1A19celCwLyQ4Xwpf8.jpg');">
+            <div id="iframe_title">
+                Chainsaw Man - The Movie: Reze Arc (2025)            </div>
+            <i id="pl_but" class="fas fa-play"></i>
+        </div>
+            </div>
+    
+    <div id="hidden" style="display:hidden;"></div>
+    
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.min.js" integrity="sha256-1A78rJEdiWTzco6qdn3igTBv9VupN3Q1ozZNTR4WE/Y=" crossorigin="anonymous"></script>
+    <script src="/base64.js?t="></script>
+    
+    <script src="/sbx.js?t=1751380596"></script>
+
+    
+    <script>
+    
+    /*
+    $(document).ready(function(){
+        
+        
+        if($.cookie('pop_asdf')){
+            $("#pop_asdf").addClass("hidden");
+        }
+        
+        $("#pop_asdf").click(function(){
+            if(!$.cookie('pop_asdf')){
+                if($.cookie('pop_asdf_tmp') >= 3){
+                    var date = new Date();
+                    date.setTime(date.getTime() + (10800 * 1000));
+                    $.cookie('pop_asdf', 1, { expires: date });
+                    $("#pop_asdf").addClass("hidden");
+                }else{
+                    var cookie_value = 1;
+                    if($.cookie('pop_asdf_tmp'))
+                        cookie_value = $.cookie('pop_asdf_tmp');
+                        
+                    cookie_value++;
+                    
+                    $.cookie('pop_asdf_tmp', cookie_value);
+                    $(this).addClass("hidden");
+                    setTimeout(function(){
+                        $("#pop_asdf").removeClass("hidden");
+                    }, 59000);
+                }
+            }
+        });
+    });
+    */
+    
+        
+    $("#pl_but_background , #pl_but").click(function(){
+        loadIframe();
+    });
+    
+        
+    function loadIframe(data = 1){
+        if(data == 1){
+            $("#the_frame").removeAttr("style");
+            $("#the_frame").html("");
+            $('<iframe>', {
+               id: 'player_iframe',
+               src: '/prorcp/Y2I3ZjM4YjlhN2Q5ZGQzYTNlZmU1YTNkZTdkODZjYjU6VkVsUVdrcERiak51VVVkdVQySmpibXR3UWpoMVRIUjRaelI0YVVWTFJqVmFjM0I2Y1NzMk1XSkVha1Y0YkhWYVdVUXZLMGRKY0Zsa2RERjRVbXMwVG5CS00yMHpRWE5ZZFRoUFNFTlVkVlkzTTJOUmMzaG9hVTVDYzBOS0x6SllhaXRvZG1nNGEySllXRlphY2t0TVJYaExhMU5PYzNkTEwyRmtWa3BGZWk4MlRWZEdOMjB5ZFRFNVN6Vm5UbE5xVEhCNU9EUjZOVTkwVkZCcmQxZGxhRVpQZDA1RU9VeENZelo0YW5sM1pqQnNaMnBRVkRjdmQwdHNSR1ZDVEcxek1YVmtOekJUVjI5UEswSlhRa013UmpkeGEwRnBhVXBMWjI5QlQwZEhWWEZPUzBjeGQxUk5abmhTV2t4MGVtOVNUbVZxVms5eFRHWTVOVUZ5S3l0b1pUQlRNR0ppVW1ZMGJYVklSV1ZuYjBSUFlWRkplVkpwY25GR1lVVlpkM0pIY25CVmJFeDJWa3A2ZGpkUVR5ODBXR3BpUWxwT2RVdFlaalExVUZwRWF6TXdZM0ZvY0UxeGNtaHhUVlV3WTJaMUwzbEVMMFU1U0doMU5teEdXVVpyVVhSS09FRnJUbkZGWkhaS1lWSTVhelZFVjFwVk1sb3JhRWx2ZW1SU2JGRjFObTVYVUc1d2VubHlVM2xRUVdKMVUzcExNRE5OWjFkc2NUSmxZVVZZVW0xQk9FZ3dSR1ZvYUVWdGNVbGphbmxUTmpjd1QzTXpZWFkyUkNzM1NIQnhiVVJUYm5CbmFtdFBVQ3RNUmpCUmQwOUZLMk5wVDBkNU1sSjROMWMxT0VKRk5uWjFMMDFVZFhGT1UwWTBOVGRyV1ZScVNFOXNhazAxVm1kM1lVWmxRazVJT1hCdE1IWXlUbHBIYW14SFRWZHJRbXBEWnpVeldIRXpkVk5LVWtnelpqRm5OVE5FY0hKRk1VNDJabEZwTmpKUU56QXJMMlkyUlVGeWRHMWpVakIxTjFNMmRITkZUQ3RhV2pCV2JHTjFTRk16YjJoUVdqbG5UazFqTlVKb1JsSkhjM2N5YUZVeWFVY3pTelJzYlVsS05UUlZUMUp6Y2t0cFpsZzRLMUJzUkdzMFJHZExObGQ2ZUhCSVlXZE9MMHQ0ZVhJNUwwVTBkbGsxZVU5eWNsWjRlazlvUmlzMVdWaHdTRUZvUkdsek5qRk9aRzVsT1cxYWJ6ZEdlRzloVEUwMWF6Z3hXVzl4VGs1NksxUmtlbkJYY0ZZd1FYVXJaRzV5ZFRGTVNVTmFVRVZyYlZwWk4xbHJaRXMyTjA0ck5VTkhkakUwTlN0TmVteG9OMlJLYVZaTFJIQXpVVVpQZDFnd2FWRkpPR014UTNkd1dXbGhURFpWUjFKS1MyRjFZa2R0TVd0eVdISTVhalJZWnpoTk5razVXQzlCVUVOYVVraHlZVFpSU1hRMlowaDVaM001U0dKWk16aENaMmQ0YUU5TVdEQktSRkk0UTNONVMycHlPRmMxYUU4elNqQkxUalUxY1ZWdVluTklNMmxyU0ZoNE9VY3JSeTlCU1cxS2NtaFBMM0p0V2sxa2JXcFBlQ3Q1YUhoSWJUWjBhVGM0WVM5V1JYVmxaV2w1ZWpJMmNGcFZkRVpMVmxOUVJscDZXa2h1VGtsd1UzVjNWMlI2T1dwTmJtTnNUa1V4ZVhaeE9YRkVjVXM0Tmk5QmVUUlVPRFV5VnpjMEsyVkplSFpwTUZOVmEzZEZlVlZpT1ZGTE0yTkxheTlqV0c1dk9HSnZhekpWWjFWdWNWaEhjeTh4V1c5emRHazJlRzFJZEVaVWFHdEhiVUpuUXpkRVRESlhhVzB5WTFwRU0wSm1UV2RXYms4NFJta3hSVkZVVTA4elRVVjJaMDVHWTB4bE1XY3pURGMzYm5rMmJERXZZbkk1WW1wWVNpczBjR3hhWTI1NWVGZDFUMFJzZFZveU5FUXZNRzlPWm5jdlNqSm9ZM1ZNWVd4MVduQlFOV3hTZFVGQ2JtMTBhbEpNWkd0YU5tMXBOMkZxYzBsc05FNVBjR1pSWWxGWmVVbDFTMmgyUWtKbmNHSkphRTl0VWxSMlUyZE5TbmhTVms0NFRubGhWMjlHVG5rdlNqWk9hbk5oVGc9PQ--',
+               frameborder: 0,
+               scrolling: 'no',
+               allowfullscreen: 'yes',
+               allow: "autoplay",
+               style: 'height: 100%; width: 100%;'
+            }).appendTo('#the_frame');
+            $("#player_iframe").on("load", function () {
+                $("#the_frame").attr("style","background-image: none;");
+            });
+        }
+    }
+    
+    // pm redirector
+    window.addEventListener('message', message => {
+        if (message.source == window) {
+            return; // Skip message in this event listener
+        }
+        
+        var the_iframe = document.getElementById('player_iframe');
+        
+        if(message.source == window.parent){
+            the_iframe.contentWindow.postMessage(message.data,'*');
+        }else{
+            window.parent.postMessage(message.data , '*');
+        }
+        
+        
+        
+    });
+        
+        
+        
+    </script>
+    
+    
+    
+    
+    
+    
+   
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"version":"2024.11.0","token":"164a84f147c94870b0901f3bf4bd8a15","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>

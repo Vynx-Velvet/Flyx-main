@@ -1,0 +1,52 @@
+
+DECRYPTION ALGORITHM SEARCH REPORT
+================================================================================
+
+Date: 2025-11-12T22:36:22.907Z
+Content: Oppenheimer (movie 872585)
+
+FILE VARIABLE: xTyBxQyGTA
+ENCRYPTED DATA LENGTH: 10192 characters
+
+SCRIPTS ANALYZED: 14
+- External: 13
+- Inline: 1
+
+PATTERNS FOUND:
+
+Character manipulation:
+  - jquery.min.js: 3x
+  - pjs_main_drv_cast.061125.js?_=1762464381: 13x
+  - pako.min.js: 9x
+
+Custom decrypt function:
+  - jquery.cookie.js: 1x
+
+atob usage:
+  - pjs_main_drv_cast.061125.js?_=1762464381: 2x
+  - inline-1: 1x
+
+XOR operations:
+  - pjs_main_drv_cast.061125.js?_=1762464381: 35x
+  - pako.min.js: 6x
+  - 07d708a0a39d7c4a97417b9b70a9fdfc.js?_=1744906950: 9x
+  - 108734: 1x
+
+Base64 decode:
+  - pjs_main_drv_cast.061125.js?_=1762464381: 5x
+  - sbx.js?t=1751380596: 1x
+
+Key/IV constants:
+  - pjs_main_drv_cast.061125.js?_=1762464381: 220x
+  - 108734: 1x
+
+File variable usage:
+  - inline-1: 1x
+
+NEXT STEPS:
+1. Manually inspect scripts that use the file variable
+2. Look for CryptoJS or custom decryption functions
+3. Identify the key/IV used for decryption
+4. Test decryption with sample data
+
+All files saved to: deobfuscation/decryption-analysis/

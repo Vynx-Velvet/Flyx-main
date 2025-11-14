@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html"/>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.0-2/css/all.min.css" integrity="" crossorigin="anonymous"/>
+<link rel="stylesheet" href="/style_rcp-e600e6.css?t=1744906951"/>
+
+<style>
+    body {
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+    }
+    .hidden {
+        display:none;
+    }
+    
+    #asdf {
+        width: 0px;
+        height: 0px;
+    }
+    
+    #iframe_title {
+        position: absolute;
+        top: calc(50% + 45px);
+        font-size: 1.1em;
+        text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+        width: calc(100% - 30px);
+        text-align: center;
+        padding: 0px 15px;
+    }
+</style>
+</head>
+<body data-i="15398776"  >
+    
+    
+        <!--<div id="pop_asdf" style="position:absolute; width:100%; height:100%; z-index:2147483650; pointer-events: none;"></div>-->
+        
+    <!--<div id="loading_overlay"></div>-->
+    <div id="the_frame" style="background-image: none;">
+                <div id="pl_but_background" style="background-image: url('//image.tmdb.org/t/p/w780/neeNHeXjMF5fXoCJRsOmkNGC7q.jpg');">
+            <div id="iframe_title">
+                Oppenheimer (2023)            </div>
+            <i id="pl_but" class="fas fa-play"></i>
+        </div>
+            </div>
+    
+    <div id="hidden" style="display:hidden;"></div>
+    
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.min.js" integrity="sha256-1A78rJEdiWTzco6qdn3igTBv9VupN3Q1ozZNTR4WE/Y=" crossorigin="anonymous"></script>
+    <script src="/base64.js?t="></script>
+    
+    <script src="/sbx.js?t=1751380596"></script>
+
+    
+    <script>
+    
+    /*
+    $(document).ready(function(){
+        
+        
+        if($.cookie('pop_asdf')){
+            $("#pop_asdf").addClass("hidden");
+        }
+        
+        $("#pop_asdf").click(function(){
+            if(!$.cookie('pop_asdf')){
+                if($.cookie('pop_asdf_tmp') >= 3){
+                    var date = new Date();
+                    date.setTime(date.getTime() + (10800 * 1000));
+                    $.cookie('pop_asdf', 1, { expires: date });
+                    $("#pop_asdf").addClass("hidden");
+                }else{
+                    var cookie_value = 1;
+                    if($.cookie('pop_asdf_tmp'))
+                        cookie_value = $.cookie('pop_asdf_tmp');
+                        
+                    cookie_value++;
+                    
+                    $.cookie('pop_asdf_tmp', cookie_value);
+                    $(this).addClass("hidden");
+                    setTimeout(function(){
+                        $("#pop_asdf").removeClass("hidden");
+                    }, 59000);
+                }
+            }
+        });
+    });
+    */
+    
+        
+    $("#pl_but_background , #pl_but").click(function(){
+        loadIframe();
+    });
+    
+        
+    function loadIframe(data = 1){
+        if(data == 1){
+            $("#the_frame").removeAttr("style");
+            $("#the_frame").html("");
+            $('<iframe>', {
+               id: 'player_iframe',
+               src: '/prorcp/NGZkZTY0ZWZkMDJiMjNiYWMzMmRkMzU3Mjk5NzE0MjU6SzJwamJVeGlhamhwUldkdGRUWkxRMHd6VVRWUmVXRTJlRkZEZW1Nd1MwZFdWV1JXZWxCMFFYaEllbFZrWVdseFQyMU5aVWgyTmt4WVMwRjNla0pSUVdoNWFuQkxRMWhtYWxoTFltRkdVbEZPY1RsRFNHbHRjVkozV2pCbldtdDJaRGwyZG1Sc05WWm1VM3BpTDBvNUwyazFXV05NWkhOMVRHMHdWRUpJWWtaa1JHRnRSMVppVEc5b2FEa3ZSemRaTUhadFowdEJibGRQVFV4b1JGVlJSelF4Y2t0aU0wMVRVa1pqVjAxb1FYcHVTRk50YlZCd1ZUUmhlVk5PYVhGbE9EaFNkR3g0Ym5kNFVpOVpRbWgzUWpoR1NWZzFjamRYUWxacEwxZGpSMWRFYmpkS1FrdFVhbVpNVm1wWWQxVnlWM05EVGxoM1MwZzNiR3hvVDFKWWRHeERlSFJpVTNjd09HbGFhR3RGZURkQ2EwNTVVbU5zVVhCWFlVaDRTbU5VVXl0Q1VDdHlhMngwVWxWWFRuUkRObWRNZW1oa1MwSnFWR2hVYTJaT1JFeGtlRXhPZUVFNVZITm5aamQzY2pReWFXaFhUM1pHUlZSNE5GaDBhRTlWTjJSRVNXVjJSMVJYTW1WbGNXVk9LMWxOWmpWM01tbEhValpESzBaUU1qSktUa2h4VDFFM01scFhTM2R6TWtaTmNHMVhXRzU1UkdZMlkySmxhbEpDTVdJeFYwdzRUMEV3Y25kUFZGTkJaM1ZpYkRneFlVNHJZbkZHZFc1amMxcG9TbkZ3ZFZneGNESkJSa2xKV0ZOSlRGWktTVkZOTDFjMFZHSTFTbGhFZEV0SGMzZGpUVkJvY0hoRk1rNUpVRzFMYldOTmRUVlBkbmd6UVUwMGVucHRTM2xNYnpRNE9GVmlhbkkyTVU5d2FXSXpRa3R0TlVwdmVrUXZUMmhvTDFwSWNVZFFkMHg0ZVVZNGVuUlJTemRzZWpkbFdWUXdNelU1YlZCRVFVVXpiMXBLWjNobVVqUjBWa0pMT0dKRVJVNHJiMEZMSzNKNFptTjZTVzVPT1RKcU5VaDNaRUZ6VW14VksxY3JkVEIxWXk5R1RFSllUV2xaUkV4MWRqTjRVVWxZTDJWMlFrVldNMm95YTJseU1raHBNak5aZWtweWNXdGlVVmRNUTFSVmNtVmxaMm96TDBaelMxVkVZak5xYTFGa05sbzNObFEwVEV4b1IyWTBMMVJJVkZSdlNWY3ZkVzlEWlZKQmNrZ3pWbVY2VEVkUVRGWlZRelZvVVdOaWFHMDFMMnBtV0VoNWNDdFdNMDl2Y1ZJemEyVnllbTVOYUdrd1RrOWFRbXhEY0VOVmFrVm9RVzUwZUdwYVUyVmlTalU0V0cxelVUQXhUamc0VEVRM1kyUjZWeXRhTDB0NFFVWjVUVXBOUW5SU2RHSlpjMHB4Vm5KM2RXUTBSalJTVVdSaFR6UmtTM0pCU1d0Vk0yODJWazVVVFZodVNVZEZORFk1THpkelQyWjFjVE5TV25FdmJXTnBVVU55VW5ZeGF6bDJSelZCZWtOWlZsUndMM05XVEdsME4zRkRVMkpsU21GYUwzZEpSU3ROUWsxUlNIcHlOblp3UVhaTlUyRjVVVE5PZVZCdFF6bFFhRGN4YlVka1NIUTBTbk5UTmpGSWJYRkhXRWhrWTBkRWVVcEpOWFZ4VDBzeFptVnJOekpSTURKNkwxSnRUek15WWxWMFVtMVJTRFpJVDI1eWVtWjFjWGw0VUZkMlJ6aDZTQzlyVEVsdlRHNVdVMlJSYnpoMU9EaHlkVkpSVVdsSVdUQkVPVk5ZTVdkMVRqUmtRVU5WYmtzNGRWSkZTRkl4Vm1saWRVOUlZV1k0ZEVoRGJtSXhZVmRvTmxWUVJrRmxORnBKYUc1Tk1FbGxZamQxTTBodlYzSjFjblpNU1RaRGNHNUhkRFU1TVZORFpHTnFTamM1Y1N0RFRYVklVak51UVhCSWNVOUtVemRITVVKS1RuaGxSRmh0U3psaVpIaFlORUpPZFhCTFJWaG9SRzk2Uld0NE9XVkNjMFJLVGpkd1RFMUpXR3RDZUUwdlMwdHpTVlpqU1doNGEzWTRLeTkxZGxGNVkwdzFOemxOT1cxa1JGTmhNREJ5VlVkVmVsaG9ObWRwSzBoU1NsbzJPVFUxYTJsV1ptTjBXU3RVTlV0MmJ6ZE9hV0pLYnpsWk5XSkxNVXgwWWxkUllTOVdVWHBLUkhRd2JrcEdTMkoyVWxGM1NXNUliVVJOVEZodFNUTkdRazFxU0dKd09IQnlOR1pOZDNFNVVuTklkRmgyZVdaMWMyRklhM0U1TW1JeGNrWnNLMkpUZDNWTVpXMTBhbGt5ZDFKWA--',
+               frameborder: 0,
+               scrolling: 'no',
+               allowfullscreen: 'yes',
+               allow: "autoplay",
+               style: 'height: 100%; width: 100%;'
+            }).appendTo('#the_frame');
+            $("#player_iframe").on("load", function () {
+                $("#the_frame").attr("style","background-image: none;");
+            });
+        }
+    }
+    
+    // pm redirector
+    window.addEventListener('message', message => {
+        if (message.source == window) {
+            return; // Skip message in this event listener
+        }
+        
+        var the_iframe = document.getElementById('player_iframe');
+        
+        if(message.source == window.parent){
+            the_iframe.contentWindow.postMessage(message.data,'*');
+        }else{
+            window.parent.postMessage(message.data , '*');
+        }
+        
+        
+        
+    });
+        
+        
+        
+    </script>
+    
+    
+    
+    
+    
+    
+   
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"version":"2024.11.0","token":"164a84f147c94870b0901f3bf4bd8a15","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
