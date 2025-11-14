@@ -214,9 +214,12 @@ export async function extractCloudStream(
       return { success: false, error, logs };
     }
 
+    const divId = hiddenDivMatch[1];
     const encoded = hiddenDivMatch[2];
-    logs.push(`[6] ✓ Hidden div found, encoded length: ${encoded.length}`);
-    console.log(`[6] ✓ Hidden div found, encoded: ${encoded.substring(0, 50)}...`);
+    logs.push(`[6] ✓ Hidden div found, divId: ${divId}, encoded length: ${encoded.length}`);
+    console.log(`[6] ✓ Hidden div found, divId: ${divId}`);
+    console.log(`[6] Encoded preview: ${encoded.substring(0, 100)}...`);
+    console.log(`[6] Encoded last 20: ...${encoded.substring(encoded.length - 20)}`);
 
     // Step 7: Try all decoding methods
     let decoded: string | null = null;
@@ -310,20 +313,45 @@ export async function extractCloudStream(
     // Try all methods
     logs.push(`[7] Trying ${allMethods.length} decoder methods...`);
     console.log(`[7] Trying ${allMethods.length} decoder methods...`);
+    console.log(`[7] Encoded data characteristics: length=${encoded.length}, starts with=${encoded.substring(0, 10)}`);
     
-    for (const method of allMethods) {
+    // If encoded data is very long (>1000 chars), it's likely Base64 - try that first
+    if (encoded.length > 1000) {
+      logs.push(`[7] Long encoded data detected (${encoded.length} bytes), trying Base64 first...`);
+      console.log(`[7] Long encoded data detected, trying Base64 first...`);
+      
       try {
-        const result = method.fn(encoded);
-        if (result && (result.includes('http://') || result.includes('https://'))) {
-          decoded = result;
-          usedDecoder = method.name;
-          logs.push(`[7] ✓ Decoder succeeded: ${method.name}`);
-          console.log(`[7] ✓ Decoder succeeded: ${method.name}`);
-          console.log(`[7] Decoded URL: ${result}`);
-          break;
+        const base64Decoded = Buffer.from(encoded, 'base64').toString('utf8');
+        console.log(`[7] Base64 decoded to ${base64Decoded.length} bytes`);
+        console.log(`[7] Base64 result preview: ${base64Decoded.substring(0, 100)}`);
+        
+        if (base64Decoded && (base64Decoded.includes('http://') || base64Decoded.includes('https://'))) {
+          decoded = base64Decoded;
+          usedDecoder = 'Base64';
+          logs.push(`[7] ✓ Base64 decoder succeeded!`);
+          console.log(`[7] ✓ Base64 decoder succeeded!`);
         }
       } catch (err) {
-        // Silent fail, try next method
+        console.log(`[7] Base64 decode failed:`, err);
+      }
+    }
+    
+    // If Base64 didn't work, try all other methods
+    if (!decoded) {
+      for (const method of allMethods) {
+        try {
+          const result = method.fn(encoded);
+          if (result && (result.includes('http://') || result.includes('https://'))) {
+            decoded = result;
+            usedDecoder = method.name;
+            logs.push(`[7] ✓ Decoder succeeded: ${method.name}`);
+            console.log(`[7] ✓ Decoder succeeded: ${method.name}`);
+            console.log(`[7] Decoded URL: ${result}`);
+            break;
+          }
+        } catch (err) {
+          // Silent fail, try next method
+        }
       }
     }
 
