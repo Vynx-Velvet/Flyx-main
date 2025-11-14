@@ -47,7 +47,7 @@ export class M3U8Validator {
   async validate(url: string, checkAvailability: boolean = false): Promise<ValidationResult> {
     const startTime = Date.now();
 
-    logger.debug(this.requestId, 'M3U8Validator', 'Starting validation', {
+    logger.debug(this.requestId, 'Starting validation', {
       url,
       checkAvailability,
     });
@@ -55,7 +55,7 @@ export class M3U8Validator {
     // Check 1: Must have protocol
     const protocolResult = this.validateProtocol(url);
     if (!protocolResult.valid) {
-      logger.warn(this.requestId, 'M3U8Validator', 'Protocol validation failed', {
+      logger.warn(this.requestId, 'Protocol validation failed', {
         url,
         error: protocolResult.error,
         duration: Date.now() - startTime,
@@ -67,7 +67,7 @@ export class M3U8Validator {
     // This is important because placeholders in hostname will fail domain validation
     const placeholderResult = this.validatePlaceholders(url);
     if (!placeholderResult.valid) {
-      logger.warn(this.requestId, 'M3U8Validator', 'Placeholder validation failed', {
+      logger.warn(this.requestId, 'Placeholder validation failed', {
         url,
         error: placeholderResult.error,
         duration: Date.now() - startTime,
@@ -78,7 +78,7 @@ export class M3U8Validator {
     // Check 3: Must have valid domain
     const domainResult = this.validateDomain(url);
     if (!domainResult.valid) {
-      logger.warn(this.requestId, 'M3U8Validator', 'Domain validation failed', {
+      logger.warn(this.requestId, 'Domain validation failed', {
         url,
         error: domainResult.error,
         duration: Date.now() - startTime,
@@ -89,7 +89,7 @@ export class M3U8Validator {
     // Check 4: Must contain .m3u8 extension
     const extensionResult = this.validateExtension(url);
     if (!extensionResult.valid) {
-      logger.warn(this.requestId, 'M3U8Validator', 'Extension validation failed', {
+      logger.warn(this.requestId, 'Extension validation failed', {
         url,
         error: extensionResult.error,
         duration: Date.now() - startTime,
@@ -101,7 +101,7 @@ export class M3U8Validator {
     if (checkAvailability) {
       const availabilityResult = await this.validateAvailability(url);
       if (!availabilityResult.valid) {
-        logger.warn(this.requestId, 'M3U8Validator', 'Availability validation failed', {
+        logger.warn(this.requestId, 'Availability validation failed', {
           url,
           error: availabilityResult.error,
           duration: Date.now() - startTime,
@@ -110,7 +110,7 @@ export class M3U8Validator {
       }
     }
 
-    logger.info(this.requestId, 'M3U8Validator', 'Validation successful', {
+    logger.info(this.requestId, 'Validation successful', {
       url,
       duration: Date.now() - startTime,
     });
