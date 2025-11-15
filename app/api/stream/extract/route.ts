@@ -1,13 +1,13 @@
 /**
- * Stream Extract API - VidSrc Pro Pure Fetch Extraction
+ * Stream Extract API - RCP Infrastructure Extraction
  * 
- * Pure fetch-based extraction using VidSrc Pro (no VM, no Puppeteer)
+ * Uses the battle-tested RCP extraction infrastructure
  * GET /api/stream/extract?tmdbId=550&type=movie
  * GET /api/stream/extract?tmdbId=1396&type=tv&season=1&episode=1
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { extractVidsrcPro } from '@/app/lib/services/vidsrc-pro-pure-fetch';
+import { hashExtractor, proRcpExtractor, hiddenDivExtractor, tryAllDecoders, resolvePlaceholders, validateM3U8Url } from '@/app/lib/services/rcp';
 
 export async function GET(request: NextRequest) {
   try {
@@ -41,38 +41,66 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Extract stream using VidSrc Pro
-    console.log('Extracting stream:', { tmdbId, type, season, episode });
-    const result = await extractVidsrcPro(tmdbId, type, season, episode);
-    console.log('Extraction result:', result);
-
-    if (!result.success) {
-      console.error('Extraction failed:', result.error);
-      return NextResponse.json(
-        { 
-          error: result.error || 'Extraction failed',
-          debug: {
-            tmdbId,
-            type,
-            season,
-            episode,
-          }
-        },
-        { status: 404 }
-      );
+    // Extract stream using RCP infrastructure
+    console.log('[EXTRACT] Starting extraction:', { tmdbId, type, season, episode });
+    
+    // Step 1: Extract hash from embed page
+    const embedUrl = `https://vidsrc-embed.ru/embed/${type}/${tmdbId}${
+      type === 'tv' ? `/${season}/${episode}` : ''
+    }`;
+    console.log('[EXTRACT] Embed URL:', embedUrl);
+    
+    const hash = await hashExtractor.extractHash(embedUrl);
+    if (!hash) {
+      console.error('[EXTRACT] Failed to extract hash');
+      return NextResponse.json({ error: 'Failed to extract hash from embed page' }, { status: 404 });
     }
+    console.log('[EXTRACT] Hash extracted:', hash);
+
+    // Step 2: Extract ProRCP URL
+    const proRcpUrl = await proRcpExtractor.extractProRcpUrl(hash);
+    if (!proRcpUrl) {
+      console.error('[EXTRACT] Failed to extract ProRCP URL');
+      return NextResponse.json({ error: 'Failed to extract ProRCP URL' }, { status: 404 });
+    }
+    console.log('[EXTRACT] ProRCP URL:', proRcpUrl);
+
+    // Step 3: Extract encoded URL from hidden div
+    const encodedUrl = await hiddenDivExtractor.extractEncodedUrl(proRcpUrl);
+    if (!encodedUrl) {
+      console.error('[EXTRACT] Failed to extract encoded URL');
+      return NextResponse.json({ error: 'Failed to extract encoded URL from ProRCP page' }, { status: 404 });
+    }
+    console.log('[EXTRACT] Encoded URL extracted, length:', encodedUrl.length);
+
+    // Step 4: Decode the URL
+    const decodedResult = tryAllDecoders(encodedUrl);
+    if (!decodedResult.success || !decodedResult.url) {
+      console.error('[EXTRACT] Failed to decode URL');
+      return NextResponse.json({ error: 'Failed to decode URL' }, { status: 404 });
+    }
+    console.log('[EXTRACT] URL decoded:', decodedResult.url.substring(0, 50) + '...');
+
+    // Step 5: Resolve placeholders
+    const resolvedUrl = resolvePlaceholders(decodedResult.url);
+    console.log('[EXTRACT] Placeholders resolved');
+
+    // Step 6: Validate M3U8
+    const validation = await validateM3U8Url(resolvedUrl);
+    if (!validation.isValid) {
+      console.error('[EXTRACT] M3U8 validation failed:', validation.error);
+      return NextResponse.json({ error: 'Invalid M3U8 URL: ' + validation.error }, { status: 404 });
+    }
+    console.log('[EXTRACT] M3U8 validated successfully');
 
     // Return success with proxied URL
-    console.log('Extraction successful!');
-    
-    // Create proxied URL that routes through our stream-proxy
-    const proxiedUrl = `/api/stream-proxy?url=${encodeURIComponent(result.url!)}&referer=${encodeURIComponent('https://vidsrc-embed.ru/')}&origin=${encodeURIComponent('https://vidsrc-embed.ru')}`;
+    const proxiedUrl = `/api/stream-proxy?url=${encodeURIComponent(resolvedUrl)}&referer=${encodeURIComponent('https://vidsrc-embed.ru/')}&origin=${encodeURIComponent('https://vidsrc-embed.ru')}`;
     
     return NextResponse.json({
       success: true,
       streamUrl: proxiedUrl,
       url: proxiedUrl,
-      provider: 'vidsrc-pro',
+      provider: 'vidsrc-pro-rcp',
       requiresProxy: true,
     });
 
