@@ -3,7 +3,6 @@
  * No VM, no Puppeteer - just HTTP requests and Caesar cipher decoding
  */
 
-import * as cheerio from 'cheerio';
 import * as https from 'https';
 
 interface FetchOptions {
@@ -81,12 +80,13 @@ export async function extractVidsrcPro(
     }`;
 
     const embedHtml = await fetchPage(embedUrl);
-    const $ = cheerio.load(embedHtml);
-    const dataHash = $('[data-hash]').first().attr('data-hash');
+    const dataHashMatch = embedHtml.match(/data-hash="([^"]+)"/);
 
-    if (!dataHash) {
+    if (!dataHashMatch) {
       return { success: false, error: 'Data hash not found in embed page' };
     }
+
+    const dataHash = dataHashMatch[1];
 
     // Step 2: Get ProRCP URL from RCP endpoint
     const rcpUrl = `https://cloudnestra.com/rcp/${dataHash}`;
@@ -106,24 +106,20 @@ export async function extractVidsrcPro(
       referer: 'https://vidsrc-embed.ru/',
     });
 
-    const $$ = cheerio.load(proRcpHtml);
-
-    // Find div with encoded URL
+    // Find div with encoded URL using regex
+    // Look for divs with id that contain content with ://
+    const divRegex = /<div[^>]+id="([^"]+)"[^>]*>([^<]+)<\/div>/g;
     let encodedUrl: string | null = null;
+    let match;
 
-    $$('div').each((_i, elem) => {
-      const id = $$(elem).attr('id');
-      const content = $$(elem).html()?.trim() || '';
-
-      // Look for divs with IDs that contain only alphanumeric content (no HTML)
-      if (id && content && content.length > 100 && !content.includes('<')) {
-        // Check if it contains :// pattern (encoded URL)
-        if (content.includes('://')) {
-          encodedUrl = content;
-          return false; // Stop iteration
-        }
+    while ((match = divRegex.exec(proRcpHtml)) !== null) {
+      const content = match[2].trim();
+      // Look for content that's long and contains ://
+      if (content.length > 100 && content.includes('://')) {
+        encodedUrl = content;
+        break;
       }
-    });
+    }
 
     if (!encodedUrl) {
       return { success: false, error: 'Encoded URL not found in ProRCP page' };
