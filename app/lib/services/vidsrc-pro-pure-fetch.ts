@@ -106,18 +106,30 @@ export async function extractVidsrcPro(
       referer: 'https://vidsrc-embed.ru/',
     });
 
-    // Find div with encoded URL using regex
-    // Look for divs with id that contain content with ://
-    const divRegex = /<div[^>]+id="([^"]+)"[^>]*>([^<]+)<\/div>/g;
+    // Find div with encoded URL using multiple regex patterns
     let encodedUrl: string | null = null;
+
+    // Pattern 1: Simple div with direct content
+    const divRegex1 = /<div[^>]+id="[^"]+"[^>]*>([^<]+)<\/div>/g;
     let match;
 
-    while ((match = divRegex.exec(proRcpHtml)) !== null) {
-      const content = match[2].trim();
-      // Look for content that's long and contains ://
+    while ((match = divRegex1.exec(proRcpHtml)) !== null) {
+      const content = match[1].trim();
       if (content.length > 100 && content.includes('://')) {
         encodedUrl = content;
         break;
+      }
+    }
+
+    // Pattern 2: Div with potential whitespace/newlines
+    if (!encodedUrl) {
+      const divRegex2 = /<div[^>]+id="[^"]+"[^>]*>[\s\S]*?([a-z]+:\/\/[^\s<]+)[\s\S]*?<\/div>/g;
+      while ((match = divRegex2.exec(proRcpHtml)) !== null) {
+        const content = match[1].trim();
+        if (content.length > 100) {
+          encodedUrl = content;
+          break;
+        }
       }
     }
 

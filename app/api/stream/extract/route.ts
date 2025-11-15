@@ -62,14 +62,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Return success
+    // Return success with proxied URL
     console.log('Extraction successful!');
+    
+    // Create proxied URL that routes through our stream-proxy
+    const proxiedUrl = `/api/stream-proxy?url=${encodeURIComponent(result.url!)}&referer=${encodeURIComponent('https://vidsrc-embed.ru/')}&origin=${encodeURIComponent('https://vidsrc-embed.ru')}`;
+    
     return NextResponse.json({
       success: true,
-      streamUrl: result.url,
-      url: result.url,
+      streamUrl: proxiedUrl,
+      url: proxiedUrl,
       provider: 'vidsrc-pro',
-      requiresProxy: false,
+      requiresProxy: true,
     });
 
   } catch (error) {
