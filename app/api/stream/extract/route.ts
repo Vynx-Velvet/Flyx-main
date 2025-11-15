@@ -1,12 +1,13 @@
 /**
- * Stream Extract API - Simple Pure Fetch Extraction
+ * Stream Extract API - Cheerio-Based Extraction
  * 
- * Simplified extraction without heavy dependencies
+ * Uses the proven Cheerio method from VIDSRC-PRO-SUCCESS.md
  * GET /api/stream/extract?tmdbId=550&type=movie
  * GET /api/stream/extract?tmdbId=1396&type=tv&season=1&episode=1
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import * as cheerio from 'cheerio';
 
 function caesarDecode(str: string, shift: number): string {
   return str.split('').map((char) => {
@@ -62,36 +63,96 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Simple extraction
-    console.log('[EXTRACT] Start');
+    // Cheerio-based extraction (proven method from VIDSRC-PRO-SUCCESS.md)
+    console.log('[EXTRACT] Start - Using Cheerio method');
     
-    const embedUrl = `https://vidsrc-embed.ru/embed/${type}/${tmdbId}${type === 'tv' ? `/${season}/${episode}` : ''}`;
+    const embedUrl = `https://vidsrc.xyz/embed/${type}/${tmdbId}${type === 'tv' ? `/${season}/${episode}` : ''}`;
     console.log('[EXTRACT] Embed:', embedUrl);
     
-    const embedHtml = await fetch(embedUrl).then(r => r.text());
-    const hashMatch = embedHtml.match(/data-hash=["']([^"']+)["']/);
-    if (!hashMatch) return NextResponse.json({ error: 'No hash' }, { status: 404 });
-    
-    console.log('[EXTRACT] Hash:', hashMatch[1]);
-    
-    const rcpHtml = await fetch(`https://cloudnestra.com/rcp/${hashMatch[1]}`, {
-      headers: { 'Referer': 'https://vidsrc-embed.ru/', 'User-Agent': 'Mozilla/5.0' }
+    // Step 1: Extract data-hash using Cheerio
+    const embedHtml = await fetch(embedUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+      }
     }).then(r => r.text());
     
+    const $embed = cheerio.load(embedHtml);
+    let dataHash = $embed('[data-hash]').first().attr('data-hash');
+    
+    // Fallback: search in scripts if not found in attributes
+    if (!dataHash) {
+      const scripts = $embed('script');
+      for (let i = 0; i < scripts.length; i++) {
+        const content = $embed(scripts[i]).html();
+        if (content) {
+          const match = content.match(/data-hash=["']([^"']+)["']/);
+          if (match) {
+            dataHash = match[1];
+            break;
+          }
+        }
+      }
+    }
+    
+    if (!dataHash) {
+      return NextResponse.json({ error: 'data-hash not found' }, { status: 404 });
+    }
+    
+    console.log('[EXTRACT] Hash:', dataHash.substring(0, 50) + '...');
+    
+    // Step 2: Get RCP page and extract ProRCP iframe src using Cheerio
+    const rcpHtml = await fetch(`https://cloudnestra.com/rcp/${dataHash}`, {
+      headers: { 
+        'Referer': 'https://vidsrc-embed.ru/', 
+        'Origin': 'https://vidsrc-embed.ru',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    }).then(r => r.text());
+    
+    // Try to extract iframe src from JavaScript
     const srcMatch = rcpHtml.match(/src:\s*['"]([^'"]+)['"]/);
-    if (!srcMatch) return NextResponse.json({ error: 'No src' }, { status: 404 });
+    if (!srcMatch) {
+      return NextResponse.json({ error: 'ProRCP iframe not found' }, { status: 404 });
+    }
     
     const proRcpUrl = `https://cloudnestra.com${srcMatch[1]}`;
-    console.log('[EXTRACT] ProRCP:', proRcpUrl);
+    console.log('[EXTRACT] ProRCP:', proRcpUrl.substring(0, 80) + '...');
     
+    // Step 3: Get ProRCP page and extract hidden div using Cheerio
     const proRcpHtml = await fetch(proRcpUrl, {
-      headers: { 'Referer': 'https://vidsrc-embed.ru/', 'User-Agent': 'Mozilla/5.0' }
+      headers: { 
+        'Referer': 'https://vidsrc-embed.ru/', 
+        'Origin': 'https://vidsrc-embed.ru',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
     }).then(r => r.text());
     
-    const divMatch = proRcpHtml.match(/<div[^>]+id=["'][^"']*["'][^>]*>([^<]{100,})<\/div>/);
-    if (!divMatch) return NextResponse.json({ error: 'No div' }, { status: 404 });
+    const $proRcp = cheerio.load(proRcpHtml);
     
-    const encoded = divMatch[1].trim();
+    // Extract hidden div with display:none and substantial content
+    let divId = '';
+    let encoded = '';
+    
+    $proRcp('div').each((_i, elem) => {
+      const $elem = $proRcp(elem);
+      const style = $elem.attr('style');
+      const id = $elem.attr('id');
+      const content = $elem.html();
+      
+      // Look for hidden divs with display:none and content > 500 chars
+      if (style && style.includes('display:none') && id && content && content.length > 500) {
+        divId = id;
+        encoded = content.trim();
+        return false; // Stop iteration
+      }
+    });
+    
+    if (!encoded || !divId) {
+      return NextResponse.json({ error: 'Hidden div not found' }, { status: 404 });
+    }
+    
+    console.log('[EXTRACT] Div ID:', divId);
     console.log('[EXTRACT] Encoded preview:', encoded.substring(0, 100));
     
     // Try base64 decode first (URL-safe)

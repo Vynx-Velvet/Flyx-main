@@ -5,72 +5,33 @@
  * The hidden divs contain encoded data that must be decoded using various methods.
  */
 
+import * as cheerio from 'cheerio';
 import { ProviderName, HiddenDivData } from './types';
 import { logger } from './logger';
 
 /**
- * Pattern matching result
- */
-interface PatternMatch {
-  divId: string;
-  encoded: string;
-  patternName: string;
-  patternIndex: number;
-}
-
-/**
- * Pattern success tracking for optimization
- */
-interface PatternStats {
-  attempts: number;
-  successes: number;
-  lastSuccess?: Date;
-}
-
-/**
- * HiddenDivExtractor class with multiple pattern matching strategies
+ * HiddenDivExtractor class using Cheerio for reliable HTML parsing
  */
 export class HiddenDivExtractor {
-  private patternStats: Map<string, PatternStats> = new Map();
 
   /**
-   * Pattern 1: Hidden div with display:none style
-   * Example: <div id="RANDOM_ID" style="display:none;">ENCODED_DATA</div>
+   * Reset pattern statistics (no-op for Cheerio implementation)
+   * @deprecated Pattern statistics are not tracked in Cheerio implementation
    */
-  private readonly PATTERN_DISPLAY_NONE = /<div[^>]+id=["']([^"']+)["'][^>]+style=["'][^"']*display:\s*none[^"']*["'][^>]*>([^<]+)<\/div>/gi;
+  public resetPatternStats(): void {
+    // No-op for backward compatibility
+  }
 
   /**
-   * Pattern 2: Hidden div with style attribute first
-   * Example: <div style="display:none;" id="RANDOM_ID">ENCODED_DATA</div>
+   * Get pattern statistics (returns empty map for Cheerio implementation)
+   * @deprecated Pattern statistics are not tracked in Cheerio implementation
    */
-  private readonly PATTERN_STYLE_FIRST = /<div[^>]+style=["'][^"']*display:\s*none[^"']*["'][^>]+id=["']([^"']+)["'][^>]*>([^<]+)<\/div>/gi;
+  public getPatternStats(): Map<string, any> {
+    return new Map();
+  }
 
   /**
-   * Pattern 3: Hidden div with visibility:hidden
-   * Example: <div id="RANDOM_ID" style="visibility:hidden;">ENCODED_DATA</div>
-   */
-  private readonly PATTERN_VISIBILITY_HIDDEN = /<div[^>]+id=["']([^"']+)["'][^>]+style=["'][^"']*visibility:\s*hidden[^"']*["'][^>]*>([^<]+)<\/div>/gi;
-
-  /**
-   * Pattern 4: Hidden div with class="hidden" or similar
-   * Example: <div id="RANDOM_ID" class="hidden">ENCODED_DATA</div>
-   */
-  private readonly PATTERN_HIDDEN_CLASS = /<div[^>]+id=["']([^"']+)["'][^>]+class=["'][^"']*hidden[^"']*["'][^>]*>([^<]+)<\/div>/gi;
-
-  /**
-   * Pattern 5: Div with data-encoded attribute
-   * Example: <div id="RANDOM_ID" data-encoded="ENCODED_DATA"></div>
-   */
-  private readonly PATTERN_DATA_ENCODED = /<div[^>]+id=["']([^"']+)["'][^>]+data-encoded=["']([^"']+)["']/gi;
-
-  /**
-   * Pattern 6: Any div with suspicious ID and content (fallback)
-   * Example: <div id="enc_12345">ENCODED_DATA</div>
-   */
-  private readonly PATTERN_SUSPICIOUS_DIV = /<div[^>]+id=["']([a-zA-Z0-9_-]{8,})["'][^>]*>([A-Za-z0-9+\/=:]{50,})<\/div>/gi;
-
-  /**
-   * Extract hidden div data from ProRCP HTML
+   * Extract hidden div data from ProRCP HTML using Cheerio
    * 
    * @param html - The HTML content to search
    * @param provider - The provider name for logging
@@ -82,121 +43,76 @@ export class HiddenDivExtractor {
     
     logger.debug(
       requestId,
-      'Starting hidden div extraction',
+      'Starting hidden div extraction with Cheerio',
       { htmlLength: html.length },
       provider,
       'hidden-div-extraction'
     );
 
-    // Try all patterns in order of historical success rate
-    const patterns = this.getOrderedPatterns();
-    
-    for (let i = 0; i < patterns.length; i++) {
-      const patternName = patterns[i].name;
-      const pattern = patterns[i].regex;
+    try {
+      const $ = cheerio.load(html);
       
-      this.trackAttempt(patternName);
+      let result: HiddenDivData | null = null;
       
-      try {
-        const match = this.tryPattern(html, pattern, patternName, provider, requestId);
+      // Iterate through all divs
+      $('div').each((_i, elem) => {
+        const $elem = $(elem);
+        const style = $elem.attr('style');
+        const id = $elem.attr('id');
+        const content = $elem.html();
         
-        if (match) {
-          this.trackSuccess(patternName);
-          
-          const duration = Date.now() - startTime;
-          logger.info(
-            requestId,
-            `Hidden div extracted successfully using ${patternName}`,
-            { 
-              patternName,
-              patternIndex: i,
-              divId: match.divId,
-              encodedLength: match.encoded.length
-            },
-            provider,
-            'hidden-div-extraction',
-            duration
-          );
-          
-          return {
-            divId: match.divId,
-            encoded: match.encoded
-          };
+        // Look for hidden divs with display:none and substantial content
+        if (style && style.includes('display:none') && id && content && content.length > 50) {
+          // Validate the content looks like encoded data
+          if (this.isValidHiddenDiv(id, content)) {
+            result = {
+              divId: id,
+              encoded: content
+            };
+            
+            logger.info(
+              requestId,
+              'Hidden div extracted successfully with Cheerio',
+              { 
+                divId: id,
+                encodedLength: content.length
+              },
+              provider,
+              'hidden-div-extraction',
+              Date.now() - startTime
+            );
+            
+            return false; // Stop iteration
+          }
         }
-      } catch (error) {
-        logger.debug(
+      });
+
+      if (!result) {
+        const duration = Date.now() - startTime;
+        logger.warn(
           requestId,
-          `Pattern ${patternName} threw error`,
-          { error: error instanceof Error ? error.message : String(error) },
+          'Hidden div extraction failed - no valid hidden div found',
+          { htmlLength: html.length },
           provider,
-          'hidden-div-extraction'
+          'hidden-div-extraction',
+          duration
         );
       }
+
+      return result;
+      
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logger.error(
+        requestId,
+        'Hidden div extraction error',
+        { error: error instanceof Error ? error.message : String(error) },
+        provider,
+        'hidden-div-extraction',
+        duration
+      );
+      return null;
     }
-
-    const duration = Date.now() - startTime;
-    logger.warn(
-      requestId,
-      'Hidden div extraction failed',
-      { 
-        patternsAttempted: patterns.length,
-        htmlLength: html.length
-      },
-      provider,
-      'hidden-div-extraction',
-      duration
-    );
-
-    return null;
-  }
-
-  /**
-   * Try a single pattern against the HTML
-   */
-  private tryPattern(
-    html: string,
-    pattern: RegExp,
-    patternName: string,
-    provider: ProviderName,
-    requestId: string
-  ): PatternMatch | null {
-    // Reset regex lastIndex for global patterns
-    pattern.lastIndex = 0;
-    
-    const matches: Array<{ divId: string; encoded: string }> = [];
-    let match: RegExpExecArray | null;
-
-    // Collect all matches
-    while ((match = pattern.exec(html)) !== null) {
-      if (match[1] && match[2]) {
-        matches.push({
-          divId: match[1],
-          encoded: match[2]
-        });
-      }
-    }
-
-    logger.debug(
-      requestId,
-      `Pattern ${patternName} found ${matches.length} potential matches`,
-      { patternName, matchCount: matches.length },
-      provider,
-      'hidden-div-extraction'
-    );
-
-    // Validate each match and return first valid one
-    for (const candidate of matches) {
-      if (this.isValidHiddenDiv(candidate.divId, candidate.encoded)) {
-        return {
-          divId: candidate.divId,
-          encoded: candidate.encoded,
-          patternName,
-          patternIndex: 0
-        };
-      }
-    }
-
-    return null;
   }
 
   /**
@@ -237,91 +153,6 @@ export class HiddenDivExtractor {
     }
 
     return true;
-  }
-
-  /**
-   * Get patterns ordered by success rate
-   */
-  private getOrderedPatterns(): Array<{ name: string; regex: RegExp }> {
-    const patterns = [
-      {
-        name: 'display-none',
-        regex: this.PATTERN_DISPLAY_NONE
-      },
-      {
-        name: 'style-first',
-        regex: this.PATTERN_STYLE_FIRST
-      },
-      {
-        name: 'visibility-hidden',
-        regex: this.PATTERN_VISIBILITY_HIDDEN
-      },
-      {
-        name: 'hidden-class',
-        regex: this.PATTERN_HIDDEN_CLASS
-      },
-      {
-        name: 'data-encoded',
-        regex: this.PATTERN_DATA_ENCODED
-      },
-      {
-        name: 'suspicious-div',
-        regex: this.PATTERN_SUSPICIOUS_DIV
-      }
-    ];
-
-    // Sort by success rate (successes / attempts)
-    return patterns.sort((a, b) => {
-      const statsA = this.patternStats.get(a.name);
-      const statsB = this.patternStats.get(b.name);
-
-      if (!statsA && !statsB) return 0;
-      if (!statsA) return 1;
-      if (!statsB) return -1;
-
-      const rateA = statsA.attempts > 0 ? statsA.successes / statsA.attempts : 0;
-      const rateB = statsB.attempts > 0 ? statsB.successes / statsB.attempts : 0;
-
-      return rateB - rateA; // Higher rate first
-    });
-  }
-
-  /**
-   * Track pattern attempt
-   */
-  private trackAttempt(patternName: string): void {
-    const stats = this.patternStats.get(patternName) || {
-      attempts: 0,
-      successes: 0
-    };
-    stats.attempts++;
-    this.patternStats.set(patternName, stats);
-  }
-
-  /**
-   * Track pattern success
-   */
-  private trackSuccess(patternName: string): void {
-    const stats = this.patternStats.get(patternName);
-    if (stats) {
-      stats.successes++;
-      stats.lastSuccess = new Date();
-      this.patternStats.set(patternName, stats);
-    }
-  }
-
-  /**
-   * Get pattern statistics (for monitoring/debugging)
-   */
-  public getPatternStats(): Map<string, PatternStats> {
-    return new Map(this.patternStats);
-  }
-
-  /**
-   * Reset pattern statistics
-   */
-  public resetPatternStats(): void {
-    this.patternStats.clear();
   }
 }
 

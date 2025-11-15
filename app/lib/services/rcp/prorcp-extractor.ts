@@ -1,10 +1,11 @@
 /**
  * ProRCP URL Extractor Service
  * 
- * Extracts ProRCP player URLs from CloudNestra RCP pages using multiple
- * pattern matching strategies with fallback support.
+ * Extracts ProRCP player URLs from CloudNestra RCP pages using Cheerio
+ * for reliable HTML parsing with regex fallback support.
  */
 
+import * as cheerio from 'cheerio';
 import { ProviderName } from './types';
 import { logger } from './logger';
 
@@ -82,7 +83,7 @@ export class ProRCPExtractor {
   private readonly PATTERN_OBJ_PRORCP = /\w+\s*:\s*["']\/prorcp\/([^"']+)["']/g;
 
   /**
-   * Extract ProRCP URL from CloudNestra RCP HTML
+   * Extract ProRCP URL from CloudNestra RCP HTML using Cheerio first, then regex fallback
    * 
    * @param html - The HTML content to search
    * @param provider - The provider name for logging
@@ -94,13 +95,38 @@ export class ProRCPExtractor {
     
     logger.debug(
       requestId,
-      'Starting ProRCP URL extraction',
+      'Starting ProRCP URL extraction with Cheerio',
       { htmlLength: html.length },
       provider,
       'prorcp-extraction'
     );
 
-    // Try all patterns in order of historical success rate
+    // Try Cheerio method first (most reliable)
+    try {
+      const result = this.extractWithCheerio(html, provider, requestId);
+      if (result) {
+        const duration = Date.now() - startTime;
+        logger.info(
+          requestId,
+          'ProRCP URL extracted successfully with Cheerio',
+          { fullUrl: result },
+          provider,
+          'prorcp-extraction',
+          duration
+        );
+        return result;
+      }
+    } catch (error) {
+      logger.debug(
+        requestId,
+        'Cheerio extraction failed, falling back to regex',
+        { error: error instanceof Error ? error.message : String(error) },
+        provider,
+        'prorcp-extraction'
+      );
+    }
+
+    // Fallback to regex patterns
     const patterns = this.getOrderedPatterns();
     
     for (let i = 0; i < patterns.length; i++) {
@@ -122,7 +148,7 @@ export class ProRCPExtractor {
           const duration = Date.now() - startTime;
           logger.info(
             requestId,
-            `ProRCP URL extracted successfully using ${patternName}`,
+            `ProRCP URL extracted successfully using regex ${patternName}`,
             { 
               patternName,
               patternIndex: i,
@@ -160,6 +186,59 @@ export class ProRCPExtractor {
       duration
     );
 
+    return null;
+  }
+
+  /**
+   * Extract ProRCP URL using Cheerio (primary method)
+   */
+  private extractWithCheerio(html: string, provider: ProviderName, requestId: string): string | null {
+    const $ = cheerio.load(html);
+    
+    // Look for iframe with src containing prorcp or srcrcp
+    const iframes = $('iframe[src]');
+    
+    for (let i = 0; i < iframes.length; i++) {
+      const src = $(iframes[i]).attr('src');
+      if (src && (src.includes('/prorcp/') || src.includes('/srcrcp/'))) {
+        const fullUrl = src.startsWith('http') ? src : `${this.BASE_URL}${src}`;
+        
+        logger.debug(
+          requestId,
+          'Found ProRCP iframe with Cheerio',
+          { src, fullUrl },
+          provider,
+          'prorcp-extraction'
+        );
+        
+        return fullUrl;
+      }
+    }
+    
+    // Also check for src: "..." pattern in script tags
+    const scripts = $('script:not([src])');
+    
+    for (let i = 0; i < scripts.length; i++) {
+      const scriptContent = $(scripts[i]).html();
+      if (scriptContent) {
+        const srcMatch = scriptContent.match(/src:\s*['"]([^'"]*(?:prorcp|srcrcp)[^'"]+)['"]/);
+        if (srcMatch && srcMatch[1]) {
+          const src = srcMatch[1];
+          const fullUrl = src.startsWith('http') ? src : `${this.BASE_URL}${src}`;
+          
+          logger.debug(
+            requestId,
+            'Found ProRCP src in script with Cheerio',
+            { src, fullUrl },
+            provider,
+            'prorcp-extraction'
+          );
+          
+          return fullUrl;
+        }
+      }
+    }
+    
     return null;
   }
 
