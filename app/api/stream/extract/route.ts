@@ -74,9 +74,23 @@ export async function GET(request: NextRequest) {
     const rcpHtml = await rcpResponse.text();
 
     // Step 3: Extract ProRCP URL from RCP page
+    console.log('[EXTRACT] RCP HTML length:', rcpHtml.length);
+    console.log('[EXTRACT] RCP HTML preview:', rcpHtml.substring(0, 500));
+    
     const proRcpUrl = proRcpExtractor.extract(rcpHtml, '2embed', requestId);
     if (!proRcpUrl) {
-      console.error('[EXTRACT] Failed to extract ProRCP URL');
+      console.error('[EXTRACT] Failed to extract ProRCP URL from RCP page');
+      
+      // Try manual regex as fallback
+      const manualMatch = rcpHtml.match(/(?:src|href):\s*["']([^"']*(?:prorcp|srcrcp)[^"']*)["']/i);
+      if (manualMatch) {
+        const fallbackUrl = manualMatch[1].startsWith('http') 
+          ? manualMatch[1] 
+          : `https://cloudnestra.com${manualMatch[1]}`;
+        console.log('[EXTRACT] Found ProRCP URL via fallback regex:', fallbackUrl);
+        return NextResponse.json({ error: 'Failed to extract ProRCP URL (tried fallback)' }, { status: 404 });
+      }
+      
       return NextResponse.json({ error: 'Failed to extract ProRCP URL' }, { status: 404 });
     }
     console.log('[EXTRACT] ProRCP URL:', proRcpUrl);
