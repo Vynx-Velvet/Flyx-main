@@ -42,50 +42,76 @@ export async function GET(request: NextRequest) {
     }
 
     // Extract stream using RCP infrastructure
-    console.log('[EXTRACT] Starting extraction:', { tmdbId, type, season, episode });
+    const requestId = `extract-${Date.now()}`;
+    console.log('[EXTRACT] Starting extraction:', { tmdbId, type, season, episode, requestId });
     
-    // Step 1: Extract hash from embed page
+    // Step 1: Fetch embed page and extract hash
     const embedUrl = `https://vidsrc-embed.ru/embed/${type}/${tmdbId}${
       type === 'tv' ? `/${season}/${episode}` : ''
     }`;
     console.log('[EXTRACT] Embed URL:', embedUrl);
     
-    const hash = await hashExtractor.extractHash(embedUrl);
+    const embedResponse = await fetch(embedUrl);
+    const embedHtml = await embedResponse.text();
+    const hash = hashExtractor.extract(embedHtml, '2embed', requestId);
+    
     if (!hash) {
       console.error('[EXTRACT] Failed to extract hash');
       return NextResponse.json({ error: 'Failed to extract hash from embed page' }, { status: 404 });
     }
     console.log('[EXTRACT] Hash extracted:', hash);
 
-    // Step 2: Extract ProRCP URL
-    const proRcpUrl = await proRcpExtractor.extractProRcpUrl(hash);
+    // Step 2: Fetch RCP page
+    const rcpUrl = `https://cloudnestra.com/rcp/${hash}`;
+    console.log('[EXTRACT] Fetching RCP page:', rcpUrl);
+    
+    const rcpResponse = await fetch(rcpUrl, {
+      headers: {
+        'Referer': 'https://vidsrc-embed.ru/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    const rcpHtml = await rcpResponse.text();
+
+    // Step 3: Extract ProRCP URL from RCP page
+    const proRcpUrl = proRcpExtractor.extract(rcpHtml, '2embed', requestId);
     if (!proRcpUrl) {
       console.error('[EXTRACT] Failed to extract ProRCP URL');
       return NextResponse.json({ error: 'Failed to extract ProRCP URL' }, { status: 404 });
     }
     console.log('[EXTRACT] ProRCP URL:', proRcpUrl);
 
-    // Step 3: Extract encoded URL from hidden div
-    const encodedUrl = await hiddenDivExtractor.extractEncodedUrl(proRcpUrl);
-    if (!encodedUrl) {
-      console.error('[EXTRACT] Failed to extract encoded URL');
+    // Step 4: Fetch ProRCP page
+    console.log('[EXTRACT] Fetching ProRCP page');
+    const proRcpResponse = await fetch(proRcpUrl, {
+      headers: {
+        'Referer': 'https://vidsrc-embed.ru/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    const proRcpHtml = await proRcpResponse.text();
+
+    // Step 5: Extract encoded URL from hidden div
+    const hiddenDiv = hiddenDivExtractor.extract(proRcpHtml, '2embed', requestId);
+    if (!hiddenDiv) {
+      console.error('[EXTRACT] Failed to extract hidden div');
       return NextResponse.json({ error: 'Failed to extract encoded URL from ProRCP page' }, { status: 404 });
     }
-    console.log('[EXTRACT] Encoded URL extracted, length:', encodedUrl.length);
+    console.log('[EXTRACT] Encoded URL extracted, length:', hiddenDiv.encoded.length);
 
-    // Step 4: Decode the URL
-    const decodedResult = tryAllDecoders(encodedUrl);
+    // Step 6: Decode the URL
+    const decodedResult = tryAllDecoders(hiddenDiv.encoded);
     if (!decodedResult.success || !decodedResult.url) {
       console.error('[EXTRACT] Failed to decode URL');
       return NextResponse.json({ error: 'Failed to decode URL' }, { status: 404 });
     }
     console.log('[EXTRACT] URL decoded:', decodedResult.url.substring(0, 50) + '...');
 
-    // Step 5: Resolve placeholders
+    // Step 7: Resolve placeholders
     const resolvedUrl = resolvePlaceholders(decodedResult.url);
     console.log('[EXTRACT] Placeholders resolved');
 
-    // Step 6: Validate M3U8
+    // Step 8: Validate M3U8
     const validation = await validateM3U8Url(resolvedUrl);
     if (!validation.isValid) {
       console.error('[EXTRACT] M3U8 validation failed:', validation.error);
