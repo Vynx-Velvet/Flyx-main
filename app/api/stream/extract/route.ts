@@ -94,8 +94,17 @@ export async function GET(request: NextRequest) {
     const encoded = divMatch[1].trim();
     console.log('[EXTRACT] Encoded preview:', encoded.substring(0, 100));
     
-    const decoded = caesarDecode(encoded, 3);
-    console.log('[EXTRACT] Decoded preview:', decoded.substring(0, 100));
+    // Try base64 decode first (URL-safe)
+    let decoded = '';
+    try {
+      const base64 = encoded.replace(/_/g, '/').replace(/-/g, '+');
+      decoded = Buffer.from(base64, 'base64').toString('utf-8');
+      console.log('[EXTRACT] Base64 decoded:', decoded.substring(0, 100));
+    } catch (e) {
+      // Fallback to Caesar if base64 fails
+      decoded = caesarDecode(encoded, 3);
+      console.log('[EXTRACT] Caesar decoded:', decoded.substring(0, 100));
+    }
     
     const resolved = resolvePlaceholders(decoded).split(' or ')[0];
     console.log('[EXTRACT] Final URL:', resolved);
