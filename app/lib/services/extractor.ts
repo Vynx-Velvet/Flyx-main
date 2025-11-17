@@ -10,16 +10,10 @@ import { APIErrorHandler, fetchWithTimeout, createAPIError } from '@/lib/utils/e
 
 /**
  * Get extractor service URL from environment
- * Uses local extract-shadowlands API by default
+ * Uses local stream extract API
  */
 function getExtractorURL(): string {
-  // For server-side calls, we'll import and call the function directly
-  // This avoids the localhost issue in serverless environments
-  if (typeof window === 'undefined') {
-    return 'DIRECT_CALL'; // Special flag for direct function calls
-  }
-  // For client-side calls, use relative URL
-  return process.env.NEXT_PUBLIC_EXTRACTOR_URL || '/api/extract-shadowlands';
+  return '/api/stream/extract';
 }
 
 /**
@@ -29,45 +23,26 @@ function transformToVideoData(data: any): VideoData {
   const sources: StreamSource[] = [];
   const subtitles: SubtitleTrack[] = [];
 
-  // Handle shadowlands response format
-  if (data.streamUrl) {
-    // Return the raw shadowlands URL directly - client will handle proxying segments
-    sources.push({
-      url: data.streamUrl, // Direct URL, not proxied
-      quality: 'auto',
-      type: data.streamType || 'hls',
-      // Add metadata for expiration tracking
-      metadata: {
-        extractedAt: Date.now(),
-        source: 'shadowlands',
-        requiresProxy: data.requiresProxy, // Client can check this if needed
-        // Store the proxy URL as metadata in case client needs it
-        proxyUrl: data.requiresProxy 
-          ? `/api/stream-proxy?url=${encodeURIComponent(data.streamUrl)}&source=shadowlands`
-          : undefined
-      }
-    });
-  }
-  // Parse sources array
-  else if (data.sources && Array.isArray(data.sources)) {
+  // Handle stream extract response format (2embed with multiple qualities)
+  if (data.sources && Array.isArray(data.sources)) {
     data.sources.forEach((source: any) => {
       sources.push({
         url: source.url || source.file,
         quality: source.quality || 'auto',
-        type: source.type || (source.url?.includes('.m3u8') ? 'hls' : 'mp4'),
+        type: source.type || 'hls',
       });
     });
   } 
-  // Single source format
-  else if (data.source) {
+  // Single source format (backward compatibility)
+  else if (data.url || data.streamUrl) {
     sources.push({
-      url: data.source,
+      url: data.url || data.streamUrl,
       quality: 'auto',
-      type: data.source.includes('.m3u8') ? 'hls' : 'mp4',
+      type: 'hls',
     });
   }
 
-  // Parse subtitles
+  // Parse subtitles if available
   if (data.subtitles && Array.isArray(data.subtitles)) {
     data.subtitles.forEach((subtitle: any) => {
       subtitles.push({
@@ -95,7 +70,7 @@ async function extractorRequest<T>(
 ): Promise<APIResponse<T>> {
   const baseURL = getExtractorURL();
   
-  console.log('Extractor request started', { params, baseURL, isServerSide: typeof window === 'undefined' });
+  console.log('Extractor request started', { params, baseURL });
 
   // Check cache if enabled
   if (config.cache !== false) {
@@ -111,64 +86,7 @@ async function extractorRequest<T>(
     }
   }
 
-  // For server-side calls, import and call the function directly
-  if (baseURL === 'DIRECT_CALL') {
-    console.log('Making direct function call to extract-shadowlands');
-    try {
-      // Dynamic import to avoid circular dependencies
-      const { GET } = await import('../../api/extract-shadowlands/route.js');
-      
-      // Create a mock request object
-      const searchParams = new URLSearchParams();
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          searchParams.append(key, value.toString());
-        }
-      });
-      
-      const mockRequest = {
-        url: `http://localhost:3000/api/extract-shadowlands?${searchParams.toString()}`,
-        method: 'GET',
-        headers: new Map([['content-type', 'application/json']])
-      };
-      
-      console.log('Calling extract-shadowlands function directly', { url: mockRequest.url });
-      const response = await GET(mockRequest as any);
-      const data = await response.json();
-      
-      console.log('Direct function call completed', { success: data.success });
-      
-      if (!data.success) {
-        throw createAPIError(
-          'EXTRACTION_FAILED',
-          data.error || 'Stream extraction failed',
-          500,
-          true
-        );
-      }
-
-      // Cache the result
-      if (config.cache !== false) {
-        const cacheKey = generateCacheKey('extractor', params);
-        const ttl = config.cacheTTL || CACHE_DURATIONS.streams;
-        await cacheManager.set(cacheKey, data, ttl);
-      }
-
-      return {
-        data,
-        cached: false,
-        timestamp: Date.now(),
-      };
-    } catch (error) {
-      console.error('Direct function call failed', error);
-      return {
-        error: APIErrorHandler.handle(error),
-        timestamp: Date.now(),
-      };
-    }
-  }
-
-  // For client-side calls or when direct call is not available, use HTTP
+  // Build query params
   const queryParams = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
@@ -238,7 +156,7 @@ export const extractorService = {
     console.log('ExtractorService.extractMovie called', { tmdbId });
     
     const response = await extractorRequest<any>(
-      { tmdbId },
+      { tmdbId, type: 'movie' },
       { 
         cacheTTL: CACHE_DURATIONS.streams,
         timeout: 45000,
@@ -281,7 +199,7 @@ export const extractorService = {
     console.log('ExtractorService.extractEpisode called', { tmdbId, season, episode });
     
     const response = await extractorRequest<any>(
-      { tmdbId, season, episode },
+      { tmdbId, type: 'tv', season, episode },
       { 
         cacheTTL: CACHE_DURATIONS.streams,
         timeout: 45000,
