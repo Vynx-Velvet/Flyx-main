@@ -1,0 +1,6 @@
+{
+  "buildCommand": "npm run build && npm run vercel:setup-admin",
+  "env": {
+    "DATABASE_URL": "@database_url"
+  }
+}

@@ -24,6 +24,7 @@
     "admin:list": "node scripts/list-admins.js",
     "admin:delete": "node scripts/delete-admin.js",
     "analytics:init": "bun scripts/init-analytics.js",
+    "vercel:setup-admin": "node scripts/create-admin.js vynx defaultPassword",
     "decoder:test": "bun run app/lib/services/rcp/decoders/__tests__/cli.ts test",
     "decoder:analyze": "bun run app/lib/services/rcp/decoders/__tests__/cli.ts analyze",
     "decoder:discover": "bun run app/lib/services/rcp/decoders/__tests__/cli.ts discover",
