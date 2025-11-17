@@ -8,7 +8,6 @@
 import { extractM3U8 as extractVidSrc } from './vidsrc-extractor';
 import { extractCloudstream } from './cloudstream-extractor';
 import { extractSuperembed } from './superembed-extractor';
-import { extract2Embed } from './2embed-extractor';
 
 export interface StreamRequest {
   tmdbId: number;
@@ -54,10 +53,9 @@ export async function extractStream(request: StreamRequest): Promise<StreamResul
         return result.success && result.url ? [{ url: result.url, quality: 'auto' }] : [];
       }
     },
-    {
-      name: '2embed',
-      fn: async () => extract2Embed(tmdbIdStr, type, season, episode)
-    }
+    // Note: 2embed requires IMDB ID, not TMDB ID
+    // Skipping for now in unified extractor
+    // Use the dedicated /api/stream/extract endpoint which handles IMDB conversion
   ];
   
   let attempts = 0;

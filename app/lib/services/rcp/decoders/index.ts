@@ -23,7 +23,7 @@
 
 import { DecodeInput, DecodeResult, DecoderConfig } from './types';
 import { DEFAULT_CONFIG } from './constants';
-import { validateUrl, generateCacheKey, measureTime } from './utils';
+import { generateCacheKey, measureTime } from './utils';
 
 // Import decoder strategies (to be implemented)
 // import { fastPathDecode } from './strategies/fast-path';

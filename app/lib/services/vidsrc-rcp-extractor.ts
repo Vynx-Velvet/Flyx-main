@@ -132,15 +132,15 @@ export async function extractVidSrcRCP(request: VidSrcRequest): Promise<VidSrcRe
         // Final fallback: Try Puppeteer decoder (slow but works for new encodings)
         console.log('[VidSrc RCP] All static decoders failed, trying Puppeteer decoder...');
         try {
-          const { decodeWithPuppeteer } = await import('./rcp/puppeteer-decoder');
-          const puppeteerResult = await decodeWithPuppeteer(proRcpUrl);
+          const { decode: decodeWithPuppeteer } = await import('./rcp/puppeteer-decoder');
+          const puppeteerUrl = await decodeWithPuppeteer(hiddenDiv.encoded, hiddenDiv.divId, '');
           
-          if (puppeteerResult.success && puppeteerResult.url) {
+          if (puppeteerUrl && typeof puppeteerUrl === 'string' && puppeteerUrl.length > 0) {
             console.log('[VidSrc RCP] ✅ Puppeteer decoder SUCCESS');
             decoderResult = {
-              url: puppeteerResult.url,
+              url: puppeteerUrl,
               method: 'puppeteer-live-decoder',
-              urls: [puppeteerResult.url]
+              urls: [puppeteerUrl]
             };
           } else {
             throw new Error(`The stream provider has updated their encoding method. All 36+ decoder methods failed. This title is temporarily unavailable until the new encoding is reverse-engineered. Please try a different title.`);
