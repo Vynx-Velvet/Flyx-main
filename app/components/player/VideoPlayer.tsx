@@ -558,24 +558,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
     });
   };
 
-  const changeQuality = (qualityIndex: number) => {
-    if (!hlsRef.current) return;
-    hlsRef.current.currentLevel = qualityIndex - 1; // -1 for auto
-    const newQuality = qualities[qualityIndex];
-    setQuality(newQuality);
-    setShowSettings(false);
-    
-    trackInteraction({
-      element: 'quality_selector',
-      action: 'click',
-      context: {
-        action_type: 'quality_change',
-        quality: newQuality,
-        contentId: tmdbId,
-      },
-    });
-  };
-
   const changeSource = (sourceIndex: number) => {
     if (sourceIndex < 0 || sourceIndex >= availableSources.length) return;
     
