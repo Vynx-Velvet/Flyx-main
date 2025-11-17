@@ -83,17 +83,39 @@ function extractQualityOptions(html: string): QualityOption[] {
     qualities[quality].push({ quality, url, title });
   }
 
-  // Pick best from each quality (prefer non-dubbed)
+  // Pick best from each quality (prefer English audio)
   const selected: QualityOption[] = [];
   
   for (const [, options] of Object.entries(qualities)) {
     if (options.length === 0) continue;
 
-    // Prefer non-Hindi, non-dubbed versions
+    // Priority order:
+    // 1. English only (no dual audio, no dubbed)
+    // 2. English with subtitles
+    // 3. Anything without Hindi/foreign language markers
+    // 4. First available
+    
     let best = options.find(opt => {
       const lower = opt.title.toLowerCase();
-      return !lower.includes('hindi') && !lower.includes('dual') && !lower.includes('hin-eng');
+      return (lower.includes('english') || lower.includes('eng')) && 
+             !lower.includes('hindi') && 
+             !lower.includes('dual') && 
+             !lower.includes('hin-eng') &&
+             !lower.includes('dubbed');
     });
+
+    if (!best) {
+      // Try to find non-foreign language version
+      best = options.find(opt => {
+        const lower = opt.title.toLowerCase();
+        return !lower.includes('hindi') && 
+               !lower.includes('dual') && 
+               !lower.includes('hin-eng') &&
+               !lower.includes('tamil') &&
+               !lower.includes('telugu') &&
+               !lower.includes('dubbed');
+      });
+    }
 
     if (!best) best = options[0];
     selected.push(best);
