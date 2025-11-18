@@ -21,6 +21,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
   const hlsRef = useRef<Hls | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fetchedRef = useRef(false);
+  const subtitlesFetchedRef = useRef(false);
   
   // Analytics and progress tracking
   const { trackContentEngagement, trackInteraction } = useAnalytics();
@@ -156,11 +157,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
     };
 
     fetchStream();
-    
-    // Reset fetchedRef when dependencies change
-    return () => {
-      fetchedRef.current = false;
-    };
   }, [tmdbId, mediaType, season, episode]);
 
   // Initialize HLS
@@ -320,6 +316,14 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
 
   // Fetch subtitles when content changes
   useEffect(() => {
+    // Prevent duplicate subtitle fetches in StrictMode
+    if (subtitlesFetchedRef.current) {
+      console.log('[VideoPlayer] Skipping duplicate subtitle fetch (already fetched)');
+      return;
+    }
+    
+    subtitlesFetchedRef.current = true;
+
     // Get IMDB ID from TMDB
     const getImdbId = async () => {
       try {
