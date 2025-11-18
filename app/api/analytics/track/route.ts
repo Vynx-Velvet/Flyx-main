@@ -296,8 +296,9 @@ export async function POST(request: NextRequest) {
     try {
       // Extract unique user IDs from events
       const uniqueUsers = new Set(events.map(e => e.userId));
+      const uniqueUserArray = Array.from(uniqueUsers);
       
-      for (const userId of uniqueUsers) {
+      for (const userId of uniqueUserArray) {
         await db.upsertUserActivity({
           userId,
           sessionId,
@@ -306,7 +307,7 @@ export async function POST(request: NextRequest) {
           country: location.country,
         });
       }
-      console.log(`[${requestId}] User activity tracked for ${uniqueUsers.size} users`);
+      console.log(`[${requestId}] User activity tracked for ${uniqueUserArray.length} users`);
     } catch (activityError) {
       console.error(`[${requestId}] Failed to track user activity`, activityError);
       // Don't fail the request for activity tracking errors
