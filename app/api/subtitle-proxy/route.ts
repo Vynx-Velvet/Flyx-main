@@ -4,6 +4,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import zlib from 'zlib';
+import { promisify } from 'util';
+
+const gunzip = promisify(zlib.gunzip);
 
 function convertSrtToVtt(srtContent: string): string {
   // Check if already VTT
@@ -36,22 +40,34 @@ export async function GET(request: NextRequest) {
 
     console.log('[SUBTITLE-PROXY] Fetching subtitle from:', url);
 
-    // Fetch the subtitle file
+    // Fetch the subtitle file with proper headers
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept-Encoding': 'gzip, deflate',
       },
+      redirect: 'follow',
     });
 
     if (!response.ok) {
-      console.error('[SUBTITLE-PROXY] Failed to fetch subtitle:', response.status);
+      console.error('[SUBTITLE-PROXY] Failed to fetch subtitle:', response.status, response.statusText);
       return NextResponse.json(
-        { error: 'Failed to fetch subtitle' },
+        { error: `Failed to fetch subtitle: ${response.status}` },
         { status: response.status }
       );
     }
 
-    let content = await response.text();
+    let content: string;
+    
+    // Handle gzip compression
+    const contentEncoding = response.headers.get('content-encoding');
+    if (contentEncoding === 'gzip') {
+      const buffer = await response.arrayBuffer();
+      const decompressed = await gunzip(Buffer.from(buffer));
+      content = decompressed.toString('utf-8');
+    } else {
+      content = await response.text();
+    }
 
     // Convert to VTT if needed
     content = convertSrtToVtt(content);
@@ -72,7 +88,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[SUBTITLE-PROXY] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to proxy subtitle' },
+      { error: `Failed to proxy subtitle: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }
     );
   }
