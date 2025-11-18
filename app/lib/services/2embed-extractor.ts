@@ -12,6 +12,7 @@ interface QualityOption {
 interface StreamSource {
   quality: string;
   url: string;
+  title: string;
   referer: string;
   type: 'hls' | 'm3u8';
   requiresSegmentProxy?: boolean;
@@ -100,45 +101,19 @@ function extractQualityOptions(html: string): QualityOption[] {
     qualities[quality].push({ quality, url, title });
   }
 
-  // Pick best from each quality (prefer English audio)
-  const selected: QualityOption[] = [];
+  // Return ALL sources, sorted by quality (highest first)
+  const allSources: QualityOption[] = [];
   
-  for (const [, options] of Object.entries(qualities)) {
-    if (options.length === 0) continue;
-
-    // Priority order:
-    // 1. English only (no dual audio, no dubbed)
-    // 2. English with subtitles
-    // 3. Anything without Hindi/foreign language markers
-    // 4. First available
-    
-    let best = options.find(opt => {
-      const lower = opt.title.toLowerCase();
-      return (lower.includes('english') || lower.includes('eng')) && 
-             !lower.includes('hindi') && 
-             !lower.includes('dual') && 
-             !lower.includes('hin-eng') &&
-             !lower.includes('dubbed');
-    });
-
-    if (!best) {
-      // Try to find non-foreign language version
-      best = options.find(opt => {
-        const lower = opt.title.toLowerCase();
-        return !lower.includes('hindi') && 
-               !lower.includes('dual') && 
-               !lower.includes('hin-eng') &&
-               !lower.includes('tamil') &&
-               !lower.includes('telugu') &&
-               !lower.includes('dubbed');
-      });
+  // Add in quality order: 2160p, 1080p, 720p, 480p, other
+  const qualityOrder = ['2160p', '1080p', '720p', '480p', 'other'];
+  
+  for (const quality of qualityOrder) {
+    if (qualities[quality].length > 0) {
+      allSources.push(...qualities[quality]);
     }
-
-    if (!best) best = options[0];
-    selected.push(best);
   }
 
-  return selected;
+  return allSources;
 }
 
 /**
@@ -223,6 +198,7 @@ async function extractStreamFromQuality(
     
     return {
       quality: qualityOption.quality,
+      title: qualityOption.title,
       url: finalUrl,
       referer: 'https://www.2embed.cc',
       type: finalUrl.includes('.txt') ? 'hls' : 'm3u8',

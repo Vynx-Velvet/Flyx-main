@@ -64,9 +64,10 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
   const [error, setError] = useState<string | null>(null);
   const [buffered, setBuffered] = useState(0);
   const [isBuffering, setIsBuffering] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
-  const [showSources, setShowSources] = useState(false);
+  const [showSubtitles, setShowSubtitles] = useState(false);
+  const [subtitles, setSubtitles] = useState<any[]>([]);
+  const [currentSubtitle, setCurrentSubtitle] = useState<string | null>(null);
   const [showResumePrompt, setShowResumePrompt] = useState(false);
   const [savedProgress, setSavedProgress] = useState<number>(0);
   const [showVolumeIndicator, setShowVolumeIndicator] = useState(false);
@@ -609,21 +610,26 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
     }
   };
 
-  const changePlaybackRate = (rate: number) => {
+  const loadSubtitle = (subtitleUrl: string | null) => {
     if (!videoRef.current) return;
-    videoRef.current.playbackRate = rate;
-    setPlaybackRate(rate);
-    setShowSettings(false);
     
-    trackInteraction({
-      element: 'playback_rate_selector',
-      action: 'click',
-      context: {
-        action_type: 'playback_rate_change',
-        playbackRate: rate,
-        contentId: tmdbId,
-      },
-    });
+    // Remove existing subtitle tracks
+    const tracks = videoRef.current.querySelectorAll('track');
+    tracks.forEach(track => track.remove());
+    
+    if (subtitleUrl) {
+      const track = document.createElement('track');
+      track.kind = 'subtitles';
+      track.label = 'Subtitles';
+      track.srclang = 'en';
+      track.src = subtitleUrl;
+      track.default = true;
+      videoRef.current.appendChild(track);
+      videoRef.current.textTracks[0].mode = 'showing';
+    }
+    
+    setCurrentSubtitle(subtitleUrl);
+    setShowSubtitles(false);
   };
 
   const changeSource = (sourceIndex: number) => {
@@ -710,7 +716,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
       controlsTimeoutRef.current = setTimeout(() => {
         setShowControls(false);
         setShowSettings(false);
-        setShowSources(false);
+        setShowSubtitles(false);
       }, 3000);
     }
   };
@@ -943,30 +949,70 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
           </div>
 
           <div className={styles.rightControls}>
+            {/* CC Button for Subtitles */}
+            <div className={styles.settingsContainer}>
+              <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  setShowSubtitles(!showSubtitles);
+                  setShowSettings(false);
+                }} 
+                className={`${styles.btn} ${currentSubtitle ? styles.active : ''}`}
+                title="Subtitles"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z"/>
+                </svg>
+              </button>
+              
+              {showSubtitles && (
+                <div className={styles.settingsMenu} onClick={(e) => e.stopPropagation()}>
+                  <div className={styles.settingsSection}>
+                    <div className={styles.settingsLabel}>Subtitles</div>
+                    <button
+                      className={`${styles.settingsOption} ${!currentSubtitle ? styles.active : ''}`}
+                      onClick={() => loadSubtitle(null)}
+                    >
+                      Off
+                    </button>
+                    {subtitles.map((sub, index) => (
+                      <button
+                        key={index}
+                        className={`${styles.settingsOption} ${currentSubtitle === sub.url ? styles.active : ''}`}
+                        onClick={() => loadSubtitle(sub.url)}
+                      >
+                        {sub.language || 'English'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Settings Button for Sources */}
             {availableSources.length > 1 && (
               <div className={styles.settingsContainer}>
                 <button onClick={(e) => { 
                   e.stopPropagation(); 
-                  setShowSources(!showSources);
-                  setShowSettings(false);
-                }} className={styles.btn}>
+                  setShowSettings(!showSettings);
+                  setShowSubtitles(false);
+                }} className={styles.btn} title="Sources">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
                   </svg>
-                  <span style={{ marginLeft: '4px', fontSize: '14px' }}>Sources</span>
                 </button>
                 
-                {showSources && (
+                {showSettings && (
                   <div className={styles.settingsMenu} onClick={(e) => e.stopPropagation()}>
                     <div className={styles.settingsSection}>
-                      <div className={styles.settingsLabel}>Quality</div>
+                      <div className={styles.settingsLabel}>Video Sources</div>
                       {availableSources.map((source, index) => (
                         <button
                           key={index}
                           className={`${styles.settingsOption} ${currentSourceIndex === index ? styles.active : ''}`}
                           onClick={() => changeSource(index)}
                         >
-                          {source.quality}
+                          {source.title || source.quality}
                         </button>
                       ))}
                     </div>
@@ -974,35 +1020,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
                 )}
               </div>
             )}
-            
-            <div className={styles.settingsContainer}>
-              <button onClick={(e) => { 
-                e.stopPropagation(); 
-                setShowSettings(!showSettings);
-                setShowSources(false);
-              }} className={styles.btn}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-                </svg>
-              </button>
-              
-              {showSettings && (
-                <div className={styles.settingsMenu} onClick={(e) => e.stopPropagation()}>
-                  <div className={styles.settingsSection}>
-                    <div className={styles.settingsLabel}>Speed</div>
-                    {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(rate => (
-                      <button
-                        key={rate}
-                        className={`${styles.settingsOption} ${playbackRate === rate ? styles.active : ''}`}
-                        onClick={() => changePlaybackRate(rate)}
-                      >
-                        {rate}x
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
 
             <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className={styles.btn}>
               {isFullscreen ? (
@@ -1020,7 +1037,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
       </div>
 
       {/* Title overlay */}
-      {title && title !== 'Loading...' && (showControls || !isPlaying) && (
+      {title && title.trim() && title !== 'Loading...' && title !== 'Unknown' && (showControls || !isPlaying) && (
         <div className={styles.titleOverlay}>
           <div className={styles.titleContent}>
             <h2>{title}</h2>
@@ -1029,7 +1046,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
                 Season {season} • Episode {episode}
               </div>
             )}
-            {isPlaying && duration > 0 && (
+            {duration > 0 && (
               <div className={styles.progressInfo}>
                 {formatTime(currentTime)} / {formatTime(duration)}
               </div>

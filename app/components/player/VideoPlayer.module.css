@@ -222,6 +222,11 @@
   transform: scale(0.95);
 }
 
+.btn.active {
+  color: #e50914;
+  opacity: 1;
+}
+
 /* Volume */
 .volumeContainer {
   display: flex;

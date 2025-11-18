@@ -40,6 +40,13 @@
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.playerWrapper:hover .backButtonOverlay {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .backButtonOverlay:hover {
