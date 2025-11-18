@@ -75,6 +75,7 @@ function extractQualityOptions(html: string): QualityOption[] {
     '1080p': [],
     '720p': [],
     '480p': [],
+    '360p': [],
     'other': []
   };
 
@@ -86,26 +87,34 @@ function extractQualityOptions(html: string): QualityOption[] {
     const title = titleMatch ? decodeURIComponent(titleMatch[1].replace(/\+/g, ' ')) : 'Unknown';
     
     const urlLower = url.toLowerCase();
+    const titleLower = title.toLowerCase();
     
+    // Try to detect quality from URL or title
     let quality = 'other';
-    if (urlLower.includes('2160p') || urlLower.includes('4k') || urlLower.includes('uhd')) {
+    if (urlLower.includes('2160p') || urlLower.includes('4k') || urlLower.includes('uhd') ||
+        titleLower.includes('2160p') || titleLower.includes('4k') || titleLower.includes('uhd')) {
       quality = '2160p';
-    } else if (urlLower.includes('1080p')) {
+    } else if (urlLower.includes('1080p') || titleLower.includes('1080p')) {
       quality = '1080p';
-    } else if (urlLower.includes('720p')) {
+    } else if (urlLower.includes('720p') || titleLower.includes('720p')) {
       quality = '720p';
-    } else if (urlLower.includes('480p')) {
+    } else if (urlLower.includes('480p') || titleLower.includes('480p')) {
       quality = '480p';
+    } else if (urlLower.includes('360p') || titleLower.includes('360p')) {
+      quality = '360p';
     }
+    
+    // If still "other", use the title as quality for better display
+    const displayQuality = quality === 'other' ? title : quality;
 
-    qualities[quality].push({ quality, url, title });
+    qualities[quality].push({ quality: displayQuality, url, title });
   }
 
   // Return ALL sources, sorted by quality (highest first)
   const allSources: QualityOption[] = [];
   
-  // Add in quality order: 2160p, 1080p, 720p, 480p, other
-  const qualityOrder = ['2160p', '1080p', '720p', '480p', 'other'];
+  // Add in quality order: 2160p, 1080p, 720p, 480p, 360p, other
+  const qualityOrder = ['2160p', '1080p', '720p', '480p', '360p', 'other'];
   
   for (const quality of qualityOrder) {
     if (qualities[quality].length > 0) {
