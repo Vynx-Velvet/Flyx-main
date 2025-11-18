@@ -443,7 +443,10 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
     };
 
     const handleWaiting = () => setIsBuffering(true);
-    const handleCanPlay = () => setIsBuffering(false);
+    const handleCanPlay = () => {
+      setIsBuffering(false);
+      setIsLoading(false); // Ensure loading is cleared
+    };
     const handleLoadedData = () => {
       setIsLoading(false);
       
@@ -930,6 +933,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
                 value={isMuted ? 0 : volume * 100}
                 onChange={(e) => handleVolumeChange(Number(e.target.value))}
                 className={styles.volumeSlider}
+                style={{ '--volume-percent': `${isMuted ? 0 : volume * 100}%` } as React.CSSProperties}
               />
             </div>
 
