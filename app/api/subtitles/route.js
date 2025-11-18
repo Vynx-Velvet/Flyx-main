@@ -174,15 +174,26 @@ export async function GET(request) {
       languageIds.map(langId => fetchSubtitlesForLanguage(imdbId, langId, season, episode))
     );
 
-    // Flatten and sort by quality score
-    const allSubtitles = results.flat().sort((a, b) => b.qualityScore - a.qualityScore);
+    // Flatten all subtitles
+    const allSubtitles = results.flat();
 
-    console.log(`[SUBTITLES] Total found: ${allSubtitles.length}`);
+    // Deduplicate by language - keep only the best rated subtitle per language
+    const bestByLanguage = {};
+    for (const subtitle of allSubtitles) {
+      const langCode = subtitle.langCode;
+      if (!bestByLanguage[langCode] || subtitle.qualityScore > bestByLanguage[langCode].qualityScore) {
+        bestByLanguage[langCode] = subtitle;
+      }
+    }
+
+    const deduplicatedSubtitles = Object.values(bestByLanguage).sort((a, b) => b.qualityScore - a.qualityScore);
+
+    console.log(`[SUBTITLES] Total found: ${allSubtitles.length}, deduplicated: ${deduplicatedSubtitles.length}`);
 
     return NextResponse.json({
       success: true,
-      subtitles: allSubtitles,
-      totalCount: allSubtitles.length,
+      subtitles: deduplicatedSubtitles,
+      totalCount: deduplicatedSubtitles.length,
       source: 'opensubtitles-proxy'
     });
 

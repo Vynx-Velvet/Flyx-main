@@ -1,8 +1,26 @@
 /**
  * Subtitle Proxy - Downloads and serves subtitles with proper CORS headers
+ * Converts SRT to VTT format if needed
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+
+function convertSrtToVtt(srtContent: string): string {
+  // Check if already VTT
+  if (srtContent.trim().startsWith('WEBVTT')) {
+    return srtContent;
+  }
+
+  // Convert SRT to VTT
+  let vttContent = 'WEBVTT\n\n';
+  
+  // Replace SRT timecode format (00:00:00,000 --> 00:00:00,000) with VTT format (00:00:00.000 --> 00:00:00.000)
+  vttContent += srtContent
+    .replace(/(\d{2}):(\d{2}):(\d{2}),(\d{3})/g, '$1:$2:$3.$4')
+    .replace(/^\d+\n/gm, ''); // Remove subtitle numbers
+
+  return vttContent;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,7 +51,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const content = await response.text();
+    let content = await response.text();
+
+    // Convert to VTT if needed
+    content = convertSrtToVtt(content);
+
+    console.log('[SUBTITLE-PROXY] Serving subtitle, length:', content.length);
 
     // Return with proper CORS headers and content type
     return new NextResponse(content, {

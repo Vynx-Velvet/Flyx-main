@@ -641,6 +641,8 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
   const loadSubtitle = (subtitle: any | null) => {
     if (!videoRef.current) return;
     
+    console.log('[VideoPlayer] loadSubtitle called with:', subtitle);
+    
     // Remove existing subtitle tracks
     const tracks = videoRef.current.querySelectorAll('track');
     tracks.forEach(track => track.remove());
@@ -649,22 +651,36 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
       // Proxy the subtitle URL through our API
       const proxiedUrl = `/api/subtitle-proxy?url=${encodeURIComponent(subtitle.url)}`;
       
+      console.log('[VideoPlayer] Creating track with proxied URL:', proxiedUrl);
+      
       const track = document.createElement('track');
       track.kind = 'subtitles';
       track.label = subtitle.language || 'Subtitles';
       track.srclang = subtitle.iso639 || 'en';
       track.src = proxiedUrl;
       track.default = true;
+      
+      // Add error handler
+      track.addEventListener('error', (e) => {
+        console.error('[VideoPlayer] Track error:', e);
+      });
+      
       videoRef.current.appendChild(track);
       
-      // Ensure track is visible
-      if (videoRef.current.textTracks && videoRef.current.textTracks.length > 0) {
-        videoRef.current.textTracks[0].mode = 'showing';
-      }
+      console.log('[VideoPlayer] Track added, textTracks count:', videoRef.current.textTracks.length);
+      
+      // Wait a bit for the track to load, then set mode
+      setTimeout(() => {
+        if (videoRef.current && videoRef.current.textTracks && videoRef.current.textTracks.length > 0) {
+          videoRef.current.textTracks[0].mode = 'showing';
+          console.log('[VideoPlayer] Track mode set to showing');
+        }
+      }, 100);
       
       console.log('[VideoPlayer] Loaded subtitle:', subtitle.language);
       setCurrentSubtitle(subtitle.id);
     } else {
+      console.log('[VideoPlayer] Clearing subtitles');
       setCurrentSubtitle(null);
     }
     
