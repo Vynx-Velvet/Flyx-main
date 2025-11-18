@@ -6,6 +6,7 @@ import { useAnalytics } from '../analytics/AnalyticsProvider';
 import { useWatchProgress } from '@/lib/hooks/useWatchProgress';
 import { streamRetryManager } from '@/lib/utils/stream-retry';
 import { trackWatchStart, trackWatchProgress, trackWatchPause, trackWatchComplete } from '@/lib/utils/live-activity';
+import { getSubtitlePreferences, setSubtitlesEnabled, setSubtitleLanguage } from '@/lib/utils/subtitle-preferences';
 import styles from './VideoPlayer.module.css';
 
 interface VideoPlayerProps {
@@ -679,9 +680,15 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
       
       console.log('[VideoPlayer] Loaded subtitle:', subtitle.language);
       setCurrentSubtitle(subtitle.id);
+      
+      // Save subtitle preference
+      setSubtitleLanguage(subtitle.langCode, subtitle.language);
     } else {
       console.log('[VideoPlayer] Clearing subtitles');
       setCurrentSubtitle(null);
+      
+      // Save that subtitles are disabled
+      setSubtitlesEnabled(false);
     }
     
     setShowSubtitles(false);
@@ -718,6 +725,33 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title 
       setSubtitlesLoading(false);
     }
   };
+
+  // Apply saved subtitle preferences after subtitles are loaded
+  useEffect(() => {
+    if (availableSubtitles.length === 0) return;
+
+    const preferences = getSubtitlePreferences();
+    console.log('[VideoPlayer] Applying saved subtitle preferences:', preferences);
+
+    if (preferences.enabled) {
+      // Find subtitle matching the saved language preference
+      const preferredSubtitle = availableSubtitles.find(
+        sub => sub.langCode === preferences.languageCode
+      );
+
+      if (preferredSubtitle) {
+        console.log('[VideoPlayer] Loading preferred subtitle:', preferredSubtitle.language);
+        loadSubtitle(preferredSubtitle);
+      } else {
+        // If preferred language not available, load first available (English if available)
+        const englishSubtitle = availableSubtitles.find(sub => sub.langCode === 'eng');
+        if (englishSubtitle) {
+          console.log('[VideoPlayer] Preferred language not found, loading English');
+          loadSubtitle(englishSubtitle);
+        }
+      }
+    }
+  }, [availableSubtitles]);
 
   const changeSource = (sourceIndex: number) => {
     if (sourceIndex < 0 || sourceIndex >= availableSources.length) return;

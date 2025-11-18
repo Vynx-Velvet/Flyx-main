@@ -17,6 +17,15 @@
   object-fit: contain;
 }
 
+/* Subtitle styling */
+.video::cue {
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  font-size: 1em;
+  line-height: 1.4;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
 .loading,
 .error {
   position: absolute;
@@ -652,6 +661,10 @@
 
 /* Fullscreen adjustments */
 .playerContainer:fullscreen {
+  cursor: auto;
+}
+
+.playerContainer:fullscreen.hideCursor {
   cursor: none;
 }
 
@@ -661,6 +674,13 @@
 
 .playerContainer:fullscreen .titleOverlay {
   padding: 3rem;
+}
+
+/* Ensure subtitles are visible in fullscreen */
+.playerContainer:fullscreen video::cue {
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  font-size: 1.2em;
 }
 
 /* Resume prompt */
