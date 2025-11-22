@@ -39,7 +39,7 @@ export const SearchContainer: React.FC<SearchContainerProps> = ({
   // Handle search with caching
   const handleSearch = useCallback(async (searchQuery: string) => {
     const trimmedQuery = searchQuery.trim();
-    
+
     if (!trimmedQuery) {
       setResults([]);
       setShowSuggestions(true);
@@ -60,16 +60,16 @@ export const SearchContainer: React.FC<SearchContainerProps> = ({
     setLoading(true);
     try {
       const searchResults = await tmdbService.search(trimmedQuery);
-      
+
       // Limit to 20 results as per requirements
       const limitedResults = searchResults.slice(0, 20);
-      
+
       // Cache the results
       searchCache.set(trimmedQuery.toLowerCase(), {
         results: limitedResults,
         timestamp: Date.now(),
       });
-      
+
       setResults(limitedResults);
     } catch (error) {
       console.error('Search error:', error);
@@ -80,14 +80,14 @@ export const SearchContainer: React.FC<SearchContainerProps> = ({
   }, []);
 
   // Handle result selection
-  const handleSelect = useCallback((id: string, mediaType: 'movie' | 'tv') => {
+  const handleSelect = useCallback((id: string, mediaType: 'movie' | 'tv' | 'person') => {
     if (query.trim()) {
       saveRecentSearch(query.trim());
     }
-    
+
     // Navigate to details page
     router.push(`/details/${mediaType}/${id}`);
-    
+
     // Close search
     onClose?.();
   }, [query, router, onClose]);

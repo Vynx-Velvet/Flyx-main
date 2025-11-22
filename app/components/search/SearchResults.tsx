@@ -14,7 +14,7 @@ export interface SearchResultsProps {
   results: SearchResult[];
   loading?: boolean;
   query: string;
-  onSelect: (id: string, mediaType: 'movie' | 'tv') => void;
+  onSelect: (id: string, mediaType: 'movie' | 'tv' | 'person') => void;
   selectedIndex?: number;
   onKeyboardNavigate?: (index: number) => void;
 }
@@ -115,9 +115,8 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                   ref={(el) => {
                     itemRefs.current[index] = el;
                   }}
-                  className={`${styles.resultItem} ${
-                    index === selectedIndex ? styles.selected : ''
-                  }`}
+                  className={`${styles.resultItem} ${index === selectedIndex ? styles.selected : ''
+                    }`}
                   onClick={() => onSelect(result.id, result.mediaType)}
                   type="button"
                 >
@@ -153,7 +152,11 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                     <h3 className={styles.resultTitle}>{result.title}</h3>
                     <div className={styles.resultMeta}>
                       <span className={styles.mediaType}>
-                        {result.mediaType === 'movie' ? 'Movie' : 'TV Show'}
+                        {result.mediaType === 'movie'
+                          ? 'Movie'
+                          : result.mediaType === 'tv'
+                            ? 'TV Show'
+                            : 'Person'}
                       </span>
                       {result.releaseDate && (
                         <>
