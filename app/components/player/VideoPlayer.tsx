@@ -164,8 +164,23 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
           setAvailableSources(sources);
           // Sources are already sorted by the extractor with English sources first
           setCurrentSourceIndex(0);
-          setStreamUrl(sources[0].url);
-          console.log('[VideoPlayer] Setting initial stream URL:', sources[0].url, '(', sources[0].title || sources[0].quality, ')');
+
+          // Check if proxy is needed
+          const initialSource = sources[0];
+          let finalUrl = initialSource.url;
+
+          if (initialSource.requiresSegmentProxy) {
+            console.log('[VideoPlayer] Source requires proxy, rewriting URL...');
+            const proxyParams = new URLSearchParams({
+              url: initialSource.url,
+              source: provider === 'moviesapi' ? 'moviesapi' : '2embed',
+              referer: initialSource.referer || ''
+            });
+            finalUrl = `/api/stream-proxy?${proxyParams.toString()}`;
+          }
+
+          setStreamUrl(finalUrl);
+          console.log('[VideoPlayer] Setting initial stream URL:', finalUrl, '(', initialSource.title || initialSource.quality, ')');
         } else {
           console.error('[VideoPlayer] No stream URL found in response:', data);
           throw new Error('No stream sources available');
@@ -901,7 +916,20 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
 
     // Update source
     setCurrentSourceIndex(sourceIndex);
-    setStreamUrl(newSource.url);
+
+    // Check if proxy is needed
+    let finalUrl = newSource.url;
+    if (newSource.requiresSegmentProxy) {
+      console.log('[VideoPlayer] Source requires proxy, rewriting URL...');
+      const proxyParams = new URLSearchParams({
+        url: newSource.url,
+        source: provider === 'moviesapi' ? 'moviesapi' : '2embed',
+        referer: newSource.referer || ''
+      });
+      finalUrl = `/api/stream-proxy?${proxyParams.toString()}`;
+    }
+
+    setStreamUrl(finalUrl);
     setShowSettings(false);
 
     // The useEffect will reinitialize HLS with the new URL
@@ -1471,69 +1499,59 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
           </button>
 
           {showServerMenu && (
-            <div className={styles.settingsMenu} style={{ top: '100%', right: 0, bottom: 'auto', marginTop: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.settingsMenu} style={{ top: '100%', right: 0, bottom: 'auto', marginTop: '0.5rem', minWidth: '280px' }} onClick={(e) => e.stopPropagation()}>
               <div className={styles.settingsSection}>
-                <div className={styles.settingsLabel}>Servers</div>
+                <div className={styles.settingsLabel}>Server Selection</div>
+
+                {/* Tabs */}
+                <div className={styles.tabsContainer}>
+                  <button
+                    className={`${styles.tab} ${provider === '2embed' ? styles.active : ''}`}
+                    onClick={() => {
+                      if (provider !== '2embed') {
+                        setProvider('2embed');
+                        // Optional: Clear sources to show loading state if needed, 
+                        // but keeping them might be better UX if we cache them.
+                        // For now, the fetchStream effect will handle the update.
+                      }
+                    }}
+                  >
+                    Server 1
+                  </button>
+                  <button
+                    className={`${styles.tab} ${provider === 'moviesapi' ? styles.active : ''}`}
+                    onClick={() => {
+                      if (provider !== 'moviesapi') {
+                        setProvider('moviesapi');
+                      }
+                    }}
+                  >
+                    Server 2
+                  </button>
+                </div>
+
+                {/* Content Area */}
                 <div className={styles.sourcesList}>
-                  {/* Server 1 */}
-                  <div style={{ marginBottom: '0.5rem' }}>
-                    <button
-                      className={`${styles.settingsOption} ${provider === '2embed' ? styles.active : ''}`}
-                      onClick={() => {
-                        if (provider !== '2embed') setProvider('2embed');
-                      }}
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                    >
-                      <span>Server 1 (Default)</span>
-                      {provider === '2embed' && <span style={{ fontSize: '0.8em', opacity: 0.7 }}>Active</span>}
-                    </button>
-
-                    {/* Sources for Server 1 */}
-                    {provider === '2embed' && availableSources.length > 0 && (
-                      <div style={{ paddingLeft: '1rem', marginTop: '0.25rem', borderLeft: '2px solid rgba(255,255,255,0.1)' }}>
-                        {availableSources.map((source, index) => (
-                          <button
-                            key={index}
-                            className={`${styles.settingsOption} ${currentSourceIndex === index ? styles.active : ''}`}
-                            onClick={() => changeSource(index)}
-                            style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
-                          >
-                            {source.title || source.quality}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Server 2 */}
-                  <div>
-                    <button
-                      className={`${styles.settingsOption} ${provider === 'moviesapi' ? styles.active : ''}`}
-                      onClick={() => {
-                        if (provider !== 'moviesapi') setProvider('moviesapi');
-                      }}
-                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                    >
-                      <span>Server 2 (Backup)</span>
-                      {provider === 'moviesapi' && <span style={{ fontSize: '0.8em', opacity: 0.7 }}>Active</span>}
-                    </button>
-
-                    {/* Sources for Server 2 */}
-                    {provider === 'moviesapi' && availableSources.length > 0 && (
-                      <div style={{ paddingLeft: '1rem', marginTop: '0.25rem', borderLeft: '2px solid rgba(255,255,255,0.1)' }}>
-                        {availableSources.map((source, index) => (
-                          <button
-                            key={index}
-                            className={`${styles.settingsOption} ${currentSourceIndex === index ? styles.active : ''}`}
-                            onClick={() => changeSource(index)}
-                            style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
-                          >
-                            {source.title || source.quality}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  {isLoading ? (
+                    <div style={{ padding: '1rem', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem' }}>
+                      Loading sources...
+                    </div>
+                  ) : availableSources.length > 0 ? (
+                    availableSources.map((source, index) => (
+                      <button
+                        key={index}
+                        className={`${styles.settingsOption} ${currentSourceIndex === index ? styles.active : ''}`}
+                        onClick={() => changeSource(index)}
+                        style={{ padding: '0.6rem 1rem', fontSize: '0.9rem' }}
+                      >
+                        {source.title || source.quality}
+                      </button>
+                    ))
+                  ) : (
+                    <div style={{ padding: '1rem', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem' }}>
+                      No sources available
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

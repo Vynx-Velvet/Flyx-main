@@ -522,6 +522,36 @@
   font-weight: 600;
 }
 
+/* Tabs */
+.tabsContainer {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 0.5rem;
+}
+
+.tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 0.75rem 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 2px solid transparent;
+}
+
+.tab:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tab.active {
+  color: #e50914;
+  border-bottom-color: #e50914;
+}
+
 /* Title overlay */
 .titleOverlay {
   position: absolute;
@@ -805,23 +835,22 @@
 
 .resumeButton {
   padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: white;
   font-size: 1rem;
-  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
 }
 
 .resumeButton:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .resumeButtonPrimary {
   background: #e50914;
+  border-color: #e50914;
 }
 
 .resumeButtonPrimary:hover {
