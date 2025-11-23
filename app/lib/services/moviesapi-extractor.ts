@@ -89,19 +89,29 @@ export async function extractMoviesApiStreams(
     console.log(`[MoviesApi] Extracting for ${type} ID ${tmdbId} (${url})...`);
 
     try {
-        // Step 1: Fetch Main Page
-        const mainPage = await fetchUrl(url, { headers: { 'Referer': 'https://moviesapi.club/' } });
-        const html = mainPage.data;
-        console.log(`[MoviesApi] Fetched main page. Length: ${html.length}`);
-        console.log(`[MoviesApi] HTML Preview: ${html.substring(0, 500)}`);
+        let iframeSrc;
 
-        // Step 2: Find Iframe
-        const iframeMatch = html.match(/<iframe[^>]+src=["']([^"']+)["']/);
-        if (!iframeMatch) {
-            throw new Error("No iframe found on main page.");
+        if (type === 'tv' && season && episode) {
+            // Optimization: Construct TV iframe URL directly to avoid Cloudflare on main page
+            iframeSrc = `https://ww2.moviesapi.to/tv/${tmdbId}/${season}/${episode}`;
+            console.log(`[MoviesApi] Constructed TV iframe URL: ${iframeSrc}`);
+        } else {
+            // For movies, we still need to fetch the main page to get the Vidora ID
+            const mainPage = await fetchUrl(url, { headers: { 'Referer': 'https://moviesapi.club/' } });
+            const html = mainPage.data;
+            console.log(`[MoviesApi] Fetched main page. Length: ${html.length}`);
+
+            const iframeMatch = html.match(/<iframe[^>]+src=["']([^"']+)["']/);
+            if (!iframeMatch) {
+                // If blocked by Cloudflare, log it but don't crash immediately if we can't do anything
+                if (html.includes('Just a moment')) {
+                    throw new Error("Blocked by Cloudflare on main page");
+                }
+                throw new Error("No iframe found on main page.");
+            }
+            iframeSrc = iframeMatch[1];
+            console.log(`[MoviesApi] Found iframe: ${iframeSrc}`);
         }
-        const iframeSrc = iframeMatch[1];
-        console.log(`[MoviesApi] Found iframe: ${iframeSrc}`);
 
         if (iframeSrc.includes('vidora.stream')) {
             // Vidora Method
