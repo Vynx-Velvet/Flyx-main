@@ -1,0 +1,17 @@
+const encoded = '#1lfA9IHTuP3iVP3eyKDIpb2mvPVU2lkITNg00b2X#LgE7Nf0tKktpmVUYRGYzQCU2jyJVNyIrNi0pKktpmVU2jyJVNyIrNi0UcfIVKktUID0Tlf5ymkBsljaYKHlumZYsmgaSP2iwlkJUQG9yK2IxKHmOIZJrIVtpkfXsIVIpb319SkeyRktUID0TlWIolfX7SjaUQGaoKGhpR2E9IVI7SdoTICATICATICATICATICATmniul3epO24TlWEoP3eyKfB7CVATICATICATICATICATICATICATPZi0QkJuIGJ0O2Eomj5WO2eYiiJJd29tPG9umj50KHa0PVXuPZiwOGFWmfTvJfUOMC05df1GkksySfXvmywKICATICATICATICATICATICATICATmniul3epO24TQG9gO2xpmEJ5QGizKG1UQGaoLCBwMfXTRwoTICATICATICATICATICATICATICATICATICATPZi0QkJuIFa0PZYumy5ZPZ9td2UUPXavmGhoIWB4IVArIHAxKgsKICATICATICATICATICATICATICB9KfX7CVATICATICATICATICATICB9CVATICATICATICATICATICBZQj5WQGYvOVBVMVUzQHIpIHsKICATICATICATICATICATICATICBymke1PZ4TmGiWO2eYiiJJd29tPG9umj50KGF0O2IoP3eyKf5zPGxpQCTVIVXuOjFwKGm1OZa0Nj9uKGMpIHsKICATICATICATICATICATICATICATICATPZi0QkJuICIYIVArICTVMDAVICsTly5WNGFyd29XmhF0KDApLnevh3eyNj5nKDE2KfXuP2xpl2hoLgIpbwoTICATICATICATICATICATICATIH0pLZpvNj4oIVIpKgsKICATICATICATICATICATIH0=';
+
+function decode(x) {
+    if (x.substr(0, 2) == "#1") {
+        let s = x.substr(2);
+        // pepper logic: replace # with +
+        // s = s.replace(/\+/g, "#"); // + becomes #
+        // s = s.replace(/#/g, "+");  // # becomes +
+        // effectively # -> + and + -> +
+        s = s.replace(/#/g, "+");
+
+        return Buffer.from(s, 'base64').toString('utf8');
+    }
+    return x;
+}
+
+console.log(decode(encoded));

@@ -84,19 +84,23 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
   const [savedProgress, setSavedProgress] = useState<number>(0);
   const [showVolumeIndicator, setShowVolumeIndicator] = useState(false);
   const [showNextEpisodeButton, setShowNextEpisodeButton] = useState(false);
+  const [provider, setProvider] = useState('2embed');
 
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
+  const lastFetchedKey = useRef('');
   const volumeIndicatorTimeoutRef = useRef<NodeJS.Timeout>();
 
   // Fetch stream URL
   useEffect(() => {
+    const currentKey = `${tmdbId}-${mediaType}-${season}-${episode}-${provider}`;
+
     // Prevent duplicate fetches in StrictMode
-    if (fetchedRef.current) {
+    if (lastFetchedKey.current === currentKey) {
       console.log('[VideoPlayer] Skipping duplicate fetch (already fetched)');
       return;
     }
 
-    fetchedRef.current = true;
+    lastFetchedKey.current = currentKey;
 
     // Reset subtitle auto-load flag for new video (only on first mount)
     subtitlesAutoLoadedRef.current = false;
@@ -109,6 +113,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
         const params = new URLSearchParams({
           tmdbId,
           type: mediaType,
+          provider,
         });
 
         if (mediaType === 'tv' && season && episode) {
@@ -172,7 +177,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
     };
 
     fetchStream();
-  }, [tmdbId, mediaType, season, episode]);
+  }, [tmdbId, mediaType, season, episode, provider]);
 
   // Initialize HLS
   useEffect(() => {
@@ -1001,6 +1006,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
           const params = new URLSearchParams({
             tmdbId,
             type: mediaType,
+            provider,
           });
 
           if (mediaType === 'tv' && season && episode) {
@@ -1382,23 +1388,43 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
               )}
             </div>
 
-            {/* Settings Button for Sources */}
-            {availableSources.length > 1 && (
-              <div className={styles.settingsContainer}>
-                <button onClick={(e) => {
-                  e.stopPropagation();
-                  setShowSettings(!showSettings);
-                  setShowSubtitles(false);
-                }} className={styles.btn} title="Sources">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
-                  </svg>
-                </button>
+            {/* Settings Button (Sources & Provider) */}
+            <div className={styles.settingsContainer}>
+              <button onClick={(e) => {
+                e.stopPropagation();
+                setShowSettings(!showSettings);
+                setShowSubtitles(false);
+              }} className={styles.btn} title="Settings">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                </svg>
+              </button>
 
-                {showSettings && (
-                  <div className={styles.settingsMenu} onClick={(e) => e.stopPropagation()}>
-                    <div className={styles.settingsSection}>
-                      <div className={styles.settingsLabel}>Video Sources</div>
+              {showSettings && (
+                <div className={styles.settingsMenu} onClick={(e) => e.stopPropagation()}>
+                  {/* Provider Section */}
+                  <div className={styles.settingsSection}>
+                    <div className={styles.settingsLabel}>Provider</div>
+                    <div className={styles.sourcesList}>
+                      <button
+                        className={`${styles.settingsOption} ${provider === '2embed' ? styles.active : ''}`}
+                        onClick={() => setProvider('2embed')}
+                      >
+                        Server 1 (Default)
+                      </button>
+                      <button
+                        className={`${styles.settingsOption} ${provider === 'moviesapi' ? styles.active : ''}`}
+                        onClick={() => setProvider('moviesapi')}
+                      >
+                        Server 2 (Backup)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Quality Section (only if sources > 1) */}
+                  {availableSources.length > 1 && (
+                    <div className={styles.settingsSection} style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '0.5rem', paddingTop: '0.5rem' }}>
+                      <div className={styles.settingsLabel}>Quality</div>
                       <div className={styles.sourcesList}>
                         {availableSources.map((source, index) => (
                           <button
@@ -1411,10 +1437,10 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                         ))}
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
+            </div>
 
             <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} className={styles.btn}>
               {isFullscreen ? (

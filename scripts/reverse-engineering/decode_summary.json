@@ -1,0 +1,107 @@
+{
+  "timestamp": "2025-11-23T03:54:21.242Z",
+  "statistics": {
+    "total": 16,
+    "decoded": 16,
+    "errors": 0
+  },
+  "decodedStrings": [
+    {
+      "type": "#1",
+      "position": 459,
+      "encodedPreview": "#1RyJzl3JYmj5WO2xvPVI6IWAwMDAwMCIsInevO2xVlkIVbnsVl29sO3IVbV...",
+      "decodedPreview": "{\"screencolor\":\"000000\",\"toolbar\":{\"color\":\"000000\",\"hide\":1,\"margin\":\"-20 0 0 0\",\"gradient\":1,\"animation\":\"alpha\",\"a\":1,\"h\":50,\"clickarea\":0},\"control_title\":{\"order\":1,\"on\":1,\"action\":\"title\",\"type\"..."
+    },
+    {
+      "type": "#1",
+      "position": 58121,
+      "encodedPreview": "#1lfA9IHTuP3iVP3eyKDIpb2mvPVU2lkITNg00b2X#LgE7Nf0tKktpmVUYRG...",
+      "decodedPreview": "a = x.substr(2);for(var i=4;i>-1;i--){if(exist(v[\"bk\"+i])){if(v[\"bk\"+i]!=\"\"){a = a.replace(v.file3_separator+b1(v[\"bk\"+i]),\"\");}}}try{a = b2(a);}catch(e){a=\"\";}\n                function b1(str) {\n    ..."
+    },
+    {
+      "type": "#0",
+      "position": 63121,
+      "encodedPreview": "#000000",
+      "decodedPreview": "Ӎ4Ѐ\u0000"
+    },
+    {
+      "type": "#0",
+      "position": 63165,
+      "encodedPreview": "#000000",
+      "decodedPreview": "Ӎ4Ѐ\u0000"
+    },
+    {
+      "type": "#0",
+      "position": 67960,
+      "encodedPreview": "#000000",
+      "decodedPreview": "Ӎ4Ѐ\u0000"
+    },
+    {
+      "type": "#0",
+      "position": 67987,
+      "encodedPreview": "#000000",
+      "decodedPreview": "Ӎ4Ѐ\u0000"
+    },
+    {
+      "type": "#0",
+      "position": 68040,
+      "encodedPreview": "#000000",
+      "decodedPreview": "Ӎ4Ѐ\u0000"
+    },
+    {
+      "type": "#0",
+      "position": 68090,
+      "encodedPreview": "#000000",
+      "decodedPreview": "Ӎ4Ѐ\u0000"
+    },
+    {
+      "type": "#0",
+      "position": 68143,
+      "encodedPreview": "#000000",
+      "decodedPreview": "Ӎ4Ѐ\u0000"
+    },
+    {
+      "type": "#0",
+      "position": 68201,
+      "encodedPreview": "#000000",
+      "decodedPreview": "Ӎ4Ѐ\u0000"
+    },
+    {
+      "type": "#0",
+      "position": 68377,
+      "encodedPreview": "#000000",
+      "decodedPreview": "Ӎ4Ѐ\u0000"
+    },
+    {
+      "type": "#0",
+      "position": 132317,
+      "encodedPreview": "#00000016",
+      "decodedPreview": "Ӎ4Ӟ\u0000"
+    },
+    {
+      "type": "#0",
+      "position": 219241,
+      "encodedPreview": "#000000",
+      "decodedPreview": "Ӎ4Ѐ\u0000"
+    },
+    {
+      "type": "#0",
+      "position": 235150,
+      "encodedPreview": "#000000",
+      "decodedPreview": "Ӎ4Ѐ\u0000"
+    },
+    {
+      "type": "#0",
+      "position": 398468,
+      "encodedPreview": "#000",
+      "decodedPreview": "Ӏ\u0000"
+    },
+    {
+      "type": "#0",
+      "position": 401406,
+      "encodedPreview": "#000",
+      "decodedPreview": "Ӏ\u0000"
+    }
+  ],
+  "errors": []
+}

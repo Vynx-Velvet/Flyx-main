@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-WL9QMP8BP9"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-WL9QMP8BP9');
+</script>
+  <meta charset="utf-8">
+  <title>Fight Club (1999)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/assets/css/player.css">
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background-color: #000;
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+    iframe, .vidframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+      user-select: none;
+      pointer-events: auto;
+    }
+    .vidframe {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 10;
+      transition: opacity .3s ease-in-out;
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Video iframe only -->
+<iframe id="frame2"
+        class="vidframe"
+        allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
+        src="https://vidora.stream/embed/e5ccbb10n1xp">
+</iframe>
+
+<script>
+  // Simple fade-in when iframe loads
+  const frame = document.getElementById('frame2');
+  frame.onload = () => {
+    frame.style.opacity = 1;
+  };
+</script>
+
+<script>
+  function dtc_sbx() {
+    function r() {
+      window.location.href = 'https://moviesapi.club/sbx.html#' + encodeURIComponent(window.location.href)
+    }
+    try {
+      if (window.frameElement.hasAttribute("sandbox")) r();
+    } catch (t) {}
+    try {
+      document.domain = document.domain
+    } catch (t) {
+      try {
+        if (-1 != t.toString().toLowerCase().indexOf("sandbox")) r();
+        return
+      } catch (t) {}
+    }
+    try {
+      if (!window.navigator.plugins["namedItem"]("Chrome PDF Viewer")) return false
+    } catch (e) {
+      return false
+    }
+    var e = document.createElement('object');
+    e.data = "data:application/pdf;base64,aG1t";
+    e.style = "position:absolute;top:-500px;left:-500px;visibility:hidden;";
+    e.onerror = function() { r() };
+    e.onload = function() { e.parentNode.removeChild(e) };
+    document.body.appendChild(e);
+  }
+  dtc_sbx();
+</script>
+
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a325ec8ee677295',t:'MTc2MzkxODc3Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"version":"2024.11.0","token":"99c660a03fe24413991fe2f992a35a28","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>

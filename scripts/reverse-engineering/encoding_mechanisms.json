@@ -1,0 +1,70 @@
+{
+  "timestamp": "2025-11-23T03:55:06.010Z",
+  "file": "c:\\Users\\Nicks\\Desktop\\Flyx-main\\scripts\\reverse-engineering\\prorcp-unpacked.js",
+  "totalMechanisms": 7,
+  "mechanisms": [
+    {
+      "type": "eval",
+      "count": 62,
+      "samples": [
+        "eval(decode('#1lfA9IHTuP3iVP3eyKDIpb2mvPVU2lkITNg00b2X#LgE7Nf0tKktpmVUYRGYzQCU2j",
+        "eval(x)",
+        "eval(x+'bg')"
+      ]
+    },
+    {
+      "type": "charcode",
+      "count": 2,
+      "samples": [
+        "String.fromCharCode(x)",
+        "String.fromCharCode(65,66,67,68,69,70,71,72,73,74,75,76,77,97,98,99,100,101,102,"
+      ]
+    },
+    {
+      "type": "hex",
+      "count": 8,
+      "samples": [
+        "0xaf",
+        "0xaf40",
+        "0xbf45",
+        "0xaf",
+        "0xaf"
+      ]
+    },
+    {
+      "type": "uri_encoding",
+      "encode_count": 2,
+      "decode_count": 0,
+      "samples": [
+        "encodeURIComponent((window.location!=window.parent.location)",
+        "encodeURIComponent(exist(v.parent_domain)"
+      ]
+    },
+    {
+      "type": "escape",
+      "count": 1,
+      "samples": [
+        "unescape(s2)"
+      ]
+    },
+    {
+      "type": "dechar",
+      "count": 17,
+      "samples": [
+        "dechar(n)",
+        "dechar(r)",
+        "dechar(i)"
+      ]
+    },
+    {
+      "type": "pepper_sugar",
+      "pepper_count": 2,
+      "sugar_count": 1,
+      "samples": [
+        "pepper(salt.e(x)",
+        "pepper(x.substr(2)",
+        "sugar(o.y)"
+      ]
+    }
+  ]
+}

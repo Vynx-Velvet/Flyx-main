@@ -153,6 +153,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') as 'movie' | 'tv';
     const season = searchParams.get('season') ? parseInt(searchParams.get('season')!) : undefined;
     const episode = searchParams.get('episode') ? parseInt(searchParams.get('episode')!) : undefined;
+    const provider = searchParams.get('provider') || '2embed';
 
     // Validate parameters
     if (!tmdbId) {
@@ -176,11 +177,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('[EXTRACT] Request:', { tmdbId, type, season, episode });
+    console.log('[EXTRACT] Request:', { tmdbId, type, season, episode, provider });
     performanceMonitor.start('stream-extraction');
 
     // Check cache
-    const cacheKey = `${tmdbId}-${type}-${season || ''}-${episode || ''}`;
+    const cacheKey = `${tmdbId}-${type}-${season || ''}-${episode || ''}-${provider}`;
     const cached = cache.get(cacheKey);
 
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -196,7 +197,7 @@ export async function GET(request: NextRequest) {
       const sources = cached.sources.map((source: any) => ({
         quality: source.quality,
         title: source.title || source.quality,
-        url: `/api/stream-proxy?url=${encodeURIComponent(source.url)}&source=2embed&referer=${encodeURIComponent(source.referer)}`,
+        url: `/api/stream-proxy?url=${encodeURIComponent(source.url)}&source=${provider}&referer=${encodeURIComponent(source.referer)}`,
         directUrl: source.url,
         referer: source.referer,
         type: source.type,
@@ -209,7 +210,7 @@ export async function GET(request: NextRequest) {
         // Backward compatibility - return first source as default
         streamUrl: sources[0].url,
         url: sources[0].url,
-        provider: '2embed',
+        provider: provider,
         requiresProxy: true,
         requiresSegmentProxy: true,
         cached: true,
@@ -227,7 +228,7 @@ export async function GET(request: NextRequest) {
       const proxiedSources = sources.map((source: any) => ({
         quality: source.quality,
         title: source.title || source.quality,
-        url: `/api/stream-proxy?url=${encodeURIComponent(source.url)}&source=2embed&referer=${encodeURIComponent(source.referer)}`,
+        url: `/api/stream-proxy?url=${encodeURIComponent(source.url)}&source=${provider}&referer=${encodeURIComponent(source.referer)}`,
         directUrl: source.url,
         referer: source.referer,
         type: source.type,
@@ -239,7 +240,7 @@ export async function GET(request: NextRequest) {
         sources: proxiedSources,
         streamUrl: proxiedSources[0].url,
         url: proxiedSources[0].url,
-        provider: '2embed',
+        provider: provider,
         requiresProxy: true,
         requiresSegmentProxy: true,
         cached: false,
@@ -249,11 +250,21 @@ export async function GET(request: NextRequest) {
     }
 
     // Create a promise for this extraction
-    const extractionPromise = extractWith2Embed(tmdbId, type, season, episode);
+    let extractionPromise;
+    if (provider === 'moviesapi') {
+      const { extractMoviesApiStreams } = await import('@/app/lib/services/moviesapi-extractor');
+      extractionPromise = extractMoviesApiStreams(tmdbId, type, season, episode).then(res => {
+        if (!res.success) throw new Error(res.error || 'MoviesApi extraction failed');
+        return res.sources;
+      });
+    } else {
+      extractionPromise = extractWith2Embed(tmdbId, type, season, episode);
+    }
+
     pendingRequests.set(cacheKey, extractionPromise);
 
     try {
-      // Extract using 2Embed method
+      // Extract
       const sources = await extractionPromise;
 
       // Remove from pending requests
@@ -274,7 +285,8 @@ export async function GET(request: NextRequest) {
         tmdbId,
         type,
         sources: sources.length,
-        cached: false
+        cached: false,
+        provider
       });
       console.log(`[EXTRACT] Success in ${executionTime}ms - ${sources.length} qualities`);
 
@@ -282,7 +294,7 @@ export async function GET(request: NextRequest) {
       const proxiedSources = sources.map((source: any) => ({
         quality: source.quality,
         title: source.title || source.quality,
-        url: `/api/stream-proxy?url=${encodeURIComponent(source.url)}&source=2embed&referer=${encodeURIComponent(source.referer)}`,
+        url: `/api/stream-proxy?url=${encodeURIComponent(source.url)}&source=${provider}&referer=${encodeURIComponent(source.referer)}`,
         directUrl: source.url,
         referer: source.referer,
         type: source.type,
@@ -295,7 +307,7 @@ export async function GET(request: NextRequest) {
         // Backward compatibility - return first source as default
         streamUrl: proxiedSources[0].url,
         url: proxiedSources[0].url,
-        provider: '2embed',
+        provider: provider,
         requiresProxy: true,
         requiresSegmentProxy: true,
         cached: false,
