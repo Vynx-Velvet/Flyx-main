@@ -227,9 +227,19 @@ export async function extractMoviesApiStreams(
                     }
 
                     if (!seenUrls.has(videoUrl)) {
+                        // Map srv ID to descriptive name
+                        const serverNames: Record<string, string> = {
+                            "0": "VidCloud",
+                            "1": "UpCloud",
+                            "2": "VidCloud Backup",
+                            "3": "UpCloud Backup"
+                        };
+
+                        const serverName = serverNames[srvId.toString()] || `Server ${srvId + 1}`;
+
                         seenUrls.add(videoUrl);
                         allSources.push({
-                            quality: `Server ${srvId + 1}`, // Label as Server 1, 2, 3...
+                            quality: serverName,
                             url: videoUrl,
                             type: 'hls',
                             referer: streamReferer, // Use the specific referer from API

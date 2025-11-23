@@ -87,6 +87,8 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
   const [showNextEpisodeButton, setShowNextEpisodeButton] = useState(false);
   const [provider, setProvider] = useState('2embed');
   const [showServerMenu, setShowServerMenu] = useState(false);
+  const [pendingProvider, setPendingProvider] = useState<string | null>(null);
+  const [showProviderConfirmation, setShowProviderConfirmation] = useState(false);
 
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
   const lastFetchedKey = useRef('');
@@ -1141,9 +1143,8 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                 className={`${styles.tab} ${provider === '2embed' ? styles.active : ''}`}
                 onClick={() => {
                   if (provider !== '2embed') {
-                    setProvider('2embed');
-                    setError(null);
-                    setIsLoading(true);
+                    setPendingProvider('2embed');
+                    setShowProviderConfirmation(true);
                   }
                 }}
                 style={{ flex: '0 1 120px' }}
@@ -1154,9 +1155,8 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                 className={`${styles.tab} ${provider === 'moviesapi' ? styles.active : ''}`}
                 onClick={() => {
                   if (provider !== 'moviesapi') {
-                    setProvider('moviesapi');
-                    setError(null);
-                    setIsLoading(true);
+                    setPendingProvider('moviesapi');
+                    setShowProviderConfirmation(true);
                   }
                 }}
                 style={{ flex: '0 1 120px' }}
@@ -1562,10 +1562,9 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                     className={`${styles.tab} ${provider === '2embed' ? styles.active : ''}`}
                     onClick={() => {
                       if (provider !== '2embed') {
-                        setProvider('2embed');
-                        // Optional: Clear sources to show loading state if needed, 
-                        // but keeping them might be better UX if we cache them.
-                        // For now, the fetchStream effect will handle the update.
+                        setPendingProvider('2embed');
+                        setShowProviderConfirmation(true);
+                        setShowServerMenu(false);
                       }
                     }}
                   >
@@ -1575,7 +1574,9 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                     className={`${styles.tab} ${provider === 'moviesapi' ? styles.active : ''}`}
                     onClick={() => {
                       if (provider !== 'moviesapi') {
-                        setProvider('moviesapi');
+                        setPendingProvider('moviesapi');
+                        setShowProviderConfirmation(true);
+                        setShowServerMenu(false);
                       }
                     }}
                   >
@@ -1652,6 +1653,46 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
               </button>
               <button onClick={handleResume} className={`${styles.resumeButton} ${styles.resumeButtonPrimary}`}>
                 Resume
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Server Switch Confirmation Dialog */}
+      {showProviderConfirmation && pendingProvider && (
+        <div className={styles.dialogOverlay}>
+          <div className={styles.dialog}>
+            <h3>Switch Server?</h3>
+            <p>
+              Are you sure you want to switch to <strong>{pendingProvider === '2embed' ? 'Server 1' : 'Server 2'}</strong>?
+              The current video will stop playing.
+            </p>
+            <div className={styles.dialogButtons}>
+              <button
+                className={styles.cancelButton}
+                onClick={() => {
+                  setShowProviderConfirmation(false);
+                  setPendingProvider(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className={styles.confirmButton}
+                onClick={() => {
+                  if (pendingProvider) {
+                    setProvider(pendingProvider);
+                    setError(null);
+                    setIsLoading(true);
+                    setStreamUrl(null);
+                    setAvailableSources([]);
+                  }
+                  setShowProviderConfirmation(false);
+                  setPendingProvider(null);
+                }}
+              >
+                Switch Server
               </button>
             </div>
           </div>
