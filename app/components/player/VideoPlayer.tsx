@@ -27,7 +27,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const fetchedRef = useRef(false);
+
   const subtitlesFetchedRef = useRef(false);
   const subtitlesAutoLoadedRef = useRef(false);
 
@@ -86,133 +86,148 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
 
   const [showNextEpisodeButton, setShowNextEpisodeButton] = useState(false);
   const [provider, setProvider] = useState('2embed');
+  const [menuProvider, setMenuProvider] = useState('2embed');
   const [showServerMenu, setShowServerMenu] = useState(false);
-  const [pendingProvider, setPendingProvider] = useState<string | null>(null);
-  const [showProviderConfirmation, setShowProviderConfirmation] = useState(false);
+  const [sourcesCache, setSourcesCache] = useState<Record<string, any[]>>({});
+  const [loadingProviders, setLoadingProviders] = useState<Record<string, boolean>>({});
 
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
   const lastFetchedKey = useRef('');
   const volumeIndicatorTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Fetch stream URL
-  useEffect(() => {
-    const currentKey = `${tmdbId}-${mediaType}-${season}-${episode}-${provider}`;
+  // Fetch sources for a specific provider
+  const fetchSources = async (providerName: string, force: boolean = false) => {
+    // Check cache first
+    if (!force && sourcesCache[providerName] && sourcesCache[providerName].length > 0) {
+      console.log(`[VideoPlayer] Using cached sources for ${providerName}`);
+      return sourcesCache[providerName];
+    }
 
-    // Prevent duplicate fetches in StrictMode
-    if (lastFetchedKey.current === currentKey) {
+    const currentKey = `${tmdbId}-${mediaType}-${season}-${episode}-${providerName}`;
+
+    // Prevent duplicate fetches in StrictMode if not forcing
+    if (!force && lastFetchedKey.current === currentKey) {
       console.log('[VideoPlayer] Skipping duplicate fetch (already fetched)');
-      return;
+      return null;
     }
 
     lastFetchedKey.current = currentKey;
 
-    // Reset subtitle auto-load flag for new video (only on first mount)
-    subtitlesAutoLoadedRef.current = false;
+    // Set loading state for this specific provider
+    setLoadingProviders(prev => ({ ...prev, [providerName]: true }));
 
-    const fetchStream = async () => {
+    if (providerName === provider) {
       setIsLoading(true);
       setError(null);
+    }
 
-      try {
-        const params = new URLSearchParams({
-          tmdbId,
-          type: mediaType,
-          provider,
-        });
+    try {
+      const params = new URLSearchParams({
+        tmdbId,
+        type: mediaType,
+        provider: providerName,
+      });
 
-        if (mediaType === 'tv' && season && episode) {
-          params.append('season', season.toString());
-          params.append('episode', episode.toString());
-        }
+      if (mediaType === 'tv' && season && episode) {
+        params.append('season', season.toString());
+        params.append('episode', episode.toString());
+      }
 
-        console.log('[VideoPlayer] Fetching stream:', `/api/stream/extract?${params}`);
-        console.log('[VideoPlayer] Current Provider:', provider);
+      console.log(`[VideoPlayer] Fetching sources for ${providerName}:`, `/api/stream/extract?${params}`);
 
-        // Use fetch with priority hint for faster loading
-        const response = await fetch(`/api/stream/extract?${params}`, {
-          priority: 'high' as RequestPriority,
-        });
-        const data = await response.json();
+      const response = await fetch(`/api/stream/extract?${params}`, {
+        priority: 'high' as RequestPriority,
+      });
+      const data = await response.json();
 
-        console.log('[VideoPlayer] Stream response:', {
-          ok: response.ok,
-          status: response.status,
-          data: data
-        });
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'Failed to load stream');
+      }
 
-        if (!response.ok) {
-          throw new Error(data.message || data.error || 'Failed to load stream');
-        }
+      let sources: any[] = [];
+      if (data.sources && Array.isArray(data.sources) && data.sources.length > 0) {
+        sources = data.sources;
+      } else if (data.data?.sources && Array.isArray(data.data.sources) && data.data.sources.length > 0) {
+        sources = data.data.sources;
+      } else if (data.url || data.streamUrl) {
+        sources = [{
+          quality: 'auto',
+          url: data.url || data.streamUrl
+        }];
+      }
 
-        // Try multiple possible response formats
-        let sources = [];
+      if (sources.length > 0) {
+        console.log(`[VideoPlayer] Found ${sources.length} sources for ${providerName}`);
+        setSourcesCache(prev => ({
+          ...prev,
+          [providerName]: sources
+        }));
 
-        if (data.sources && Array.isArray(data.sources) && data.sources.length > 0) {
-          sources = data.sources;
-          console.log('[VideoPlayer] Found sources array:', sources.length, 'sources');
-        } else if (data.data?.sources && Array.isArray(data.data.sources) && data.data.sources.length > 0) {
-          sources = data.data.sources;
-          console.log('[VideoPlayer] Found data.sources array:', sources.length, 'sources');
-        } else if (data.url || data.streamUrl) {
-          // Single source - wrap in array
-          sources = [{
-            quality: 'auto',
-            url: data.url || data.streamUrl
-          }];
-          console.log('[VideoPlayer] Single source found');
-        }
-
-        if (sources.length > 0) {
-          console.log('[VideoPlayer] Available sources:', sources.map((s: any) => s.title || s.quality));
+        // If this is the active provider, update available sources
+        if (providerName === provider) {
           setAvailableSources(sources);
-          // Sources are already sorted by the extractor with English sources first
-          setCurrentSourceIndex(0);
-
-          // Check if proxy is needed
-          const initialSource = sources[0];
-          let finalUrl = initialSource.url;
-
-          if (initialSource.requiresSegmentProxy) {
-            // Check if the URL is already proxied to avoid double-proxying
-            const isAlreadyProxied = finalUrl.includes('/api/stream-proxy');
-
-            if (!isAlreadyProxied) {
-              console.log('[VideoPlayer] Source requires proxy, rewriting URL...');
-              // Use directUrl if available to ensure we're proxying the raw URL
-              const targetUrl = initialSource.directUrl || initialSource.url;
-
-              const proxyParams = new URLSearchParams({
-                url: targetUrl,
-                source: provider === 'moviesapi' ? 'moviesapi' : '2embed',
-                referer: initialSource.referer || ''
-              });
-              finalUrl = `/api/stream-proxy?${proxyParams.toString()}`;
-            } else {
-              console.log('[VideoPlayer] Source already proxied, using as is');
-            }
-          }
-
-          setStreamUrl(finalUrl);
-          console.log('[VideoPlayer] Setting initial stream URL:', finalUrl, '(', initialSource.title || initialSource.quality, ')');
-        } else {
-          console.error('[VideoPlayer] No stream URL found in response:', data);
-          throw new Error('No stream sources available');
         }
-      } catch (err) {
-        console.error('[VideoPlayer] Stream fetch error:', err);
+
+        return sources;
+      } else {
+        throw new Error('No stream sources available');
+      }
+    } catch (err) {
+      console.error(`[VideoPlayer] Error fetching sources for ${providerName}:`, err);
+      // Only set error if this is the active provider
+      if (providerName === provider) {
         setError(err instanceof Error ? err.message : 'Failed to load video');
-      } finally {
+      }
+      return null;
+    } finally {
+      setLoadingProviders(prev => ({ ...prev, [providerName]: false }));
+      if (providerName === provider) {
         setIsLoading(false);
       }
-    };
+    }
+  };
 
-    fetchStream();
-  }, [tmdbId, mediaType, season, episode, provider]);
+  // Initial fetch
+  useEffect(() => {
+    // Reset subtitle auto-load flag for new video
+    subtitlesAutoLoadedRef.current = false;
+
+    // Clear cache when content changes
+    setSourcesCache({});
+    setMenuProvider('2embed');
+    setProvider('2embed');
+    setLoadingProviders({});
+
+    // Fetch initial sources
+    fetchSources('2embed', true).then(sources => {
+      if (sources && sources.length > 0) {
+        setAvailableSources(sources);
+        setCurrentSourceIndex(0);
+
+        // Setup initial stream
+        const initialSource = sources[0];
+        let finalUrl = initialSource.url;
+
+        if (initialSource.requiresSegmentProxy) {
+          const isAlreadyProxied = finalUrl.includes('/api/stream-proxy');
+          if (!isAlreadyProxied) {
+            const targetUrl = initialSource.directUrl || initialSource.url;
+            const proxyParams = new URLSearchParams({
+              url: targetUrl,
+              source: '2embed',
+              referer: initialSource.referer || ''
+            });
+            finalUrl = `/api/stream-proxy?${proxyParams.toString()}`;
+          }
+        }
+        setStreamUrl(finalUrl);
+      }
+    });
+  }, [tmdbId, mediaType, season, episode]);
 
   // Initialize HLS
   useEffect(() => {
     if (!streamUrl || !videoRef.current) {
-      console.log('[VideoPlayer] HLS init skipped:', { streamUrl: !!streamUrl, videoRef: !!videoRef.current });
       return;
     }
 
@@ -221,20 +236,17 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
 
     if (streamUrl.includes('.m3u8') || streamUrl.includes('stream-proxy')) {
       if (Hls.isSupported()) {
-        console.log('[VideoPlayer] HLS.js is supported, creating instance');
         const hls = new Hls({
           enableWorker: true,
           lowLatencyMode: true,
           backBufferLength: 90,
-          // Performance optimizations
-          maxBufferLength: 30, // Reduced from default 30s
-          maxMaxBufferLength: 60, // Max buffer
-          maxBufferSize: 60 * 1000 * 1000, // 60 MB
-          maxBufferHole: 0.5, // Jump small gaps
-          highBufferWatchdogPeriod: 2, // Check buffer health
-          nudgeOffset: 0.1, // Fine-tune playback
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
+          maxBufferSize: 60 * 1000 * 1000,
+          maxBufferHole: 0.5,
+          highBufferWatchdogPeriod: 2,
+          nudgeOffset: 0.1,
           nudgeMaxRetry: 3,
-          // Faster initial loading
           manifestLoadingTimeOut: 10000,
           manifestLoadingMaxRetry: 2,
           manifestLoadingRetryDelay: 500,
@@ -242,36 +254,25 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
           levelLoadingMaxRetry: 2,
           fragLoadingTimeOut: 20000,
           fragLoadingMaxRetry: 3,
-          // Start with lower quality for faster initial load
-          startLevel: -1, // Auto-select
-          // For proxied streams, ensure we use the proxy for all requests
-          xhrSetup: (xhr, url) => {
-            console.log('[VideoPlayer] HLS.js XHR request:', url);
-            // The URL is already proxied by our rewritePlaylistUrls function
-            // Just ensure CORS is handled
+          startLevel: -1,
+          // @ts-ignore
+          xhrSetup: (xhr: any, url: any) => {
             xhr.withCredentials = false;
           },
-        });
+        } as any);
 
-        console.log('[VideoPlayer] Loading source:', streamUrl);
         hls.loadSource(streamUrl);
         hls.attachMedia(video);
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          console.log('[VideoPlayer] HLS manifest loaded');
-
-          // Reload subtitles if they were enabled (they may have been lost during HLS init)
           if (currentSubtitle && availableSubtitles.length > 0) {
             const currentSub = availableSubtitles.find(sub => sub.id === currentSubtitle);
             if (currentSub) {
-              console.log('[VideoPlayer] Reloading subtitle after HLS manifest parsed');
               setTimeout(() => {
                 loadSubtitle(currentSub);
               }, 100);
             }
           }
-
-          // Auto-play after manifest is loaded
           video.play().catch(e => console.log('[VideoPlayer] Autoplay prevented:', e));
         });
 
@@ -280,34 +281,19 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
                 console.error('Network error, trying to recover...', data);
-
-                // Check if we have alternative sources to try
                 const nextSourceIndex = currentSourceIndex + 1;
                 if (nextSourceIndex < availableSources.length) {
-                  console.log(`Trying alternative source ${nextSourceIndex + 1}/${availableSources.length}`);
-                  setError(`Source failed, trying alternative source...`);
-
-                  // Save current time before switching
                   const savedTime = videoRef.current?.currentTime || 0;
-
-                  // Switch to next source
                   setTimeout(() => {
-                    changeSource(nextSourceIndex);
-
-                    // Restore playback position
+                    changeSource(availableSources[nextSourceIndex], nextSourceIndex);
                     if (videoRef.current && savedTime > 0) {
                       videoRef.current.currentTime = savedTime;
                     }
                   }, 1000);
-
                   return;
                 }
-
-                // No more sources, check if stream is expired
                 if (streamRetryManager.isStreamExpired(data)) {
-                  console.log('All sources failed, attempting re-extraction...');
                   setError('All sources failed, getting fresh URLs...');
-
                   try {
                     const freshData = await streamRetryManager.retryStreamExtraction(
                       tmdbId,
@@ -316,14 +302,10 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                       episode,
                       {
                         maxRetries: 2,
-                        onRetry: (attempt) => {
-                          setError(`Retrying stream extraction (${attempt}/2)...`);
-                        }
+                        onRetry: (attempt) => setError(`Retrying stream extraction (${attempt}/2)...`)
                       }
                     );
-
                     if (freshData?.sources && freshData.sources.length > 0) {
-                      console.log('Got fresh sources, reloading...');
                       setAvailableSources(freshData.sources);
                       setCurrentSourceIndex(0);
                       setStreamUrl(freshData.sources[0].url);
@@ -332,17 +314,13 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                       setError('Failed to get fresh stream URLs');
                     }
                   } catch (retryError) {
-                    console.error('Stream retry failed:', retryError);
                     setError('All sources unavailable, please try again later');
                   }
                 } else {
-                  // Try to recover
-                  console.log('Attempting HLS recovery...');
                   hls.startLoad();
                 }
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
-                console.error('Media error, trying to recover...');
                 hls.recoverMediaError();
                 break;
               default:
@@ -358,16 +336,12 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
           hls.destroy();
         };
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        console.log('[VideoPlayer] Using native HLS support');
         video.src = streamUrl;
         video.addEventListener('loadedmetadata', () => {
           video.play().catch(e => console.log('[VideoPlayer] Autoplay prevented:', e));
         });
-      } else {
-        console.error('[VideoPlayer] HLS not supported and native playback not available');
       }
     } else {
-      console.log('[VideoPlayer] Direct video source (not HLS)');
       video.src = streamUrl;
       video.addEventListener('loadedmetadata', () => {
         video.play().catch(e => console.log('[VideoPlayer] Autoplay prevented:', e));
@@ -377,15 +351,9 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
 
   // Fetch subtitles when content changes
   useEffect(() => {
-    // Prevent duplicate subtitle fetches in StrictMode
-    if (subtitlesFetchedRef.current) {
-      console.log('[VideoPlayer] Skipping duplicate subtitle fetch (already fetched)');
-      return;
-    }
-
+    if (subtitlesFetchedRef.current) return;
     subtitlesFetchedRef.current = true;
 
-    // Get IMDB ID from TMDB
     const getImdbId = async () => {
       try {
         const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
@@ -413,24 +381,12 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
 
     const handlePlay = () => {
       setIsPlaying(true);
-
       if (video.currentTime === 0) {
-        // First play - track as start
         handleWatchStart(video.currentTime, video.duration);
-
-        // Track live activity - watch start
-        trackWatchStart(
-          tmdbId,
-          title || 'Unknown Title',
-          mediaType,
-          season,
-          episode
-        );
+        trackWatchStart(tmdbId, title || 'Unknown Title', mediaType, season, episode);
       } else {
-        // Resume from pause
         handleWatchResume(video.currentTime, video.duration);
       }
-
       trackInteraction({
         element: 'video_player',
         action: 'click',
@@ -449,18 +405,8 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
     const handlePause = () => {
       setIsPlaying(false);
       handleWatchPause(video.currentTime, video.duration);
-
-      // Track live activity - watch pause
       const progress = video.duration > 0 ? (video.currentTime / video.duration) * 100 : 0;
-      trackWatchPause(
-        tmdbId,
-        title || 'Unknown Title',
-        mediaType,
-        progress,
-        season,
-        episode
-      );
-
+      trackWatchPause(tmdbId, title || 'Unknown Title', mediaType, progress, season, episode);
       trackInteraction({
         element: 'video_player',
         action: 'click',
@@ -480,7 +426,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
         setBuffered((video.buffered.end(video.buffered.length - 1) / video.duration) * 100);
       }
 
-      // Show "Next Episode" button in last 90 seconds
       if (nextEpisode && video.duration > 0) {
         const timeRemaining = video.duration - video.currentTime;
         if (timeRemaining <= 90) {
@@ -490,50 +435,29 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
         }
       }
 
-      // Track watch progress
       if (video.duration > 0) {
         handleProgress(video.currentTime, video.duration);
-
-        // Track live activity progress (throttled to every 30 seconds)
         const progress = (video.currentTime / video.duration) * 100;
         const currentTimeRounded = Math.floor(video.currentTime);
 
         if (currentTimeRounded > 0 && currentTimeRounded % 30 === 0) {
-          trackWatchProgress(
-            tmdbId,
-            title || 'Unknown Title',
-            mediaType,
-            progress,
-            video.currentTime,
-            season,
-            episode
-          );
+          trackWatchProgress(tmdbId, title || 'Unknown Title', mediaType, progress, video.currentTime, season, episode);
         }
 
-        // Track completion at 90%
         if (progress >= 90 && !video.dataset.completionTracked) {
           video.dataset.completionTracked = 'true';
-          trackWatchComplete(
-            tmdbId,
-            title || 'Unknown Title',
-            mediaType,
-            video.currentTime,
-            season,
-            episode
-          );
+          trackWatchComplete(tmdbId, title || 'Unknown Title', mediaType, video.currentTime, season, episode);
         }
       }
     };
 
     const handleDurationChange = () => {
       setDuration(video.duration);
-      // Load saved progress when duration is available
       const savedTime = loadProgress();
       if (savedTime > 0 && savedTime < video.duration - 30) {
-        // Show resume prompt instead of auto-resuming
         setSavedProgress(savedTime);
         setShowResumePrompt(true);
-        video.pause(); // Pause until user decides
+        video.pause();
       }
     };
 
@@ -545,11 +469,10 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
     const handleWaiting = () => setIsBuffering(true);
     const handleCanPlay = () => {
       setIsBuffering(false);
-      setIsLoading(false); // Ensure loading is cleared
+      setIsLoading(false);
     };
     const handleLoadedData = () => {
       setIsLoading(false);
-
       trackContentEngagement(tmdbId, mediaType, 'video_loaded', {
         title,
         season,
@@ -561,7 +484,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
     const handleEnded = () => {
       setIsPlaying(false);
       if (nextEpisode && onNextEpisode) {
-        console.log('[VideoPlayer] Video ended, auto-playing next episode');
         onNextEpisode();
       }
     };
@@ -594,7 +516,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
-
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
@@ -603,7 +524,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (!videoRef.current) return;
-
       switch (e.key.toLowerCase()) {
         case ' ':
         case 'k':
@@ -636,7 +556,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
           break;
       }
     };
-
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [currentTime, volume]);
@@ -656,8 +575,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
     videoRef.current.volume = newVolume;
     setVolume(newVolume);
     setIsMuted(newVolume === 0);
-
-    // Show volume indicator
     setShowVolumeIndicator(true);
     if (volumeIndicatorTimeoutRef.current) {
       clearTimeout(volumeIndicatorTimeoutRef.current);
@@ -665,7 +582,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
     volumeIndicatorTimeoutRef.current = setTimeout(() => {
       setShowVolumeIndicator(false);
     }, 1000);
-
     trackInteraction({
       element: 'volume_control',
       action: 'click',
@@ -681,8 +597,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
     if (!videoRef.current) return;
     videoRef.current.muted = !isMuted;
     setIsMuted(!isMuted);
-
-    // Show volume indicator
     setShowVolumeIndicator(true);
     if (volumeIndicatorTimeoutRef.current) {
       clearTimeout(volumeIndicatorTimeoutRef.current);
@@ -696,7 +610,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
     if (!videoRef.current) return;
     const newTime = Math.max(0, Math.min(time, duration));
     videoRef.current.currentTime = newTime;
-
     trackInteraction({
       element: 'video_player',
       action: 'click',
@@ -723,26 +636,17 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
     const updated = { ...subtitleStyle, ...newStyle };
     setSubtitleStyleState(updated);
     setSubtitleStyle(updated);
-
-    // Apply styles dynamically to video element
     if (videoRef.current) {
       const video = videoRef.current;
       const styleId = 'dynamic-subtitle-style';
       let styleEl = document.getElementById(styleId) as HTMLStyleElement;
-
       if (!styleEl) {
         styleEl = document.createElement('style');
         styleEl.id = styleId;
         document.head.appendChild(styleEl);
       }
-
       const bgOpacity = updated.backgroundOpacity / 100;
-
-      // Calculate line position (0 = top, 100 = bottom)
-      // VTT uses line position where negative values are from top, positive from bottom
-      // We'll use percentage positioning
       const linePosition = updated.verticalPosition;
-
       styleEl.textContent = `
         video::cue {
           font-size: ${updated.fontSize}% !important;
@@ -752,8 +656,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
           line: ${linePosition}% !important;
         }
       `;
-
-      // Also update existing text tracks
       if (video.textTracks && video.textTracks.length > 0) {
         const track = video.textTracks[0];
         if (track.cues) {
@@ -761,7 +663,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
             const cue = track.cues[i] as any;
             if (cue.line !== undefined) {
               cue.line = linePosition;
-              cue.snapToLines = false; // Use percentage positioning
+              cue.snapToLines = false;
             }
           }
         }
@@ -771,255 +673,134 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
 
   const loadSubtitle = (subtitle: any | null) => {
     if (!videoRef.current) return;
-
-    console.log('[VideoPlayer] loadSubtitle called with:', subtitle);
-
-    // Remove existing subtitle tracks
     const tracks = videoRef.current.querySelectorAll('track');
     tracks.forEach(track => track.remove());
-
     if (subtitle) {
-      // Proxy the subtitle URL through our API
       const proxiedUrl = `/api/subtitle-proxy?url=${encodeURIComponent(subtitle.url)}`;
-
-      console.log('[VideoPlayer] Creating track with proxied URL:', proxiedUrl);
-
       const track = document.createElement('track');
       track.kind = 'subtitles';
       track.label = subtitle.language || 'Subtitles';
       track.srclang = subtitle.iso639 || 'en';
       track.src = proxiedUrl;
       track.default = true;
-
-      // Add load handler to ensure track is ready
       track.addEventListener('load', () => {
-        console.log('[VideoPlayer] Track loaded successfully');
         if (videoRef.current && videoRef.current.textTracks && videoRef.current.textTracks.length > 0) {
           const textTrack = videoRef.current.textTracks[0];
           textTrack.mode = 'showing';
-          console.log('[VideoPlayer] Track mode set to showing after load');
         }
       });
-
-      // Add error handler
-      track.addEventListener('error', (e) => {
-        console.error('[VideoPlayer] Track error:', e);
-      });
-
       videoRef.current.appendChild(track);
-
-      console.log('[VideoPlayer] Track added, textTracks count:', videoRef.current.textTracks.length);
-
-      // Also try to set mode immediately (for cached tracks)
       setTimeout(() => {
         if (videoRef.current && videoRef.current.textTracks && videoRef.current.textTracks.length > 0) {
           const textTrack = videoRef.current.textTracks[0];
           if (textTrack.mode !== 'showing') {
             textTrack.mode = 'showing';
-            console.log('[VideoPlayer] Track mode set to showing (immediate)');
           }
         }
       }, 500);
-
-      console.log('[VideoPlayer] Loaded subtitle:', subtitle.language);
       setCurrentSubtitle(subtitle.id);
-
-      // Save subtitle preference - both language and enabled state
       setSubtitleLanguage(subtitle.langCode, subtitle.language);
       setSubtitlesEnabled(true);
     } else {
-      console.log('[VideoPlayer] Clearing subtitles');
       setCurrentSubtitle(null);
-
-      // Save that subtitles are disabled
       setSubtitlesEnabled(false);
     }
-
     setShowSubtitles(false);
   };
 
   const fetchSubtitles = async (imdbId: string) => {
     try {
       setSubtitlesLoading(true);
-      console.log('[VideoPlayer] Fetching subtitles for IMDB ID:', imdbId);
-
-      const params = new URLSearchParams({
-        imdbId,
-      });
-
+      const params = new URLSearchParams({ imdbId });
       if (mediaType === 'tv' && season && episode) {
         params.append('season', season.toString());
         params.append('episode', episode.toString());
       }
-
       const response = await fetch(`/api/subtitles?${params}`);
       const data = await response.json();
-
       if (data.success && data.subtitles && Array.isArray(data.subtitles)) {
-        console.log('[VideoPlayer] Found subtitles:', data.subtitles.length);
         setAvailableSubtitles(data.subtitles);
       } else {
-        console.log('[VideoPlayer] No subtitles found');
         setAvailableSubtitles([]);
       }
     } catch (err) {
-      console.error('[VideoPlayer] Subtitle fetch error:', err);
       setAvailableSubtitles([]);
     } finally {
       setSubtitlesLoading(false);
     }
   };
 
-  // Apply saved subtitle style on mount
   useEffect(() => {
     updateSubtitleStyle(subtitleStyle);
   }, []);
 
-  // Apply saved subtitle preferences after subtitles are loaded
   useEffect(() => {
     if (availableSubtitles.length === 0) return;
-
-    // Don't auto-load if we've already done it for this video
-    if (subtitlesAutoLoadedRef.current) {
-      console.log('[VideoPlayer] Subtitles already auto-loaded, skipping');
-      return;
-    }
-
+    if (subtitlesAutoLoadedRef.current) return;
     const preferences = getSubtitlePreferences();
-    console.log('[VideoPlayer] Applying saved subtitle preferences:', preferences);
-
     if (preferences.enabled) {
-      // Find subtitle matching the saved language preference
-      const preferredSubtitle = availableSubtitles.find(
-        sub => sub.langCode === preferences.languageCode
-      );
-
+      const preferredSubtitle = availableSubtitles.find(sub => sub.langCode === preferences.languageCode);
       if (preferredSubtitle) {
-        console.log('[VideoPlayer] Auto-loading preferred subtitle:', preferredSubtitle.language);
         loadSubtitle(preferredSubtitle);
         subtitlesAutoLoadedRef.current = true;
       } else {
-        // If preferred language not available, load first available (English if available)
         const englishSubtitle = availableSubtitles.find(sub => sub.langCode === 'eng');
         if (englishSubtitle) {
-          console.log('[VideoPlayer] Preferred language not found, auto-loading English');
           loadSubtitle(englishSubtitle);
           subtitlesAutoLoadedRef.current = true;
         }
       }
-    } else {
-      console.log('[VideoPlayer] Subtitles disabled in preferences, not auto-loading');
     }
   }, [availableSubtitles]);
 
-  const changeSource = (sourceIndex: number) => {
-    if (sourceIndex < 0 || sourceIndex >= availableSources.length) return;
-
-    const newSource = availableSources[sourceIndex];
-    console.log('[VideoPlayer] Switching to source:', newSource.quality, newSource.url);
-
-    // Save current time
-    const savedTime = videoRef.current?.currentTime || 0;
-
-    // Destroy current HLS instance if exists
+  const changeSource = (source: any, index: number) => {
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
-
-    // Update source
-    setCurrentSourceIndex(sourceIndex);
-
-    // Check if proxy is needed
-    let finalUrl = newSource.url;
-    if (newSource.requiresSegmentProxy) {
-      // Check if the URL is already proxied to avoid double-proxying
+    setCurrentSourceIndex(index);
+    let finalUrl = source.url;
+    if (source.requiresSegmentProxy) {
       const isAlreadyProxied = finalUrl.includes('/api/stream-proxy');
-
       if (!isAlreadyProxied) {
-        console.log('[VideoPlayer] Source requires proxy, rewriting URL...');
-        // Use directUrl if available to ensure we're proxying the raw URL
-        const targetUrl = newSource.directUrl || newSource.url;
-
+        const targetUrl = source.directUrl || source.url;
         const proxyParams = new URLSearchParams({
           url: targetUrl,
           source: provider === 'moviesapi' ? 'moviesapi' : '2embed',
-          referer: newSource.referer || ''
+          referer: source.referer || ''
         });
         finalUrl = `/api/stream-proxy?${proxyParams.toString()}`;
-      } else {
-        console.log('[VideoPlayer] Source already proxied, using as is');
       }
     }
-
     setStreamUrl(finalUrl);
-    setShowSettings(false);
-
-    // The useEffect will reinitialize HLS with the new URL
-    // and we'll restore the time and subtitles after it loads
-    setTimeout(() => {
-      if (videoRef.current) {
-        if (savedTime > 0) {
-          videoRef.current.currentTime = savedTime;
-          videoRef.current.play().catch(e => console.log('[VideoPlayer] Autoplay prevented:', e));
-        }
-
-        // Reload subtitles if they were enabled
-        const preferences = getSubtitlePreferences();
-        if (preferences.enabled && currentSubtitle && availableSubtitles.length > 0) {
-          const currentSub = availableSubtitles.find(sub => sub.id === currentSubtitle);
-          if (currentSub) {
-            console.log('[VideoPlayer] Reloading subtitle after source change');
-            loadSubtitle(currentSub);
-          }
-        }
-      }
-    }, 1000);
-
-    trackInteraction({
-      element: 'source_selector',
-      action: 'click',
-      context: {
-        action_type: 'source_change',
-        source: newSource.quality,
-        contentId: tmdbId,
-      },
-    });
   };
 
-  const handleResume = () => {
-    if (videoRef.current && savedProgress > 0) {
-      videoRef.current.currentTime = savedProgress;
-      videoRef.current.play().catch(e => console.log('[VideoPlayer] Autoplay prevented:', e));
-    }
-    setShowResumePrompt(false);
-
-    trackInteraction({
-      element: 'resume_prompt',
-      action: 'click',
-      context: {
-        action_type: 'resume',
-        resumeTime: savedProgress,
-        contentId: tmdbId,
-      },
+  const handleRetry = () => {
+    setError(null);
+    setIsLoading(true);
+    fetchSources(provider, true).then(sources => {
+      if (sources && sources.length > 0) {
+        setAvailableSources(sources);
+        setCurrentSourceIndex(0);
+        setStreamUrl(sources[0].url);
+      }
     });
   };
 
   const handleStartOver = () => {
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
-      videoRef.current.play().catch(e => console.log('[VideoPlayer] Autoplay prevented:', e));
+      videoRef.current.play();
     }
     setShowResumePrompt(false);
+  };
 
-    trackInteraction({
-      element: 'resume_prompt',
-      action: 'click',
-      context: {
-        action_type: 'start_over',
-        contentId: tmdbId,
-      },
-    });
+  const handleResume = () => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = savedProgress;
+      videoRef.current.play();
+    }
+    setShowResumePrompt(false);
   };
 
   const resetControlsTimeout = () => {
@@ -1030,146 +811,9 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
     if (isPlaying) {
       controlsTimeoutRef.current = setTimeout(() => {
         setShowControls(false);
-        setShowSettings(false);
-        setShowSubtitles(false);
       }, 3000);
     }
   };
-
-  const formatTime = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = Math.floor(seconds % 60);
-
-    if (h > 0) {
-      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    }
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-
-  if (error) {
-    const handleRetry = () => {
-      setError(null);
-      setIsLoading(true);
-      fetchedRef.current = false;
-
-      // Trigger re-fetch
-      const fetchStream = async () => {
-        try {
-          const params = new URLSearchParams({
-            tmdbId,
-            type: mediaType,
-            provider,
-          });
-
-          if (mediaType === 'tv' && season && episode) {
-            params.append('season', season.toString());
-            params.append('episode', episode.toString());
-          }
-
-          const response = await fetch(`/api/stream/extract?${params}`);
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.message || data.error || 'Failed to load stream');
-          }
-
-          let sources = [];
-
-          if (data.sources && Array.isArray(data.sources) && data.sources.length > 0) {
-            sources = data.sources;
-          } else if (data.data?.sources && Array.isArray(data.data.sources) && data.data.sources.length > 0) {
-            sources = data.data.sources;
-          } else if (data.url || data.streamUrl) {
-            sources = [{
-              quality: 'auto',
-              url: data.url || data.streamUrl
-            }];
-          }
-
-          if (sources.length > 0) {
-            setAvailableSources(sources);
-            setCurrentSourceIndex(0);
-            setStreamUrl(sources[0].url);
-            setError(null);
-          } else {
-            throw new Error('No stream sources available');
-          }
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to load video');
-        } finally {
-          setIsLoading(false);
-        }
-      };
-
-      fetchStream();
-    };
-
-    const handleTryNextSource = () => {
-      const nextIndex = currentSourceIndex + 1;
-      if (nextIndex < availableSources.length) {
-        setError(null);
-        changeSource(nextIndex);
-      } else {
-        handleRetry();
-      }
-    };
-
-    return (
-      <div className={styles.error}>
-        <div className={styles.errorContent}>
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          <h3>Unable to load video</h3>
-          <p>{error}</p>
-          <div className={styles.errorActions}>
-            {currentSourceIndex + 1 < availableSources.length && (
-              <button onClick={handleTryNextSource} className={styles.retryButton}>
-                Try Alternative Source ({currentSourceIndex + 2}/{availableSources.length})
-              </button>
-            )}
-            <button onClick={handleRetry} className={styles.retryButton}>
-              Retry
-            </button>
-          </div>
-
-          {/* Server Selection on Error Screen */}
-          <div style={{ marginTop: '2rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem', width: '100%' }}>
-            <p style={{ marginBottom: '1rem', color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem' }}>Switch Server</p>
-            <div className={styles.tabsContainer} style={{ justifyContent: 'center', marginBottom: 0 }}>
-              <button
-                className={`${styles.tab} ${provider === '2embed' ? styles.active : ''}`}
-                onClick={() => {
-                  if (provider !== '2embed') {
-                    setPendingProvider('2embed');
-                    setShowProviderConfirmation(true);
-                  }
-                }}
-                style={{ flex: '0 1 120px' }}
-              >
-                2Embed
-              </button>
-              <button
-                className={`${styles.tab} ${provider === 'moviesapi' ? styles.active : ''}`}
-                onClick={() => {
-                  if (provider !== 'moviesapi') {
-                    setPendingProvider('moviesapi');
-                    setShowProviderConfirmation(true);
-                  }
-                }}
-                style={{ flex: '0 1 120px' }}
-              >
-                MoviesAPI
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div
@@ -1191,7 +835,23 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
         </div>
       )}
 
-      {/* Volume Indicator */}
+      {error && (
+        <div className={styles.error}>
+          <div className={styles.errorContent}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h3>Playback Error</h3>
+            <p>{error}</p>
+            <div className={styles.errorActions}>
+              <button onClick={handleRetry} className={styles.retryButton}>
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showVolumeIndicator && (
         <div className={styles.volumeIndicator}>
           <div className={styles.volumeIndicatorIcon}>
@@ -1223,7 +883,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
         playsInline
       />
 
-      {/* Next Episode Button */}
       {showNextEpisodeButton && nextEpisode && (
         <button
           className={styles.nextEpisodeButton}
@@ -1242,9 +901,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
         </button>
       )}
 
-      {/* Controls */}
       <div className={`${styles.controls} ${showControls || !isPlaying ? styles.visible : ''}`}>
-        {/* Progress bar */}
         <div className={styles.progressContainer} onClick={(e) => {
           e.stopPropagation();
           const rect = e.currentTarget.getBoundingClientRect();
@@ -1256,7 +913,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
           <div className={styles.progressThumb} style={{ left: `${(currentTime / duration) * 100}%` }} />
         </div>
 
-        {/* Control buttons */}
         <div className={styles.controlsRow}>
           <div className={styles.leftControls}>
             <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className={styles.btn}>
@@ -1315,7 +971,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
           </div>
 
           <div className={styles.rightControls}>
-            {/* CC Button for Subtitles */}
             <div className={styles.settingsContainer}>
               <button
                 onClick={(e) => {
@@ -1364,7 +1019,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                       </div>
                     )}
 
-                    {/* Subtitle Customization Button */}
                     <button
                       className={styles.settingsOption}
                       onClick={() => {
@@ -1379,13 +1033,10 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                 </div>
               )}
 
-              {/* Subtitle Customization Menu */}
               {showSubtitleCustomization && (
                 <div className={styles.settingsMenu} onClick={(e) => e.stopPropagation()}>
                   <div className={styles.settingsSection}>
                     <div className={styles.settingsLabel}>Subtitle Appearance</div>
-
-                    {/* Font Size */}
                     <div style={{ padding: '0.75rem 1rem' }}>
                       <div style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                         Font Size: {subtitleStyle.fontSize}%
@@ -1400,8 +1051,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                         style={{ width: '100%' }}
                       />
                     </div>
-
-                    {/* Background Opacity */}
                     <div style={{ padding: '0.75rem 1rem' }}>
                       <div style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                         Background Opacity: {subtitleStyle.backgroundOpacity}%
@@ -1416,8 +1065,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                         style={{ width: '100%' }}
                       />
                     </div>
-
-                    {/* Text Color */}
                     <div style={{ padding: '0.75rem 1rem' }}>
                       <div style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                         Text Color
@@ -1439,8 +1086,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                         ))}
                       </div>
                     </div>
-
-                    {/* Vertical Position */}
                     <div style={{ padding: '0.75rem 1rem' }}>
                       <div style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
                         Vertical Position: {subtitleStyle.verticalPosition}% {subtitleStyle.verticalPosition < 30 ? '(Top)' : subtitleStyle.verticalPosition > 70 ? '(Bottom)' : '(Middle)'}
@@ -1455,8 +1100,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                         style={{ width: '100%' }}
                       />
                     </div>
-
-                    {/* Back Button */}
                     <button
                       className={styles.settingsOption}
                       onClick={() => {
@@ -1472,7 +1115,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
               )}
             </div>
 
-            {/* Settings Button (Quality Only) */}
             {availableSources.length > 1 && (
               <div className={styles.settingsContainer}>
                 <button onClick={(e) => {
@@ -1495,7 +1137,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                           <button
                             key={index}
                             className={`${styles.settingsOption} ${currentSourceIndex === index ? styles.active : ''}`}
-                            onClick={() => changeSource(index)}
+                            onClick={() => changeSource(source, index)}
                           >
                             {source.title || source.quality}
                           </button>
@@ -1522,7 +1164,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
         </div>
       </div>
 
-      {/* Server Selection (Cloud Icon) */}
       {(showControls || !isPlaying) && (
         <div style={{
           position: 'absolute',
@@ -1536,6 +1177,10 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
               setShowServerMenu(!showServerMenu);
               setShowSettings(false);
               setShowSubtitles(false);
+              // Initialize menu provider to current provider when opening
+              if (!showServerMenu) {
+                setMenuProvider(provider);
+              }
             }}
             className={styles.btn}
             style={{
@@ -1557,46 +1202,46 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
               <div className={styles.settingsSection}>
                 <div className={styles.settingsLabel}>Server Selection</div>
 
-                {/* Tabs */}
                 <div className={styles.tabsContainer}>
                   <button
-                    className={`${styles.tab} ${provider === '2embed' ? styles.active : ''}`}
+                    className={`${styles.tab} ${menuProvider === '2embed' ? styles.active : ''}`}
                     onClick={() => {
-                      if (provider !== '2embed') {
-                        setPendingProvider('2embed');
-                        setShowProviderConfirmation(true);
-                        setShowServerMenu(false);
-                      }
+                      setMenuProvider('2embed');
+                      fetchSources('2embed');
                     }}
                   >
                     2Embed
                   </button>
                   <button
-                    className={`${styles.tab} ${provider === 'moviesapi' ? styles.active : ''}`}
+                    className={`${styles.tab} ${menuProvider === 'moviesapi' ? styles.active : ''}`}
                     onClick={() => {
-                      if (provider !== 'moviesapi') {
-                        setPendingProvider('moviesapi');
-                        setShowProviderConfirmation(true);
-                        setShowServerMenu(false);
-                      }
+                      setMenuProvider('moviesapi');
+                      fetchSources('moviesapi');
                     }}
                   >
                     MoviesAPI
                   </button>
                 </div>
 
-                {/* Content Area */}
                 <div className={styles.sourcesList}>
-                  {isLoading ? (
+                  {loadingProviders[menuProvider] ? (
                     <div style={{ padding: '1rem', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem' }}>
                       Loading sources...
                     </div>
-                  ) : availableSources.length > 0 ? (
-                    availableSources.map((source, index) => (
+                  ) : sourcesCache[menuProvider] && sourcesCache[menuProvider].length > 0 ? (
+                    sourcesCache[menuProvider].map((source, index) => (
                       <button
                         key={index}
-                        className={`${styles.settingsOption} ${currentSourceIndex === index ? styles.active : ''}`}
-                        onClick={() => changeSource(index)}
+                        className={`${styles.settingsOption} ${provider === menuProvider && currentSourceIndex === index ? styles.active : ''}`}
+                        onClick={() => {
+                          if (menuProvider !== provider) {
+                            setProvider(menuProvider);
+                            setAvailableSources(sourcesCache[menuProvider]);
+                            changeSource(source, index);
+                          } else {
+                            changeSource(source, index);
+                          }
+                        }}
                         style={{ padding: '0.6rem 1rem', fontSize: '0.9rem' }}
                       >
                         {source.title || source.quality}
@@ -1604,7 +1249,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                     ))
                   ) : (
                     <div style={{ padding: '1rem', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: '0.9rem' }}>
-                      No sources available
+                      {loadingProviders[menuProvider] ? 'Loading sources...' : 'No sources available'}
                     </div>
                   )}
                 </div>
@@ -1614,7 +1259,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
         </div>
       )}
 
-      {/* Title overlay */}
       {title && title.trim() && title !== 'Loading...' && title !== 'Unknown' && (showControls || !isPlaying) && (
         <div className={styles.titleOverlay}>
           <div className={styles.titleContent}>
@@ -1633,7 +1277,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
         </div>
       )}
 
-      {/* Center play button */}
       {!isPlaying && !isLoading && !showResumePrompt && (
         <button className={styles.centerPlayButton} onClick={(e) => { e.stopPropagation(); togglePlay(); }}>
           <svg width="80" height="80" viewBox="0 0 24 24" fill="currentColor">
@@ -1642,7 +1285,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
         </button>
       )}
 
-      {/* Resume prompt */}
       {showResumePrompt && (
         <div className={styles.resumePrompt} onClick={(e) => e.stopPropagation()}>
           <div className={styles.resumePromptContent}>
@@ -1659,47 +1301,17 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
           </div>
         </div>
       )}
-
-      {/* Server Switch Confirmation Dialog */}
-      {showProviderConfirmation && pendingProvider && (
-        <div className={styles.dialogOverlay}>
-          <div className={styles.dialog}>
-            <h3>Switch Server?</h3>
-            <p>
-              Are you sure you want to switch to <strong>{pendingProvider === '2embed' ? '2Embed' : 'MoviesAPI'}</strong>?
-              The current video will stop playing.
-            </p>
-            <div className={styles.dialogButtons}>
-              <button
-                className={styles.cancelButton}
-                onClick={() => {
-                  setShowProviderConfirmation(false);
-                  setPendingProvider(null);
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className={styles.confirmButton}
-                onClick={() => {
-                  if (pendingProvider) {
-                    console.log('[VideoPlayer] Switching provider to:', pendingProvider);
-                    setProvider(pendingProvider);
-                    setError(null);
-                    setIsLoading(true);
-                    setStreamUrl(null);
-                    setAvailableSources([]);
-                  }
-                  setShowProviderConfirmation(false);
-                  setPendingProvider(null);
-                }}
-              >
-                Switch Server
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
+}
+
+function formatTime(seconds: number): string {
+  if (!seconds || isNaN(seconds)) return '0:00';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
