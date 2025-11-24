@@ -30,6 +30,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
 
   const subtitlesFetchedRef = useRef(false);
   const subtitlesAutoLoadedRef = useRef(false);
+  const hasShownResumePromptRef = useRef(false);
 
   // Analytics and progress tracking
   const { trackContentEngagement, trackInteraction } = useAnalytics();
@@ -96,7 +97,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
   const volumeIndicatorTimeoutRef = useRef<NodeJS.Timeout>();
 
   // Fetch sources for a specific provider
-  const fetchSources = async (providerName: string, force: boolean = false) => {
+  const fetchSources = async (providerName: string, force: boolean = false): Promise<any[] | null> => {
     // Check cache first
     if (!force && sourcesCache[providerName] && sourcesCache[providerName].length > 0) {
       console.log(`[VideoPlayer] Using cached sources for ${providerName}`);
@@ -158,6 +159,28 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
 
       if (sources.length > 0) {
         console.log(`[VideoPlayer] Found ${sources.length} sources for ${providerName}`);
+
+        // Check for 2embed fallback condition: all sources are generic "Source"
+        if (providerName === '2embed' && sources.every((s: any) => s.quality === 'Source')) {
+          console.log('[VideoPlayer] All 2embed sources are generic "Source". Attempting fallback to moviesapi.');
+
+          // Switch to moviesapi
+          setProvider('moviesapi');
+          setMenuProvider('moviesapi');
+
+          // Recursively fetch moviesapi sources
+          // We need to manually handle the result here because the state update for 'provider' won't be reflected yet
+          try {
+            const moviesApiSources = await fetchSources('moviesapi', true);
+            if (moviesApiSources && moviesApiSources.length > 0) {
+              setAvailableSources(moviesApiSources);
+              return moviesApiSources;
+            }
+          } catch (e) {
+            console.warn('[VideoPlayer] Fallback to moviesapi failed, sticking with 2embed sources');
+          }
+        }
+
         setSourcesCache(prev => ({
           ...prev,
           [providerName]: sources
@@ -191,6 +214,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
   useEffect(() => {
     // Reset subtitle auto-load flag for new video
     subtitlesAutoLoadedRef.current = false;
+    hasShownResumePromptRef.current = false;
 
     // Clear cache when content changes
     setSourcesCache({});
@@ -199,7 +223,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
     setLoadingProviders({});
 
     // Fetch initial sources
-    fetchSources('2embed', true).then(sources => {
+    fetchSources('2embed').then(sources => {
       if (sources && sources.length > 0) {
         setAvailableSources(sources);
         setCurrentSourceIndex(0);
@@ -453,11 +477,19 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
 
     const handleDurationChange = () => {
       setDuration(video.duration);
+
+      if (hasShownResumePromptRef.current) return;
+
       const savedTime = loadProgress();
       if (savedTime > 0 && savedTime < video.duration - 30) {
         setSavedProgress(savedTime);
         setShowResumePrompt(true);
         video.pause();
+        hasShownResumePromptRef.current = true;
+      } else if (video.duration > 0) {
+        // Mark as shown even if we didn't show it (e.g. no saved progress)
+        // to prevent it from showing later if duration changes again
+        hasShownResumePromptRef.current = true;
       }
     };
 
