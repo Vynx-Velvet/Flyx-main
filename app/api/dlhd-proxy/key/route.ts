@@ -81,15 +81,26 @@ function cacheKey(channelId: string, keyBuffer: ArrayBuffer, keyUrl: string, pla
   return cached;
 }
 
-// Use allorigins.win proxy directly
-function proxyUrl(url: string): string {
-  return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-}
+// Proxy services - allorigins primary, corsproxy backup
+const PROXIES = [
+  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+];
 
 async function fetchViaProxy(url: string): Promise<Response> {
-  const response = await fetch(proxyUrl(url), { cache: 'no-store' });
-  if (!response.ok) throw new Error(`Proxy fetch failed: ${response.status}`);
-  return response;
+  let lastError: Error | null = null;
+  for (const proxyFn of PROXIES) {
+    try {
+      const response = await fetch(proxyFn(url), { cache: 'no-store' });
+      if (response.ok) return response;
+      if (response.status >= 500) {
+        throw new Error(`CDN error: ${response.status}`);
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
+  }
+  throw lastError || new Error('All proxies failed');
 }
 
 async function fetchWithHeaders(url: string, headers: Record<string, string> = {}): Promise<Response> {

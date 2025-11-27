@@ -161,16 +161,27 @@ function constructM3U8Url(serverKey: string, channelKey: string): string {
 }
 
 
-// Use allorigins.win proxy directly - works reliably
-function proxyUrl(url: string): string {
-  return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-}
+// Proxy services - allorigins primary, corsproxy backup
+const PROXIES = [
+  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+];
 
 async function fetchViaProxy(url: string): Promise<Response> {
-  const proxied = proxyUrl(url);
-  const response = await fetch(proxied, { cache: 'no-store' });
-  if (!response.ok) throw new Error(`Proxy fetch failed: ${response.status}`);
-  return response;
+  let lastError: Error | null = null;
+  for (const proxyFn of PROXIES) {
+    try {
+      const response = await fetch(proxyFn(url), { cache: 'no-store' });
+      if (response.ok) return response;
+      // 5xx errors from CDN mean channel is likely offline
+      if (response.status >= 500 && response.status < 600) {
+        throw new Error(`CDN error: ${response.status} - channel may be offline`);
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
+  }
+  throw lastError || new Error('All proxies failed');
 }
 
 async function fetchM3U8(channelId: string): Promise<{ content: string; m3u8Url: string; playerDomain: string }> {
