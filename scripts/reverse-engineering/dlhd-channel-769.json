@@ -1,10 +1,9 @@
 {
   "channelId": "769",
   "m3u8Url": "https://zekonew.giokko.ru/zeko/premium769/mono.css",
-  "key": "eacbc8f37b0c1b96057de46cbdc3b17c",
-  "keyBase64": "6svI83sMG5YFfeRsvcOxfA==",
-  "iv": "3030303030303030303030306927c6ed",
+  "key": "729e92be06da7e07add9897d50a101de",
+  "keyBase64": "cp6Svgbafget2Yl9UKEB3g==",
+  "iv": "3030303030303030303030306928d46d",
   "segmentCount": 6,
-  "verified": true,
-  "timestamp": "2025-11-27T03:38:37.936Z"
+  "timestamp": "2025-11-27T22:45:39.940Z"
 }

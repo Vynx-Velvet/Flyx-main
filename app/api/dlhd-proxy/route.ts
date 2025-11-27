@@ -173,10 +173,9 @@ async function fetchM3U8(channelId: string): Promise<{ content: string; m3u8Url:
   
   console.log(`[DLHD] Fetching M3U8: ${m3u8Url}`);
   
-  const response = await fetchWithHeaders(m3u8Url, {
-    'Referer': `https://${playerDomain}/`,
-    'Origin': `https://${playerDomain}`,
-  });
+  // NOTE: M3U8 fetch works WITHOUT Referer/Origin headers
+  // The CDN may reject requests with non-whitelisted origins
+  const response = await fetchWithHeaders(m3u8Url);
 
   console.log(`[DLHD] M3U8 response: ${response.status}`);
 
