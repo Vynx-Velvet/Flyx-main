@@ -12,7 +12,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = 'nodejs';
+// Use edge runtime - different IP ranges that may not be blocked
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const PLAYER_DOMAINS = ['epicplayplay.cfd', 'daddyhd.com'];
@@ -84,11 +85,25 @@ function invalidateKeyCache(channelId: string): void {
   }
 }
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function arrayBufferToHex(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 function cacheKey(channelId: string, keyBuffer: ArrayBuffer, keyUrl: string, playerDomain: string): CachedKey {
   const cached: CachedKey = {
     keyBuffer,
-    keyBase64: Buffer.from(keyBuffer).toString('base64'),
-    keyHex: Buffer.from(keyBuffer).toString('hex'),
+    keyBase64: arrayBufferToBase64(keyBuffer),
+    keyHex: arrayBufferToHex(keyBuffer),
     keyUrl,
     fetchedAt: Date.now(),
     playerDomain,
