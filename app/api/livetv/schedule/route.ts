@@ -2,11 +2,10 @@
  * Live TV Schedule API
  * 
  * Fetches and returns sports events schedule from DLHD.
- * Uses cheerio for HTML parsing (serverless-compatible).
+ * Uses regex-based parsing (no external dependencies).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import * as cheerio from 'cheerio';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,97 +30,99 @@ interface ScheduleCategory {
 
 const SPORT_ICONS: Record<string, string> = {
   'soccer': '⚽', 'football': '⚽', 'basketball': '🏀', 'tennis': '🎾',
-  'cricket': '🏏', 'hockey': '🏒', 'ice hockey': '🏒', 'baseball': '⚾',
-  'golf': '⛳', 'rugby': '🏉', 'motorsport': '🏎️', 'f1': '🏎️',
-  'boxing': '🥊', 'mma': '🥊', 'ufc': '🥊', 'wwe': '🤼',
-  'volleyball': '🏐', 'handball': '🤾', 'am. football': '🏈', 'nfl': '🏈',
-  'horse racing': '🏇', 'tv shows': '📺',
+  'cricket': '🏏', 'hockey': '🏒', 'baseball': '⚾', 'golf': '⛳',
+  'rugby': '🏉', 'motorsport': '🏎️', 'f1': '🏎️', 'boxing': '🥊',
+  'mma': '🥊', 'ufc': '🥊', 'wwe': '🤼', 'volleyball': '🏐',
+  'am. football': '🏈', 'nfl': '🏈', 'tv shows': '📺',
 };
 
+function getIcon(name: string): string {
+  const lower = name.toLowerCase();
+  for (const [key, icon] of Object.entries(SPORT_ICONS)) {
+    if (lower.includes(key)) return icon;
+  }
+  return '📺';
+}
 
-function parseEventsFromHTML(html: string): SportEvent[] {
-  const $ = cheerio.load(html);
+function parseEvents(html: string): SportEvent[] {
   const events: SportEvent[] = [];
-  
-  $('.schedule__event').each((index, el) => {
-    const $el = $(el);
-    const event: SportEvent = {
-      id: `event-${Date.now()}-${index}`,
-      time: '',
-      dataTime: '',
-      title: '',
-      isLive: false,
-      channels: []
-    };
+  const eventRegex = /<div[^>]*class="[^"]*schedule__event[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi;
+  let match;
+  let index = 0;
+
+  while ((match = eventRegex.exec(html)) !== null) {
+    const eventHtml = match[0];
     
-    const $header = $el.find('.schedule__eventHeader');
-    const $time = $header.find('.schedule__time');
-    const $title = $header.find('.schedule__eventTitle');
+    // Extract time
+    const timeMatch = eventHtml.match(/class="[^"]*schedule__time[^"]*"[^>]*data-time="([^"]*)"[^>]*>([^<]*)</i);
+    const time = timeMatch ? timeMatch[2].trim() : '';
+    const dataTime = timeMatch ? timeMatch[1] : '';
     
-    event.time = $time.text().trim();
-    event.dataTime = $time.attr('data-time') || '';
-    event.title = $title.text().trim();
+    // Extract title
+    const titleMatch = eventHtml.match(/class="[^"]*schedule__eventTitle[^"]*"[^>]*>([^<]*)</i);
+    const title = titleMatch ? titleMatch[1].trim() : '';
+    
+    // Check if live
+    const isLive = /is-live|>live</i.test(eventHtml);
+    
+    // Extract channels
+    const channels: { name: string; channelId: string; href: string }[] = [];
+    const channelRegex = /<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi;
+    let chMatch;
+    while ((chMatch = channelRegex.exec(eventHtml)) !== null) {
+      const href = chMatch[1];
+      const name = chMatch[2].trim();
+      const idMatch = href.match(/id=([^&|]+)/);
+      if (name) {
+        channels.push({ name, channelId: idMatch ? idMatch[1] : '', href });
+      }
+    }
     
     // Parse teams from title
-    const vsMatch = event.title.match(/(.+?)\s+vs\.?\s+(.+?)(?:\s*-\s*(.+))?$/i);
+    let teams: { home: string; away: string } | undefined;
+    let league: string | undefined;
+    const vsMatch = title.match(/(.+?)\s+vs\.?\s+(.+?)(?:\s*-\s*(.+))?$/i);
     if (vsMatch) {
-      event.teams = { home: vsMatch[1].trim(), away: vsMatch[2].trim() };
-      if (vsMatch[3]) event.league = vsMatch[3].trim();
+      teams = { home: vsMatch[1].trim(), away: vsMatch[2].trim() };
+      if (vsMatch[3]) league = vsMatch[3].trim();
     }
     
-    // Check live status
-    if ($header.hasClass('is-live') || $el.hasClass('is-live') || 
-        $header.text().toLowerCase().includes('live')) {
-      event.isLive = true;
-    }
-    
-    // Get channels
-    $el.find('.schedule__channels a').each((_, link) => {
-      const $link = $(link);
-      const href = $link.attr('href') || '';
-      const idMatch = href.match(/id=([^&|]+)/);
-      event.channels.push({
-        name: $link.text().trim(),
-        channelId: idMatch ? idMatch[1] : '',
-        href
+    if (title || time) {
+      events.push({
+        id: `event-${Date.now()}-${index++}`,
+        time, dataTime, title, isLive, channels, teams, league
       });
-    });
-    
-    if (event.title || event.time) events.push(event);
-  });
+    }
+  }
   
   return events;
 }
 
-function parseCategoriesFromHTML(html: string): ScheduleCategory[] {
-  const $ = cheerio.load(html);
+
+function parseCategories(html: string): ScheduleCategory[] {
   const categories: ScheduleCategory[] = [];
-  
-  $('.schedule__category').each((_, catEl) => {
-    const $cat = $(catEl);
-    const name = $cat.find('.schedule__catHeader').text().trim();
+  const catRegex = /<div[^>]*class="[^"]*schedule__category[^"]*"[^>]*>([\s\S]*?)(?=<div[^>]*class="[^"]*schedule__category|$)/gi;
+  let match;
+
+  while ((match = catRegex.exec(html)) !== null) {
+    const catHtml = match[0];
     
-    let icon = '📺';
-    const nameLower = name.toLowerCase();
-    for (const [key, ico] of Object.entries(SPORT_ICONS)) {
-      if (nameLower.includes(key)) { icon = ico; break; }
+    // Extract category name
+    const headerMatch = catHtml.match(/class="[^"]*schedule__catHeader[^"]*"[^>]*>([^<]*)</i);
+    const name = headerMatch ? headerMatch[1].trim() : '';
+    
+    if (!name) continue;
+    
+    const events = parseEvents(catHtml);
+    events.forEach(e => { e.sport = name; });
+    
+    if (events.length > 0) {
+      categories.push({ name, icon: getIcon(name), events });
     }
-    
-    const events: SportEvent[] = [];
-    $cat.find('.schedule__event').each((_, eventEl) => {
-      const parsed = parseEventsFromHTML($(eventEl).prop('outerHTML') || '');
-      parsed.forEach(e => { e.sport = name; });
-      events.push(...parsed);
-    });
-    
-    if (name && events.length > 0) {
-      categories.push({ name, icon, events });
-    }
-  });
+  }
   
   return categories;
 }
-
 
 async function fetchScheduleHTML(source?: string): Promise<string> {
   const headers = {
@@ -132,11 +133,17 @@ async function fetchScheduleHTML(source?: string): Promise<string> {
   
   try {
     if (source) {
-      const response = await fetch(`https://dlhd.dad/schedule-api.php?source=${source}`, { headers });
+      const response = await fetch(`https://dlhd.dad/schedule-api.php?source=${source}`, { 
+        headers, 
+        next: { revalidate: 60 } 
+      });
       const json = await response.json();
       return json.success && json.html ? json.html : '';
     } else {
-      const response = await fetch('https://dlhd.dad/', { headers });
+      const response = await fetch('https://dlhd.dad/', { 
+        headers,
+        next: { revalidate: 60 }
+      });
       return await response.text();
     }
   } catch {
@@ -152,22 +159,19 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const liveOnly = searchParams.get('live') === 'true';
     
-    let html: string;
-    if (source === 'extra') html = await fetchScheduleHTML('extra');
-    else if (source === 'extra_ppv') html = await fetchScheduleHTML('extra_ppv');
-    else if (source === 'extra_topembed') html = await fetchScheduleHTML('extra_topembed');
-    else html = await fetchScheduleHTML();
+    const html = await fetchScheduleHTML(source || undefined);
     
-    let categories = parseCategoriesFromHTML(html);
+    let categories = parseCategories(html);
     
+    // Fallback: parse events directly if no categories found
     if (categories.length === 0) {
-      const events = parseEventsFromHTML(html);
+      const events = parseEvents(html);
       if (events.length > 0) {
         categories = [{ name: 'All Events', icon: '📺', events }];
       }
     }
     
-    // Filters
+    // Apply filters
     if (sport && sport !== 'all') {
       categories = categories.filter(cat => cat.name.toLowerCase().includes(sport.toLowerCase()));
     }
@@ -177,7 +181,8 @@ export async function GET(request: NextRequest) {
       categories = categories.map(cat => ({
         ...cat,
         events: cat.events.filter(e => 
-          e.title.toLowerCase().includes(s) || e.channels.some(ch => ch.name.toLowerCase().includes(s))
+          e.title.toLowerCase().includes(s) || 
+          e.channels.some(ch => ch.name.toLowerCase().includes(s))
         )
       })).filter(cat => cat.events.length > 0);
     }
@@ -194,9 +199,15 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      schedule: { date: new Date().toISOString().split('T')[0], timezone: 'UK GMT', categories },
+      schedule: { 
+        date: new Date().toISOString().split('T')[0], 
+        timezone: 'UK GMT', 
+        categories 
+      },
       stats: { totalCategories: categories.length, totalEvents, liveEvents },
-      filters: { sports: categories.map(cat => ({ name: cat.name, icon: cat.icon, count: cat.events.length })) }
+      filters: { 
+        sports: categories.map(cat => ({ name: cat.name, icon: cat.icon, count: cat.events.length })) 
+      }
     }, {
       headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120' },
     });
