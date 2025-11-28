@@ -81,44 +81,30 @@ function cacheKey(channelId: string, keyBuffer: ArrayBuffer, keyUrl: string, pla
   return cached;
 }
 
-// Raspberry Pi proxy (if configured) or public CORS proxies as fallback
+// Raspberry Pi proxy - REQUIRED for all external requests
 const RPI_PROXY_URL = process.env.RPI_PROXY_URL;
 const RPI_PROXY_KEY = process.env.RPI_PROXY_KEY;
 
-const PUBLIC_PROXIES = [
-  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-];
-
 async function fetchViaProxy(url: string): Promise<Response> {
-  // Try Raspberry Pi proxy first if configured
-  if (RPI_PROXY_URL && RPI_PROXY_KEY) {
-    try {
-      const proxyUrl = `${RPI_PROXY_URL}/proxy?url=${encodeURIComponent(url)}`;
-      const response = await fetch(proxyUrl, {
-        headers: { 'X-API-Key': RPI_PROXY_KEY },
-        cache: 'no-store',
-      });
-      if (response.ok) return response;
-    } catch {
-      // Fall through to public proxies
-    }
+  console.log(`[DLHD Key] Fetching via RPI proxy: ${url}`);
+  
+  if (!RPI_PROXY_URL || !RPI_PROXY_KEY) {
+    throw new Error('RPI_PROXY_URL and RPI_PROXY_KEY environment variables are required');
   }
 
-  // Fallback to public CORS proxies
-  let lastError: Error | null = null;
-  for (const proxyFn of PUBLIC_PROXIES) {
-    try {
-      const response = await fetch(proxyFn(url), { cache: 'no-store' });
-      if (response.ok) return response;
-      if (response.status >= 500) {
-        throw new Error(`CDN error: ${response.status}`);
-      }
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-    }
+  const proxyUrl = `${RPI_PROXY_URL}/proxy?url=${encodeURIComponent(url)}`;
+  const response = await fetch(proxyUrl, {
+    headers: { 'X-API-Key': RPI_PROXY_KEY },
+    cache: 'no-store',
+  });
+  
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`RPI proxy failed: ${response.status} - ${text}`);
   }
-  throw lastError || new Error('All proxies failed');
+  
+  console.log(`[DLHD Key] RPI proxy success`);
+  return response;
 }
 
 async function fetchWithHeaders(url: string, headers: Record<string, string> = {}): Promise<Response> {
