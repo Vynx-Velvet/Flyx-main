@@ -2,7 +2,8 @@
  * DLHD Key Proxy API
  * 
  * Fetches decryption keys for DLHD streams with proper headers.
- * Supports key caching with 10-minute TTL and cache invalidation.
+ * Keys are cached per-hour (keys typically rotate every 3-4 hours).
+ * Cache refreshes automatically when the hour changes.
  * 
  * GET /api/dlhd-proxy/key?url=<encoded_key_url>
  * GET /api/dlhd-proxy/key?channel=<id>
@@ -20,14 +21,12 @@ const PLAYER_DOMAINS = [
   'daddyhd.com',
 ];
 
-// Key cache configuration
-const KEY_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
 interface CachedKey {
   keyBuffer: ArrayBuffer;
   keyHex: string;
   keyUrl: string;
   fetchedAt: number;
+  fetchedHour: number; // Hour when key was fetched (0-23)
   playerDomain: string;
 }
 
@@ -35,12 +34,21 @@ interface CachedKey {
 const keyCache = new Map<string, CachedKey>();
 
 /**
+ * Get current hour (0-23) - keys typically rotate every 3-4 hours
+ * We refresh when the hour changes to catch any key rotations
+ */
+function getCurrentHour(): number {
+  return new Date().getUTCHours();
+}
+
+/**
  * Check if a cached key is still valid
+ * Keys are valid as long as we're in the same hour they were fetched
  */
 function isKeyCacheValid(cached: CachedKey | undefined): cached is CachedKey {
   if (!cached) return false;
-  const age = Date.now() - cached.fetchedAt;
-  return age < KEY_CACHE_TTL_MS;
+  const currentHour = getCurrentHour();
+  return cached.fetchedHour === currentHour;
 }
 
 /**
@@ -69,15 +77,17 @@ function invalidateKeyCache(channelId: string): void {
  * Store key in cache
  */
 function cacheKey(channelId: string, keyBuffer: ArrayBuffer, keyUrl: string, playerDomain: string): CachedKey {
+  const currentHour = getCurrentHour();
   const cached: CachedKey = {
     keyBuffer,
     keyHex: Buffer.from(keyBuffer).toString('hex'),
     keyUrl,
     fetchedAt: Date.now(),
+    fetchedHour: currentHour,
     playerDomain,
   };
   keyCache.set(channelId, cached);
-  console.log(`[DLHD Key] Cached key for channel ${channelId}`);
+  console.log(`[DLHD Key] Cached key for channel ${channelId} (hour: ${currentHour})`);
   return cached;
 }
 
@@ -234,8 +244,8 @@ export async function GET(request: NextRequest) {
             invalidate: 'GET /api/dlhd-proxy/key?channel=325&invalidate=true - Force refresh',
           },
           caching: {
-            keyTTL: `${KEY_CACHE_TTL_MS / 1000 / 60} minutes`,
-            note: 'Keys are cached per channel. Use invalidate=true if decryption fails.',
+            strategy: 'hour-based',
+            note: 'Keys are cached until the hour changes (keys rotate every 3-4 hours). Use invalidate=true if decryption fails.',
           },
         },
         { status: 400 }
@@ -252,7 +262,8 @@ export async function GET(request: NextRequest) {
     // Calculate cache info for response headers
     const cachedKey = channel ? keyCache.get(channel) : null;
     const cacheAge = cachedKey ? Math.round((Date.now() - cachedKey.fetchedAt) / 1000) : 0;
-    const cacheTTL = cachedKey ? Math.round((KEY_CACHE_TTL_MS - (Date.now() - cachedKey.fetchedAt)) / 1000) : 0;
+    const minutesUntilNextHour = 60 - new Date().getUTCMinutes();
+    const cacheTTL = cachedKey ? minutesUntilNextHour * 60 : 0; // Seconds until next hour
 
     return new NextResponse(keyBuffer, {
       status: 200,

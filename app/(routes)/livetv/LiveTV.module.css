@@ -521,7 +521,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease, opacity 0.3s ease;
+  opacity: 1;
 }
 
 .closeBtn:hover {
@@ -542,6 +543,8 @@
   padding-right: 80px;
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.7) 50%, transparent 100%);
   z-index: 50;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  opacity: 1;
 }
 
 .channelTitle {
@@ -576,7 +579,7 @@
   margin-right: 60px;
 }
 
-/* Custom Video Controls - Always visible */
+/* Custom Video Controls */
 .customControls {
   position: absolute;
   bottom: 0;
@@ -588,10 +591,42 @@
   padding: 20px 24px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.7) 50%, transparent 100%);
   z-index: 50;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  opacity: 1;
 }
 
-.customControls.visible {
+/* Hide controls state */
+.hideControls .closeBtn,
+.hideControls .playerHeader,
+.hideControls .customControls {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hideControls .playerHeader {
+  transform: translateY(-20px);
+}
+
+.hideControls .customControls {
+  transform: translateY(20px);
+}
+
+/* Show controls state */
+.showControls .closeBtn,
+.showControls .playerHeader,
+.showControls .customControls {
   opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+/* Hide cursor when controls are hidden */
+.hideControls {
+  cursor: none;
+}
+
+.showControls {
+  cursor: default;
 }
 
 .controlBtn {

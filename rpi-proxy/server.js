@@ -24,9 +24,10 @@ const { URL } = require('url');
 const PORT = process.env.PORT || 3001;
 const API_KEY = process.env.API_KEY || 'change-this-secret-key';
 
-// Rate limiting
+// Rate limiting - generous limits for live streaming
+// Each stream needs ~8-15 requests/min for M3U8 + occasional key fetches
 const rateLimiter = new Map();
-const RATE_LIMIT = 100; // requests per minute
+const RATE_LIMIT = 300; // requests per minute (supports ~20 concurrent streams)
 const RATE_WINDOW = 60000; // 1 minute
 
 function checkRateLimit(ip) {
@@ -56,36 +57,26 @@ function proxyRequest(targetUrl, res) {
   const url = new URL(targetUrl);
   const client = url.protocol === 'https:' ? https : http;
   
-  // Determine referer based on target domain
-  let referer = 'https://daddyhd.com/';
-  let origin = 'https://daddyhd.com';
+  // Use epicplayplay.cfd as referer/origin for ALL giokko.ru requests (M3U8 and keys)
+  const playerDomain = 'epicplayplay.cfd';
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0',
+    'Accept': '*/*',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'identity',
+    'Referer': `https://${playerDomain}/`,
+    'Origin': `https://${playerDomain}`,
+  };
   
-  // For giokko.ru domains (key and m3u8 servers)
-  if (url.hostname.includes('giokko.ru')) {
-    referer = 'https://daddyhd.com/';
-    origin = 'https://daddyhd.com';
-  }
+  console.log(`[Proxy] Headers: Referer=${headers['Referer']}, Origin=${headers['Origin']}`)
   
   const options = {
     hostname: url.hostname,
     port: url.port || (url.protocol === 'https:' ? 443 : 80),
     path: url.pathname + url.search,
     method: 'GET',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-      'Accept': '*/*',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Accept-Encoding': 'identity', // Don't compress - we're proxying
-      'Referer': referer,
-      'Origin': origin,
-      'Sec-Ch-Ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-      'Sec-Ch-Ua-Mobile': '?0',
-      'Sec-Ch-Ua-Platform': '"Windows"',
-      'Sec-Fetch-Dest': 'empty',
-      'Sec-Fetch-Mode': 'cors',
-      'Sec-Fetch-Site': 'cross-site',
-    },
-    timeout: 30000, // Increased timeout for key requests
+    headers,
+    timeout: 30000,
   };
 
   const proxyReq = client.request(options, (proxyRes) => {

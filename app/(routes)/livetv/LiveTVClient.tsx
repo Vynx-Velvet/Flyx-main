@@ -415,6 +415,7 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
   const controlsTimeoutRef = React.useRef<NodeJS.Timeout>();
   const decryptRetryCount = React.useRef(0);
   const MAX_DECRYPT_RETRIES = 2;
+  const CONTROLS_HIDE_DELAY = 3000; // 3 seconds
   
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -422,6 +423,7 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showControls, setShowControls] = useState(true);
 
   useEffect(() => {
     decryptRetryCount.current = 0;
@@ -457,10 +459,18 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
       if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
-          lowLatencyMode: true,
-          backBufferLength: 30,
-          maxBufferLength: 15,
-          liveSyncDurationCount: 3,
+          lowLatencyMode: false, // Disable low latency to reduce playlist fetches
+          backBufferLength: 60, // Keep more buffer behind playhead
+          maxBufferLength: 30, // Buffer up to 30 seconds ahead
+          maxMaxBufferLength: 60, // Allow up to 60 seconds in buffer
+          liveSyncDurationCount: 4, // Sync 4 segments behind live edge
+          liveMaxLatencyDurationCount: 10, // Allow up to 10 segments latency before seeking
+          liveDurationInfinity: true, // Treat as infinite live stream
+          levelLoadingMaxRetry: 4, // Retry level loading
+          fragLoadingMaxRetry: 6, // Retry fragment loading more times
+          manifestLoadingMaxRetry: 4, // Retry manifest loading
+          levelLoadingRetryDelay: 1000, // Wait 1s between retries
+          fragLoadingRetryDelay: 1000,
         });
 
         hls.loadSource(streamUrl);
@@ -560,6 +570,48 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  // Auto-hide controls after inactivity
+  const resetControlsTimeout = useCallback(() => {
+    setShowControls(true);
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+    controlsTimeoutRef.current = setTimeout(() => {
+      if (isPlaying) {
+        setShowControls(false);
+      }
+    }, CONTROLS_HIDE_DELAY);
+  }, [isPlaying]);
+
+  const handleMouseMove = useCallback(() => {
+    resetControlsTimeout();
+  }, [resetControlsTimeout]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (isPlaying) {
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+      controlsTimeoutRef.current = setTimeout(() => {
+        setShowControls(false);
+      }, 1000); // Hide faster when mouse leaves
+    }
+  }, [isPlaying]);
+
+  const handleMouseEnter = useCallback(() => {
+    resetControlsTimeout();
+  }, [resetControlsTimeout]);
+
+  // Show controls when paused
+  useEffect(() => {
+    if (!isPlaying) {
+      setShowControls(true);
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+    }
+  }, [isPlaying]);
+
 
 
   useEffect(() => {
@@ -577,15 +629,18 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
     <div className={styles.playerModal} onClick={onClose}>
       <div 
         ref={containerRef} 
-        className={styles.playerContainer} 
+        className={`${styles.playerContainer} ${showControls ? styles.showControls : styles.hideControls}`}
         onClick={(e) => e.stopPropagation()}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onMouseEnter={handleMouseEnter}
       >
-        {/* Close Button - Always visible */}
+        {/* Close Button */}
         <button className={styles.closeBtn} onClick={onClose}>
           ✕
         </button>
         
-        {/* Header - Always visible */}
+        {/* Header */}
         <div className={styles.playerHeader}>
           <span className={styles.liveTag}><span className={styles.liveDot} /> LIVE</span>
           <span className={styles.channelTitle}>{channel.name}</span>

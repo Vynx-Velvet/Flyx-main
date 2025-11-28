@@ -4,7 +4,8 @@
  * Proxies DLHD.dad streams with automatic server lookup and key fetching.
  * 
  * Caching Strategy:
- *   - Keys are cached for 10 minutes per channel
+ *   - Keys are cached per-hour (keys rotate every 3-4 hours)
+ *   - Cache refreshes automatically when the UTC hour changes
  *   - M3U8 content is cached for 2 seconds (live stream refresh rate)
  *   - Cache is invalidated when key fails to decrypt
  *   - Segment URLs point directly to CDN (not proxied)
@@ -26,8 +27,9 @@ const CDN_PATTERNS = {
 };
 
 // Cache configuration
-const KEY_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes for keys
-const M3U8_CACHE_TTL_MS = 2000; // 2 seconds for M3U8 (live stream segment duration)
+// Live streams typically have 2-4 second segments, but we can cache longer
+// since HLS.js handles buffering and will request again if needed
+const M3U8_CACHE_TTL_MS = 8000; // 8 seconds - reduces proxy load by 4x while still getting fresh segments
 
 interface CachedKey {
   keyBuffer: ArrayBuffer;
@@ -35,6 +37,7 @@ interface CachedKey {
   keyHex: string;
   keyUrl: string;
   fetchedAt: number;
+  fetchedHour: number; // Hour when key was fetched (0-23)
   playerDomain: string;
 }
 
@@ -49,10 +52,32 @@ interface CachedM3U8 {
 const keyCache = new Map<string, CachedKey>();
 const m3u8Cache = new Map<string, CachedM3U8>();
 
+// Server key cache - server keys rarely change
+interface CachedServerKey {
+  serverKey: string;
+  playerDomain: string;
+  fetchedAt: number;
+}
+const serverKeyCache = new Map<string, CachedServerKey>();
+const SERVER_KEY_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes - server keys are very stable
 
+/**
+ * Get current hour (0-23) - keys typically rotate every 3-4 hours
+ * We refresh when the hour changes to catch any key rotations
+ */
+function getCurrentHour(): number {
+  return new Date().getUTCHours();
+}
+
+/**
+ * Check if cached key is still valid
+ * Keys are valid as long as we're in the same hour they were fetched
+ */
 function isKeyCacheValid(cached: CachedKey | undefined): cached is CachedKey {
   if (!cached) return false;
-  return (Date.now() - cached.fetchedAt) < KEY_CACHE_TTL_MS;
+  const currentHour = getCurrentHour();
+  // Key is valid if fetched in the same hour
+  return cached.fetchedHour === currentHour;
 }
 
 function isM3U8CacheValid(cached: CachedM3U8 | undefined): cached is CachedM3U8 {
@@ -86,16 +111,18 @@ function invalidateKeyCache(channelId: string): void {
 }
 
 function cacheKey(channelId: string, keyBuffer: ArrayBuffer, keyUrl: string, playerDomain: string): CachedKey {
+  const currentHour = getCurrentHour();
   const cached: CachedKey = {
     keyBuffer,
     keyBase64: Buffer.from(keyBuffer).toString('base64'),
     keyHex: Buffer.from(keyBuffer).toString('hex'),
     keyUrl,
     fetchedAt: Date.now(),
+    fetchedHour: currentHour,
     playerDomain,
   };
   keyCache.set(channelId, cached);
-  console.log(`[DLHD] Cached key for ${channelId}`);
+  console.log(`[DLHD] Cached key for ${channelId} (hour: ${currentHour})`);
   return cached;
 }
 
@@ -130,6 +157,13 @@ async function fetchWithHeaders(url: string, headers: Record<string, string> = {
 }
 
 async function getServerKey(channelKey: string): Promise<{ serverKey: string; playerDomain: string }> {
+  // Check cache first
+  const cached = serverKeyCache.get(channelKey);
+  if (cached && (Date.now() - cached.fetchedAt) < SERVER_KEY_CACHE_TTL_MS) {
+    console.log(`[DLHD] Server key cache hit for ${channelKey} (age: ${Math.round((Date.now() - cached.fetchedAt) / 1000)}s)`);
+    return { serverKey: cached.serverKey, playerDomain: cached.playerDomain };
+  }
+
   let lastError: Error | null = null;
   
   for (const domain of PLAYER_DOMAINS) {
@@ -144,6 +178,12 @@ async function getServerKey(channelKey: string): Promise<{ serverKey: string; pl
         const data = await response.json();
         if (data.server_key) {
           console.log(`[DLHD] Server key: ${data.server_key} from ${domain}`);
+          // Cache the server key
+          serverKeyCache.set(channelKey, {
+            serverKey: data.server_key,
+            playerDomain: domain,
+            fetchedAt: Date.now(),
+          });
           return { serverKey: data.server_key, playerDomain: domain };
         }
       }
@@ -315,7 +355,8 @@ export async function GET(request: NextRequest) {
 
     const cachedKeyInfo = keyCache.get(channel);
     const cacheAge = cachedKeyInfo ? Math.round((Date.now() - cachedKeyInfo.fetchedAt) / 1000) : 0;
-    const cacheTTL = cachedKeyInfo ? Math.round((KEY_CACHE_TTL_MS - (Date.now() - cachedKeyInfo.fetchedAt)) / 1000) : 0;
+    const minutesUntilNextHour = 60 - new Date().getUTCMinutes();
+    const cacheTTL = cachedKeyInfo ? minutesUntilNextHour * 60 : 0; // Seconds until next hour
 
     return new NextResponse(proxiedM3U8, {
       status: 200,
