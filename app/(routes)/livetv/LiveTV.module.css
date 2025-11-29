@@ -772,6 +772,41 @@
   background: rgba(255, 255, 255, 0.15);
 }
 
+/* Buffering Overlay - semi-transparent, doesn't block video */
+.bufferingOverlay {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 20;
+  animation: fadeIn 0.2s ease;
+}
+
+.bufferingSpinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #8b5cf6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.bufferingText {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: white;
+  margin: 0;
+  white-space: nowrap;
+}
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 1024px) {
   .sidebar {

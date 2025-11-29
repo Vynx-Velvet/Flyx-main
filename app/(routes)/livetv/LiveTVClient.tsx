@@ -209,26 +209,30 @@ export default function LiveTVClient() {
     return acc;
   }, [] as (typeof sportFilters[0] & { uniqueId: string })[]);
 
-  // Update live status every minute by forcing a re-render
+  // Track if component has mounted (for hydration-safe date calculations)
+  const [hasMounted, setHasMounted] = useState(false);
   const [tick, setTick] = useState(0);
+  
   useEffect(() => {
+    setHasMounted(true);
+    // Update live status every minute
     const interval = setInterval(() => setTick(t => t + 1), 60000);
     return () => clearInterval(interval);
   }, []);
 
-  // Get all events flat for easier display, recalculating live status client-side
+  // Get all events flat for easier display
+  // Only recalculate live status after mount to avoid hydration mismatch
   const allEvents = useMemo(() => {
     return schedule.flatMap(cat => 
       cat.events.map(event => ({
         ...event,
         categoryIcon: cat.icon,
         categoryName: cat.name,
-        // Recalculate live status based on current time
-        isLive: isEventCurrentlyLive(event.dataTime, event.isLive),
+        // Only recalculate on client after mount, otherwise use server value
+        isLive: hasMounted ? isEventCurrentlyLive(event.dataTime, event.isLive) : event.isLive,
       }))
     );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedule, tick]); // tick forces recalculation every minute
+  }, [schedule, tick, hasMounted]);
 
   const filteredEvents = showLiveOnly ? allEvents.filter(e => e.isLive) : allEvents;
   const liveEvents = allEvents.filter(e => e.isLive);
@@ -472,6 +476,7 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [bufferingStatus, setBufferingStatus] = useState<string | null>(null);
 
   useEffect(() => {
     decryptRetryCount.current = 0;
@@ -507,31 +512,31 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
       if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
-          // CRITICAL: Conservative buffering - only buffer what's available
           lowLatencyMode: false,
-          backBufferLength: 10, // Only keep 10s behind (reduce memory)
-          maxBufferLength: 8, // Only buffer 8 seconds ahead - stay within available segments
-          maxMaxBufferLength: 12, // Hard cap at 12 seconds
-          maxBufferSize: 30 * 1000 * 1000, // 30MB max buffer
+          // Buffer settings - balanced for live streams
+          backBufferLength: 30, // Keep 30s behind
+          maxBufferLength: 20, // Buffer 20 seconds ahead
+          maxMaxBufferLength: 30, // Cap at 30 seconds
+          maxBufferSize: 60 * 1000 * 1000, // 60MB max buffer
           maxBufferHole: 0.5, // Allow small gaps
-          // Live stream settings - stay close to live edge
-          liveSyncDurationCount: 2, // Only 2 segments behind live edge
-          liveMaxLatencyDurationCount: 4, // Max 4 segments latency
+          // Live stream settings
+          liveSyncDurationCount: 3, // 3 segments behind live edge
+          liveMaxLatencyDurationCount: 6, // Max 6 segments latency before seeking
           liveDurationInfinity: true,
-          liveBackBufferLength: 10, // Keep 10s of live buffer behind
-          // Don't try to buffer ahead aggressively
-          startFragPrefetch: false, // Don't prefetch - wait for current to finish
+          liveBackBufferLength: 30,
+          // Loading behavior
+          startFragPrefetch: false,
           testBandwidth: false,
-          // Retries and timeouts
-          levelLoadingMaxRetry: 3,
-          fragLoadingMaxRetry: 2,
+          // Retries - be patient
+          levelLoadingMaxRetry: 4,
+          fragLoadingMaxRetry: 3,
           manifestLoadingMaxRetry: 4,
           levelLoadingRetryDelay: 1000,
           fragLoadingRetryDelay: 1000,
           manifestLoadingRetryDelay: 1000,
-          levelLoadingTimeOut: 10000,
-          manifestLoadingTimeOut: 10000,
-          fragLoadingTimeOut: 10000,
+          levelLoadingTimeOut: 15000,
+          manifestLoadingTimeOut: 15000,
+          fragLoadingTimeOut: 20000, // Give segments more time to load
         });
 
         hls.loadSource(streamUrl);
@@ -539,8 +544,14 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           setIsLoading(false);
+          setBufferingStatus(null);
           decryptRetryCount.current = 0;
           videoRef.current?.play().catch(() => {});
+        });
+
+        // Clear buffering status when fragment loads successfully
+        hls.on(Hls.Events.FRAG_LOADED, () => {
+          setBufferingStatus(null);
         });
 
         hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -548,6 +559,7 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
           
           // Handle fragment/segment loading errors - skip to next segment
           if (data.details === 'fragLoadError' || data.details === 'fragLoadTimeOut') {
+            setBufferingStatus('Loading segment...');
             console.log('[LiveTV] Fragment load failed, skipping to next segment');
             // Skip the problematic fragment by seeking forward slightly
             if (videoRef.current && hls.media) {
@@ -573,6 +585,7 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
           
           // Handle decryption errors by invalidating cache and retrying
           if (data.details === 'fragDecryptError' || data.details === 'keyLoadError') {
+            setBufferingStatus('Refreshing stream key...');
             console.log(`[LiveTV] Key error, retry ${decryptRetryCount.current + 1}/${MAX_DECRYPT_RETRIES}`);
             if (decryptRetryCount.current < MAX_DECRYPT_RETRIES) {
               decryptRetryCount.current++;
@@ -581,18 +594,26 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
             }
           }
           
-          // Handle buffer stall - try to recover by seeking
+          // Handle buffer stall - don't seek, just wait for more data
           if (data.details === 'bufferStalledError') {
-            console.log('[LiveTV] Buffer stalled, attempting recovery');
-            if (videoRef.current) {
-              // Seek forward slightly to get past the stall
-              videoRef.current.currentTime += 1;
-            }
+            setBufferingStatus('Buffering...');
+            console.log('[LiveTV] Buffer stalled, waiting for data...');
+            // Don't seek - just let HLS.js continue loading
+            // Seeking can cause more stalls
+            return;
+          }
+          
+          // Handle buffer append errors
+          if (data.details === 'bufferAppendError') {
+            setBufferingStatus('Processing video...');
+            console.log('[LiveTV] Buffer append error, recovering...');
+            hls.recoverMediaError();
             return;
           }
           
           // Handle media errors - try to recover
           if (data.type === 'mediaError' && data.fatal) {
+            setBufferingStatus('Recovering...');
             console.log('[LiveTV] Fatal media error, attempting recovery');
             hls.recoverMediaError();
             return;
@@ -600,6 +621,7 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
           
           // Handle network errors - try to recover
           if (data.type === 'networkError' && data.fatal) {
+            setBufferingStatus('Reconnecting...');
             console.log('[LiveTV] Fatal network error, attempting recovery');
             hls.startLoad();
             return;
@@ -607,6 +629,7 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
           
           // Only show error for truly fatal unrecoverable errors
           if (data.fatal && data.type !== 'mediaError' && data.type !== 'networkError') {
+            setBufferingStatus(null);
             setError('Stream error - channel may be offline');
             setIsLoading(false);
           }
@@ -807,6 +830,14 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
           <div className={styles.playerOverlay}>
             <div className={styles.loadingSpinner} />
             <p className={styles.loadingText}>Loading {channel.name}...</p>
+          </div>
+        )}
+
+        {/* Buffering Status Overlay - shows during playback issues */}
+        {bufferingStatus && !isLoading && !error && (
+          <div className={styles.bufferingOverlay}>
+            <div className={styles.bufferingSpinner} />
+            <p className={styles.bufferingText}>{bufferingStatus}</p>
           </div>
         )}
 
