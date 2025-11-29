@@ -507,28 +507,31 @@ function LiveTVPlayer({ channel, onClose }: LiveTVPlayerProps) {
       if (Hls.isSupported()) {
         const hls = new Hls({
           enableWorker: true,
-          lowLatencyMode: false, // Disable low latency to reduce playlist fetches
-          backBufferLength: 90, // Keep 90s buffer behind playhead
-          maxBufferLength: 60, // Buffer up to 60 seconds ahead
-          maxMaxBufferLength: 120, // Allow up to 120 seconds in buffer
-          liveSyncDurationCount: 5, // Sync 5 segments behind live edge
-          liveMaxLatencyDurationCount: 15, // Allow up to 15 segments latency before seeking
-          liveDurationInfinity: true, // Treat as infinite live stream
-          levelLoadingMaxRetry: 4, // Reduced retries - skip faster
-          fragLoadingMaxRetry: 2, // Only retry fragment twice then skip
-          manifestLoadingMaxRetry: 6, // Retry manifest loading
-          levelLoadingRetryDelay: 1000, // Faster retry
-          fragLoadingRetryDelay: 500, // Fast retry for fragments
-          manifestLoadingRetryDelay: 2000,
-          // Timeouts - fail fast to skip problematic segments
-          levelLoadingTimeOut: 10000, // 10s timeout for level loading
-          manifestLoadingTimeOut: 15000, // 15s timeout for manifest
-          fragLoadingTimeOut: 8000, // 8s timeout for fragments - fail fast
-          // These control how often HLS.js polls for new segments
-          liveSyncOnStallIncrease: 1, // Only increment by 1 on stall
-          // Error handling - be more lenient
-          startFragPrefetch: true, // Prefetch next fragment
-          testBandwidth: false, // Don't test bandwidth, just play
+          // CRITICAL: Conservative buffering - only buffer what's available
+          lowLatencyMode: false,
+          backBufferLength: 10, // Only keep 10s behind (reduce memory)
+          maxBufferLength: 8, // Only buffer 8 seconds ahead - stay within available segments
+          maxMaxBufferLength: 12, // Hard cap at 12 seconds
+          maxBufferSize: 30 * 1000 * 1000, // 30MB max buffer
+          maxBufferHole: 0.5, // Allow small gaps
+          // Live stream settings - stay close to live edge
+          liveSyncDurationCount: 2, // Only 2 segments behind live edge
+          liveMaxLatencyDurationCount: 4, // Max 4 segments latency
+          liveDurationInfinity: true,
+          liveBackBufferLength: 10, // Keep 10s of live buffer behind
+          // Don't try to buffer ahead aggressively
+          startFragPrefetch: false, // Don't prefetch - wait for current to finish
+          testBandwidth: false,
+          // Retries and timeouts
+          levelLoadingMaxRetry: 3,
+          fragLoadingMaxRetry: 2,
+          manifestLoadingMaxRetry: 4,
+          levelLoadingRetryDelay: 1000,
+          fragLoadingRetryDelay: 1000,
+          manifestLoadingRetryDelay: 1000,
+          levelLoadingTimeOut: 10000,
+          manifestLoadingTimeOut: 10000,
+          fragLoadingTimeOut: 10000,
         });
 
         hls.loadSource(streamUrl);
