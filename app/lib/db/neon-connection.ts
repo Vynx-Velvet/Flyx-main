@@ -357,6 +357,44 @@ class DatabaseConnection {
         [1, 'initial_schema']
       );
     }
+    
+    // Run migrations for new columns (v2 - geo columns)
+    await this.runPostgreSQLMigrations();
+  }
+  
+  private async runPostgreSQLMigrations(): Promise<void> {
+    if (!this.adapter) return;
+    
+    // Migration v2: Add city and region columns to user_activity and live_activity
+    try {
+      // Check if city column exists in user_activity
+      const userActivityColumns = await this.adapter.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'user_activity' AND column_name = 'city'
+      `);
+      
+      if (userActivityColumns.length === 0) {
+        console.log('Running migration: Adding geo columns to user_activity...');
+        await this.adapter.execute('ALTER TABLE user_activity ADD COLUMN IF NOT EXISTS city TEXT');
+        await this.adapter.execute('ALTER TABLE user_activity ADD COLUMN IF NOT EXISTS region TEXT');
+      }
+      
+      // Check if city column exists in live_activity
+      const liveActivityColumns = await this.adapter.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'live_activity' AND column_name = 'city'
+      `);
+      
+      if (liveActivityColumns.length === 0) {
+        console.log('Running migration: Adding geo columns to live_activity...');
+        await this.adapter.execute('ALTER TABLE live_activity ADD COLUMN IF NOT EXISTS city TEXT');
+        await this.adapter.execute('ALTER TABLE live_activity ADD COLUMN IF NOT EXISTS region TEXT');
+      }
+      
+      console.log('✓ Geo column migrations complete');
+    } catch (migrationError) {
+      console.warn('Migration warning (may be safe to ignore):', migrationError);
+    }
   }
 
   private async createSQLiteTables(): Promise<void> {
@@ -545,6 +583,40 @@ class DatabaseConnection {
         'INSERT INTO schema_migrations (version, name) VALUES (?, ?)',
         [1, 'initial_schema']
       );
+    }
+    
+    // Run migrations for new columns
+    await this.runSQLiteMigrations();
+  }
+  
+  private async runSQLiteMigrations(): Promise<void> {
+    if (!this.adapter) return;
+    
+    // Migration v2: Add city and region columns to user_activity and live_activity
+    try {
+      // Check if city column exists in user_activity
+      const userActivityInfo = await this.adapter.query(`PRAGMA table_info(user_activity)`);
+      const hasUserActivityCity = userActivityInfo.some((col: any) => col.name === 'city');
+      
+      if (!hasUserActivityCity) {
+        console.log('Running SQLite migration: Adding geo columns to user_activity...');
+        await this.adapter.execute('ALTER TABLE user_activity ADD COLUMN city TEXT');
+        await this.adapter.execute('ALTER TABLE user_activity ADD COLUMN region TEXT');
+      }
+      
+      // Check if city column exists in live_activity
+      const liveActivityInfo = await this.adapter.query(`PRAGMA table_info(live_activity)`);
+      const hasLiveActivityCity = liveActivityInfo.some((col: any) => col.name === 'city');
+      
+      if (!hasLiveActivityCity) {
+        console.log('Running SQLite migration: Adding geo columns to live_activity...');
+        await this.adapter.execute('ALTER TABLE live_activity ADD COLUMN city TEXT');
+        await this.adapter.execute('ALTER TABLE live_activity ADD COLUMN region TEXT');
+      }
+      
+      console.log('✓ SQLite geo column migrations complete');
+    } catch (migrationError) {
+      console.warn('SQLite migration warning (may be safe to ignore):', migrationError);
     }
   }
 

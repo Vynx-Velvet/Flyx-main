@@ -193,88 +193,128 @@ export async function GET(request: NextRequest) {
     );
 
     // 5. Geographic Heatmap (Enhanced - combines data from multiple sources)
-    // Primary source: user_activity table (most reliable for geo data)
-    // Fallback: analytics_events metadata
-    const geographicRaw = await adapter.query(
-      isNeon
-        ? `
-          WITH geo_data AS (
-            -- From user_activity (primary source)
+    // Try multiple sources: user_activity, live_activity, and analytics_events metadata
+    let geographicRaw: any[] = [];
+    
+    try {
+      // First try to get from user_activity (most reliable)
+      const userActivityGeo = await adapter.query(
+        isNeon
+          ? `
             SELECT 
               COALESCE(country, 'Unknown') as country,
-              COALESCE(city, 'Unknown') as city,
-              COALESCE(region, 'Unknown') as region,
-              user_id,
-              session_id
+              COUNT(DISTINCT session_id) as count,
+              COUNT(DISTINCT user_id) as unique_users
             FROM user_activity
             WHERE last_seen BETWEEN $1 AND $2
             AND country IS NOT NULL
             AND country != ''
             AND country != 'Unknown'
-            
-            UNION ALL
-            
-            -- From analytics_events metadata (fallback)
-            SELECT 
-              COALESCE(metadata->>'country', 'Unknown') as country,
-              COALESCE(metadata->>'city', 'Unknown') as city,
-              COALESCE(metadata->>'region', 'Unknown') as region,
-              COALESCE(metadata->>'userId', 'unknown') as user_id,
-              session_id
-            FROM analytics_events
-            WHERE timestamp BETWEEN $1 AND $2
-            AND metadata->>'country' IS NOT NULL
-            AND metadata->>'country' != ''
-            AND metadata->>'country' != 'Unknown'
-          )
-          SELECT 
-            country,
-            COUNT(DISTINCT session_id) as count,
-            COUNT(DISTINCT user_id) as unique_users
-          FROM geo_data
-          GROUP BY country
-          ORDER BY count DESC
-        `
-        : `
-          WITH geo_data AS (
-            -- From user_activity (primary source)
+            GROUP BY country
+          `
+          : `
             SELECT 
               COALESCE(country, 'Unknown') as country,
-              COALESCE(city, 'Unknown') as city,
-              COALESCE(region, 'Unknown') as region,
-              user_id,
-              session_id
+              COUNT(DISTINCT session_id) as count,
+              COUNT(DISTINCT user_id) as unique_users
             FROM user_activity
             WHERE last_seen BETWEEN ? AND ?
             AND country IS NOT NULL
             AND country != ''
             AND country != 'Unknown'
-            
-            UNION ALL
-            
-            -- From analytics_events metadata (fallback)
+            GROUP BY country
+          `,
+        [startTimestamp, endTimestamp]
+      );
+      
+      // Also get from analytics_events metadata
+      const analyticsGeo = await adapter.query(
+        isNeon
+          ? `
+            SELECT 
+              COALESCE(metadata->>'country', 'Unknown') as country,
+              COUNT(DISTINCT session_id) as count,
+              COUNT(DISTINCT COALESCE(metadata->>'userId', 'unknown')) as unique_users
+            FROM analytics_events
+            WHERE timestamp BETWEEN $1 AND $2
+            AND metadata->>'country' IS NOT NULL
+            AND metadata->>'country' != ''
+            AND metadata->>'country' != 'Unknown'
+            GROUP BY metadata->>'country'
+          `
+          : `
             SELECT 
               COALESCE(json_extract(metadata, '$.country'), 'Unknown') as country,
-              COALESCE(json_extract(metadata, '$.city'), 'Unknown') as city,
-              COALESCE(json_extract(metadata, '$.region'), 'Unknown') as region,
-              COALESCE(json_extract(metadata, '$.userId'), 'unknown') as user_id,
-              session_id
+              COUNT(DISTINCT session_id) as count,
+              COUNT(DISTINCT COALESCE(json_extract(metadata, '$.userId'), 'unknown')) as unique_users
             FROM analytics_events
             WHERE timestamp BETWEEN ? AND ?
             AND json_extract(metadata, '$.country') IS NOT NULL
             AND json_extract(metadata, '$.country') != ''
             AND json_extract(metadata, '$.country') != 'Unknown'
-          )
-          SELECT 
-            country,
-            COUNT(DISTINCT session_id) as count,
-            COUNT(DISTINCT user_id) as unique_users
-          FROM geo_data
-          GROUP BY country
-          ORDER BY count DESC
-        `,
-      isNeon ? [startTimestamp, endTimestamp] : [startTimestamp, endTimestamp, startTimestamp, endTimestamp]
-    );
+            GROUP BY json_extract(metadata, '$.country')
+          `,
+        [startTimestamp, endTimestamp]
+      );
+      
+      // Merge the results - combine counts for same countries
+      const geoMap = new Map<string, { count: number; uniqueUsers: number }>();
+      
+      for (const row of userActivityGeo) {
+        const country = row.country || 'Unknown';
+        const existing = geoMap.get(country) || { count: 0, uniqueUsers: 0 };
+        geoMap.set(country, {
+          count: existing.count + (parseInt(row.count) || 0),
+          uniqueUsers: existing.uniqueUsers + (parseInt(row.unique_users) || 0)
+        });
+      }
+      
+      for (const row of analyticsGeo) {
+        const country = row.country || 'Unknown';
+        const existing = geoMap.get(country) || { count: 0, uniqueUsers: 0 };
+        // Only add if not already counted from user_activity
+        if (!userActivityGeo.find((u: any) => u.country === country)) {
+          geoMap.set(country, {
+            count: existing.count + (parseInt(row.count) || 0),
+            uniqueUsers: existing.uniqueUsers + (parseInt(row.unique_users) || 0)
+          });
+        }
+      }
+      
+      geographicRaw = Array.from(geoMap.entries())
+        .map(([country, data]) => ({ country, count: data.count, unique_users: data.uniqueUsers }))
+        .sort((a, b) => b.count - a.count);
+        
+    } catch (geoError) {
+      console.error('Geographic query error:', geoError);
+      // Fallback to simple analytics_events query
+      geographicRaw = await adapter.query(
+        isNeon
+          ? `
+            SELECT 
+              COALESCE(metadata->>'country', 'Unknown') as country,
+              COUNT(DISTINCT session_id) as count,
+              0 as unique_users
+            FROM analytics_events
+            WHERE timestamp BETWEEN $1 AND $2
+            AND metadata->>'country' IS NOT NULL
+            GROUP BY metadata->>'country'
+            ORDER BY count DESC
+          `
+          : `
+            SELECT 
+              COALESCE(json_extract(metadata, '$.country'), 'Unknown') as country,
+              COUNT(DISTINCT session_id) as count,
+              0 as unique_users
+            FROM analytics_events
+            WHERE timestamp BETWEEN ? AND ?
+            AND json_extract(metadata, '$.country') IS NOT NULL
+            GROUP BY json_extract(metadata, '$.country')
+            ORDER BY count DESC
+          `,
+        [startTimestamp, endTimestamp]
+      );
+    }
 
     // 6. Device Breakdown
     const deviceBreakdownRaw = await adapter.query(
