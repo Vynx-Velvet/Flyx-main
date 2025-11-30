@@ -49,6 +49,11 @@ export async function POST(request: NextRequest) {
     const userAgent = request.headers.get('user-agent') || '';
     const deviceType = data.deviceType || getDeviceType(userAgent);
 
+    // Get country from request headers (Vercel/Cloudflare)
+    const country = request.headers.get('x-vercel-ip-country') || 
+                    request.headers.get('cf-ipcountry') || 
+                    (process.env.NODE_ENV === 'development' ? 'Local' : 'Unknown');
+
     // Upsert watch session
     await db.upsertWatchSession({
       id: data.id,
@@ -71,6 +76,21 @@ export async function POST(request: NextRequest) {
       pauseCount: data.pauseCount,
       seekCount: data.seekCount,
     });
+
+    // Also update user_activity with country for geographic tracking
+    try {
+      await db.upsertUserActivity({
+        userId: data.userId,
+        sessionId: data.sessionId || 'unknown',
+        deviceType,
+        userAgent,
+        country: country !== 'XX' ? country : 'Unknown',
+        watchTime: data.totalWatchTime,
+      });
+    } catch (activityError) {
+      console.error('Failed to update user activity:', activityError);
+      // Don't fail the request for activity tracking errors
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

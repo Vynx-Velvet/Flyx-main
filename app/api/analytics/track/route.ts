@@ -93,10 +93,36 @@ function getSessionId(request: NextRequest): string {
   }
 }
 
-// Get geolocation from IP (simplified - in production use a proper service)
-function getLocationFromIP(_ip: string): { country?: string; region?: string } {
-  // This is a placeholder - integrate with a real IP geolocation service
-  // like MaxMind GeoIP2, ipapi.co, or similar
+// Get geolocation from request headers (Vercel/Cloudflare provide this)
+function getLocationFromRequest(request: NextRequest): { country?: string; region?: string } {
+  // Try Vercel headers first (automatically set by Vercel Edge Network)
+  const vercelCountry = request.headers.get('x-vercel-ip-country');
+  const vercelRegion = request.headers.get('x-vercel-ip-country-region');
+  
+  if (vercelCountry && vercelCountry !== 'XX') {
+    return {
+      country: vercelCountry,
+      region: vercelRegion || 'Unknown',
+    };
+  }
+  
+  // Try Cloudflare headers
+  const cfCountry = request.headers.get('cf-ipcountry');
+  if (cfCountry && cfCountry !== 'XX') {
+    return {
+      country: cfCountry,
+      region: 'Unknown',
+    };
+  }
+  
+  // Development fallback - check if running locally
+  if (process.env.NODE_ENV === 'development') {
+    return {
+      country: 'Local',
+      region: 'Development',
+    };
+  }
+  
   return {
     country: 'Unknown',
     region: 'Unknown',
@@ -177,7 +203,7 @@ export async function POST(request: NextRequest) {
     try {
       sessionId = getSessionId(request);
       clientIP = getClientIP(request);
-      location = getLocationFromIP(clientIP);
+      location = getLocationFromRequest(request);
       userAgent = request.headers.get('user-agent') || '';
       referrer = request.headers.get('referer') || '';
       

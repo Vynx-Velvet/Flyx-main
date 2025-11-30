@@ -193,29 +193,29 @@ export async function GET(request: NextRequest) {
     );
 
     // 5. Geographic Heatmap (Enhanced with date filter)
-    // We use user_activity joined with watch_sessions to respect the date range
+    // Query user_activity directly for geographic data based on last_seen timestamp
     const geographicRaw = await adapter.query(
       isNeon
         ? `
           SELECT 
-            ua.country,
-            COUNT(DISTINCT ws.session_id) as count
-          FROM watch_sessions ws
-          JOIN user_activity ua ON ws.session_id = ua.session_id
-          WHERE ws.started_at BETWEEN $1 AND $2
-          AND ua.country IS NOT NULL
-          GROUP BY ua.country
+            country,
+            COUNT(DISTINCT user_id) as count
+          FROM user_activity
+          WHERE last_seen BETWEEN $1 AND $2
+          AND country IS NOT NULL
+          AND country != ''
+          GROUP BY country
           ORDER BY count DESC
         `
         : `
           SELECT 
-            ua.country,
-            COUNT(DISTINCT ws.session_id) as count
-          FROM watch_sessions ws
-          JOIN user_activity ua ON ws.session_id = ua.session_id
-          WHERE ws.started_at BETWEEN ? AND ?
-          AND ua.country IS NOT NULL
-          GROUP BY ua.country
+            country,
+            COUNT(DISTINCT user_id) as count
+          FROM user_activity
+          WHERE last_seen BETWEEN ? AND ?
+          AND country IS NOT NULL
+          AND country != ''
+          GROUP BY country
           ORDER BY count DESC
         `,
       [startTimestamp, endTimestamp]
