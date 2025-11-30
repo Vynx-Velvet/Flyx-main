@@ -55,34 +55,97 @@ export default function DetailsPageClient({
     }
   }, [selectedSeason, content]);
 
-  // Load episode watch progress from localStorage
-  const loadEpisodeProgress = (seasonNumber: number) => {
+  // Load episode watch progress from localStorage and API
+  const loadEpisodeProgress = async (seasonNumber: number) => {
     if (!content) return;
     
+    const progressMap: Record<number, number> = {};
+    
     try {
-      // User tracking stores preferences in 'flyx_user_preferences'
-      const storageKey = 'flyx_user_preferences';
-      const stored = localStorage.getItem(storageKey);
-      if (!stored) return;
+      // First, try to load from localStorage (multiple possible keys)
+      const localStorageKeys = ['flyx_watch_progress', 'flyx_preferences'];
       
-      const preferences = JSON.parse(stored);
-      const watchProgress = preferences.watchProgress || {};
-      const progressMap: Record<number, number> = {};
+      for (const storageKey of localStorageKeys) {
+        const stored = localStorage.getItem(storageKey);
+        if (!stored) {
+          console.log(`[DetailsPage] No data in ${storageKey}`);
+          continue;
+        }
+        
+        const data = JSON.parse(stored);
+        // Handle both direct watchProgress and nested in preferences
+        const watchProgress = storageKey === 'flyx_preferences' 
+          ? (data.watchProgress || {}) 
+          : data;
+        
+        console.log(`[DetailsPage] Found ${Object.keys(watchProgress).length} entries in ${storageKey}`);
+        
+        // Look for progress entries for this show and season
+        // Key format: contentId_s{season}_e{episode}
+        Object.entries(watchProgress).forEach(([key, value]: [string, any]) => {
+          const pattern = `${content.id}_s${seasonNumber}_e`;
+          if (key.startsWith(pattern)) {
+            const episodeNum = parseInt(key.replace(pattern, ''));
+            if (!isNaN(episodeNum)) {
+              // Handle different data formats
+              let progress = 0;
+              if (value.completionPercentage !== undefined) {
+                progress = value.completionPercentage;
+              } else if (value.currentTime && value.duration && value.duration > 0) {
+                progress = (value.currentTime / value.duration) * 100;
+              }
+              console.log(`[DetailsPage] localStorage progress for S${seasonNumber}E${episodeNum}: ${progress}%`);
+              if (progress > 0) {
+                progressMap[episodeNum] = Math.max(progressMap[episodeNum] || 0, progress);
+              }
+            }
+          }
+        });
+      }
       
-      // Look for progress entries for this show and season
-      // Key format: contentId_s{season}_e{episode}
-      Object.entries(watchProgress).forEach(([key, value]: [string, any]) => {
-        const pattern = `${content.id}_s${seasonNumber}_e`;
-        if (key.startsWith(pattern)) {
-          const episodeNum = parseInt(key.replace(pattern, ''));
-          if (!isNaN(episodeNum) && value.currentTime && value.duration) {
-            // Calculate progress percentage
-            const progress = (value.currentTime / value.duration) * 100;
-            progressMap[episodeNum] = progress;
+      // Also check flyx_viewing_history for completed episodes
+      const historyStored = localStorage.getItem('flyx_viewing_history');
+      if (historyStored) {
+        const history = JSON.parse(historyStored);
+        history.forEach((item: any) => {
+          if (item.contentId === content.id && item.completed) {
+            // Mark completed episodes as 100%
+            // Note: viewing history doesn't store episode numbers directly
+          }
+        });
+      }
+      
+      // Try to fetch from API for more accurate server-side data
+      try {
+        const userId = localStorage.getItem('flyx_user_id');
+        console.log('[DetailsPage] Fetching watch sessions for userId:', userId?.substring(0, 8), 'contentId:', content.id);
+        if (userId) {
+          const response = await fetch(
+            `/api/analytics/watch-session?userId=${userId}&contentId=${content.id}&limit=100`
+          );
+          if (response.ok) {
+            const data = await response.json();
+            console.log('[DetailsPage] Watch sessions response:', data);
+            if (data.sessions && Array.isArray(data.sessions)) {
+              data.sessions.forEach((session: any) => {
+                // Check if this session is for the current season
+                if (session.season_number === seasonNumber && session.episode_number) {
+                  const episodeNum = session.episode_number;
+                  const progress = session.completion_percentage || 0;
+                  console.log(`[DetailsPage] Found progress for S${seasonNumber}E${episodeNum}: ${progress}%`);
+                  // Use the higher progress value (local or server)
+                  progressMap[episodeNum] = Math.max(progressMap[episodeNum] || 0, progress);
+                }
+              });
+            }
           }
         }
-      });
+      } catch (apiErr) {
+        // API fetch failed, use localStorage data only
+        console.log('Using localStorage progress only:', apiErr);
+      }
       
+      console.log('[DetailsPage] Final progress map:', progressMap);
       setEpisodeProgress(progressMap);
     } catch (err) {
       console.error('Error loading episode progress:', err);
