@@ -230,14 +230,41 @@ export default function DetailsPageClient({
     : 'N/A';
 
   const handleGoBack = () => {
-    // Check if user came from search or has search in history
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-      const referrer = document.referrer;
-      if (referrer.includes('/search')) {
-        router.push('/search');
-      } else {
-        router.back();
+    if (typeof window === 'undefined') {
+      router.push('/');
+      return;
+    }
+    
+    // Check for stored navigation origin (set by search page or homepage)
+    const navigationOrigin = sessionStorage.getItem('flyx_navigation_origin');
+    
+    if (navigationOrigin) {
+      try {
+        const origin = JSON.parse(navigationOrigin);
+        
+        // If came from search, go back to search with the same query
+        if (origin.type === 'search' && origin.query) {
+          router.push(`/search?q=${encodeURIComponent(origin.query)}`);
+          return;
+        }
+        
+        // If came from homepage with scroll position, go back and restore
+        if (origin.type === 'home' && origin.scrollY !== undefined) {
+          router.push('/');
+          // Restore scroll position after navigation
+          setTimeout(() => {
+            window.scrollTo(0, origin.scrollY);
+          }, 100);
+          return;
+        }
+      } catch (e) {
+        console.error('Failed to parse navigation origin:', e);
       }
+    }
+    
+    // Fallback: use browser history if available
+    if (window.history.length > 2) {
+      router.back();
     } else {
       router.push('/');
     }

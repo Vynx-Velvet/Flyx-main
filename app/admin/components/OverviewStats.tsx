@@ -11,13 +11,46 @@ interface Stats {
   avgSessionDuration: number;
 }
 
+interface AdvancedMetrics {
+  uniqueViewers: number;
+  avgSessionDuration: number;
+  bounceRate: number;
+}
+
+interface LiveTVStats {
+  currentViewers: number;
+  totalWatchTime: number;
+  avgSessionDuration: number;
+  recentSessions: number;
+}
+
+interface FullAnalytics {
+  overview: Stats;
+  advancedMetrics: AdvancedMetrics;
+  deviceBreakdown: Array<{ deviceType: string; count: number }>;
+  peakHours: Array<{ hour: number; count: number }>;
+}
+
 export default function OverviewStats() {
   const { dateRange, setIsLoading } = useAdmin();
   const [stats, setStats] = useState<Stats | null>(null);
+  const [fullAnalytics, setFullAnalytics] = useState<FullAnalytics | null>(null);
+  const [liveTVStats, setLiveTVStats] = useState<LiveTVStats | null>(null);
+  const [liveUserCount, setLiveUserCount] = useState(0);
   const [error, setError] = useState('');
 
   useEffect(() => {
     fetchStats();
+    fetchLiveStats();
+    fetchLiveTVStats();
+    
+    // Refresh live stats every 30 seconds
+    const interval = setInterval(() => {
+      fetchLiveStats();
+      fetchLiveTVStats();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, [dateRange]);
 
   const fetchStats = async () => {
@@ -37,6 +70,7 @@ export default function OverviewStats() {
       if (response.ok) {
         const data = await response.json();
         setStats(data.data.overview);
+        setFullAnalytics(data.data);
       } else {
         setError('Failed to fetch statistics');
       }
@@ -45,6 +79,35 @@ export default function OverviewStats() {
       console.error('Failed to fetch stats:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchLiveStats = async () => {
+    try {
+      const response = await fetch('/api/analytics/live-activity?maxAge=5');
+      if (response.ok) {
+        const data = await response.json();
+        setLiveUserCount(data.stats?.totalActive || 0);
+      }
+    } catch (err) {
+      console.error('Failed to fetch live stats:', err);
+    }
+  };
+
+  const fetchLiveTVStats = async () => {
+    try {
+      const response = await fetch('/api/analytics/livetv-session');
+      if (response.ok) {
+        const data = await response.json();
+        setLiveTVStats({
+          currentViewers: data.currentViewers || 0,
+          totalWatchTime: data.stats?.totalCurrentWatchTime || 0,
+          avgSessionDuration: data.stats?.avgSessionDuration || 0,
+          recentSessions: data.stats?.recentSessions || 0,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch Live TV stats:', err);
     }
   };
 
@@ -86,40 +149,160 @@ export default function OverviewStats() {
   }
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-      gap: '24px',
-      marginBottom: '32px'
-    }}>
-      <StatCard
-        title="Total Views"
-        value={stats?.totalViews.toLocaleString() || '0'}
-        icon={<Eye size={24} />}
-        color="#7877c6"
-        gradient="linear-gradient(135deg, #7877c6 0%, #9333ea 100%)"
-      />
-      <StatCard
-        title="Watch Time"
-        value={stats ? `${Math.round(stats.totalWatchTime / 60)}h ${stats.totalWatchTime % 60}m` : '0m'}
-        icon={<Clock size={24} />}
-        color="#10b981"
-        gradient="linear-gradient(135deg, #10b981 0%, #059669 100%)"
-      />
-      <StatCard
-        title="Unique Sessions"
-        value={stats?.uniqueSessions.toLocaleString() || '0'}
-        icon={<Users size={24} />}
-        color="#f59e0b"
-        gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
-      />
-      <StatCard
-        title="Avg Session"
-        value={stats ? `${Math.round(stats.avgSessionDuration)}m` : '0m'}
-        icon={<Activity size={24} />}
-        color="#ff77c6"
-        gradient="linear-gradient(135deg, #ff77c6 0%, #ec4899 100%)"
-      />
+    <div>
+      {/* Main Stats Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '20px',
+        marginBottom: '24px'
+      }}>
+        <StatCard
+          title="Total Views"
+          value={stats?.totalViews.toLocaleString() || '0'}
+          icon={<Eye size={22} />}
+          color="#7877c6"
+          gradient="linear-gradient(135deg, #7877c6 0%, #9333ea 100%)"
+        />
+        <StatCard
+          title="Watch Time"
+          value={stats ? `${Math.round(stats.totalWatchTime / 60)}h ${stats.totalWatchTime % 60}m` : '0m'}
+          icon={<Clock size={22} />}
+          color="#10b981"
+          gradient="linear-gradient(135deg, #10b981 0%, #059669 100%)"
+        />
+        <StatCard
+          title="Unique Sessions"
+          value={stats?.uniqueSessions.toLocaleString() || '0'}
+          icon={<Users size={22} />}
+          color="#f59e0b"
+          gradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
+        />
+        <StatCard
+          title="Avg Session"
+          value={stats ? `${Math.round(stats.avgSessionDuration)}m` : '0m'}
+          icon={<Activity size={22} />}
+          color="#ff77c6"
+          gradient="linear-gradient(135deg, #ff77c6 0%, #ec4899 100%)"
+        />
+      </div>
+
+      {/* Live Stats Row */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: '16px',
+        marginBottom: '24px'
+      }}>
+        <LiveStatCard
+          title="Live Users Now"
+          value={liveUserCount}
+          icon="👥"
+          pulse={liveUserCount > 0}
+        />
+        <LiveStatCard
+          title="Live TV Viewers"
+          value={liveTVStats?.currentViewers || 0}
+          icon="📺"
+          pulse={(liveTVStats?.currentViewers || 0) > 0}
+        />
+        <LiveStatCard
+          title="Bounce Rate"
+          value={`${fullAnalytics?.advancedMetrics?.bounceRate || 0}%`}
+          icon="↩️"
+        />
+        <LiveStatCard
+          title="Unique Viewers"
+          value={fullAnalytics?.advancedMetrics?.uniqueViewers || 0}
+          icon="👤"
+        />
+      </div>
+
+      {/* Device & Peak Hours */}
+      {fullAnalytics && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gap: '20px',
+          marginBottom: '24px'
+        }}>
+          {/* Device Breakdown */}
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.03)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '12px',
+            padding: '20px'
+          }}>
+            <h4 style={{ margin: '0 0 16px 0', color: '#f8fafc', fontSize: '14px', fontWeight: '600' }}>
+              Device Distribution
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {fullAnalytics.deviceBreakdown?.slice(0, 4).map((device) => {
+                const total = fullAnalytics.deviceBreakdown.reduce((sum, d) => sum + d.count, 0);
+                const percentage = total > 0 ? (device.count / total) * 100 : 0;
+                return (
+                  <div key={device.deviceType} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '13px', width: '70px', textTransform: 'capitalize' }}>
+                      {device.deviceType || 'Unknown'}
+                    </span>
+                    <div style={{ flex: 1, height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${percentage}%`,
+                        background: 'linear-gradient(90deg, #7877c6, #ff77c6)',
+                        borderRadius: '4px'
+                      }} />
+                    </div>
+                    <span style={{ color: '#f8fafc', fontSize: '13px', fontWeight: '600', width: '50px', textAlign: 'right' }}>
+                      {Math.round(percentage)}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Peak Hours */}
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.03)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '12px',
+            padding: '20px'
+          }}>
+            <h4 style={{ margin: '0 0 16px 0', color: '#f8fafc', fontSize: '14px', fontWeight: '600' }}>
+              Peak Activity Hours
+            </h4>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '80px' }}>
+              {Array.from({ length: 24 }, (_, hour) => {
+                const hourData = fullAnalytics.peakHours?.find(h => h.hour === hour);
+                const count = hourData?.count || 0;
+                const maxCount = Math.max(...(fullAnalytics.peakHours?.map(h => h.count) || [1]));
+                const height = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                return (
+                  <div
+                    key={hour}
+                    style={{
+                      flex: 1,
+                      height: `${Math.max(height, 5)}%`,
+                      background: count > 0 ? 'linear-gradient(180deg, #7877c6, #ff77c6)' : 'rgba(255,255,255,0.1)',
+                      borderRadius: '2px 2px 0 0',
+                      transition: 'height 0.3s'
+                    }}
+                    title={`${hour}:00 - ${count} views`}
+                  />
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+              <span style={{ color: '#64748b', fontSize: '11px' }}>12am</span>
+              <span style={{ color: '#64748b', fontSize: '11px' }}>6am</span>
+              <span style={{ color: '#64748b', fontSize: '11px' }}>12pm</span>
+              <span style={{ color: '#64748b', fontSize: '11px' }}>6pm</span>
+              <span style={{ color: '#64748b', fontSize: '11px' }}>11pm</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -134,8 +317,8 @@ function StatCard({ title, value, icon, color, gradient }: {
   return (
     <div style={{
       background: 'rgba(255, 255, 255, 0.05)',
-      padding: '24px',
-      borderRadius: '16px',
+      padding: '20px',
+      borderRadius: '14px',
       border: '1px solid rgba(255, 255, 255, 0.1)',
       position: 'relative',
       overflow: 'hidden',
@@ -143,9 +326,9 @@ function StatCard({ title, value, icon, color, gradient }: {
       transition: 'all 0.3s ease'
     }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-4px)';
-        e.currentTarget.style.boxShadow = `0 12px 40px rgba(0, 0, 0, 0.3), 0 0 0 1px ${color}20`;
-        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+        e.currentTarget.style.transform = 'translateY(-2px)';
+        e.currentTarget.style.boxShadow = `0 8px 24px rgba(0, 0, 0, 0.2)`;
+        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.07)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = 'translateY(0)';
@@ -158,33 +341,33 @@ function StatCard({ title, value, icon, color, gradient }: {
         top: 0,
         left: 0,
         width: '100%',
-        height: '4px',
+        height: '3px',
         background: gradient
       }}></div>
 
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '12px',
-        marginBottom: '16px'
+        gap: '10px',
+        marginBottom: '12px'
       }}>
         <div style={{
-          width: '40px',
-          height: '40px',
+          width: '36px',
+          height: '36px',
           background: gradient,
-          borderRadius: '10px',
+          borderRadius: '8px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           color: 'white',
-          boxShadow: `0 4px 12px ${color}40`
+          boxShadow: `0 4px 12px ${color}30`
         }}>
           {icon}
         </div>
         <h3 style={{
           margin: 0,
           color: '#94a3b8',
-          fontSize: '14px',
+          fontSize: '13px',
           fontWeight: '500'
         }}>
           {title}
@@ -192,13 +375,63 @@ function StatCard({ title, value, icon, color, gradient }: {
       </div>
 
       <div style={{
-        fontSize: '32px',
+        fontSize: '28px',
         fontWeight: '700',
         color: '#f8fafc',
         lineHeight: '1'
       }}>
         {value}
       </div>
+    </div>
+  );
+}
+
+function LiveStatCard({ title, value, icon, pulse = false }: {
+  title: string;
+  value: string | number;
+  icon: string;
+  pulse?: boolean;
+}) {
+  return (
+    <div style={{
+      background: 'rgba(255, 255, 255, 0.03)',
+      padding: '16px',
+      borderRadius: '12px',
+      border: '1px solid rgba(255, 255, 255, 0.08)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px'
+    }}>
+      <div style={{
+        fontSize: '24px',
+        position: 'relative'
+      }}>
+        {icon}
+        {pulse && (
+          <span style={{
+            position: 'absolute',
+            top: '-2px',
+            right: '-2px',
+            width: '8px',
+            height: '8px',
+            background: '#10b981',
+            borderRadius: '50%',
+            animation: 'pulse 2s infinite'
+          }} />
+        )}
+      </div>
+      <div>
+        <div style={{ fontSize: '20px', fontWeight: '700', color: '#f8fafc' }}>
+          {typeof value === 'number' ? value.toLocaleString() : value}
+        </div>
+        <div style={{ fontSize: '12px', color: '#64748b' }}>{title}</div>
+      </div>
+      <style jsx>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(1.2); }
+        }
+      `}</style>
     </div>
   );
 }

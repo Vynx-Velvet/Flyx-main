@@ -65,6 +65,22 @@ export default function SearchPageClient({
         sessionStorage.setItem('flyx_session_id', sid);
       }
       setSessionId(sid);
+      
+      // Restore scroll position if returning from details page
+      const navigationOrigin = sessionStorage.getItem('flyx_navigation_origin');
+      if (navigationOrigin) {
+        try {
+          const origin = JSON.parse(navigationOrigin);
+          if (origin.type === 'search' && origin.scrollY) {
+            // Delay scroll restoration to allow content to render
+            setTimeout(() => {
+              window.scrollTo(0, origin.scrollY);
+            }, 100);
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
     }
   }, []);
 
@@ -242,6 +258,13 @@ export default function SearchPageClient({
       setFilters(prev => ({ ...prev, contentType: 'all' }));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
+      // Store navigation origin so details page can return here with the same query
+      sessionStorage.setItem('flyx_navigation_origin', JSON.stringify({
+        type: 'search',
+        query: query || debouncedQuery,
+        filters: filters,
+        scrollY: window.scrollY,
+      }));
       router.push(`/details/${item.id}?type=${item.mediaType}`);
     }
   };

@@ -10,7 +10,8 @@ import {
     Settings,
     LogOut,
     Map,
-    History
+    History,
+    BarChart3
 } from 'lucide-react';
 
 export default function AdminSidebar() {
@@ -18,6 +19,7 @@ export default function AdminSidebar() {
 
     const menuItems = [
         { icon: LayoutDashboard, label: 'Overview', href: '/admin' },
+        { icon: BarChart3, label: 'Analytics', href: '/admin/analytics' },
         { icon: Users, label: 'Users', href: '/admin/users' },
         { icon: Film, label: 'Content', href: '/admin/content' },
         { icon: Map, label: 'Geographic', href: '/admin/geographic' },

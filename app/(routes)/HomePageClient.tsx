@@ -98,6 +98,12 @@ export default function HomePageClient({
       source_section: source,
       vote_average: item.vote_average
     });
+    // Store navigation origin so details page can return here with scroll position
+    sessionStorage.setItem('flyx_navigation_origin', JSON.stringify({
+      type: 'home',
+      scrollY: window.scrollY,
+      source: source,
+    }));
     router.push(`/details/${item.id}?type=${item.mediaType}`);
   }, [router, trackEvent]);
 
