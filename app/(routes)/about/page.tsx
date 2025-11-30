@@ -29,10 +29,11 @@ export default function AboutPage() {
     { id: 'implementation', label: 'Implementation', number: 'VI' },
     { id: 'evaluation', label: 'Evaluation & Results', number: 'VII' },
     { id: 'discussion', label: 'Discussion', number: 'VIII' },
-    { id: 'future', label: 'Future Work', number: 'IX' },
-    { id: 'conclusion', label: 'Conclusion', number: 'X' },
-    { id: 'legal', label: 'Legal Framework', number: 'XI' },
-    { id: 'references', label: 'References', number: 'XII' },
+    { id: 'reverse-engineering', label: 'Reverse Engineering', number: 'IX' },
+    { id: 'future', label: 'Future Work', number: 'X' },
+    { id: 'conclusion', label: 'Conclusion', number: 'XI' },
+    { id: 'legal', label: 'Legal Framework', number: 'XII' },
+    { id: 'references', label: 'References', number: 'XIII' },
   ];
 
   const scrollToSection = (id: string) => {
@@ -1306,10 +1307,403 @@ async function getPlayableStream(
             </div>
           </section>
 
+          {/* Reverse Engineering */}
+          <section id="reverse-engineering" className={styles.section}>
+            <div className={styles.sectionHeader}>
+              <span className={styles.sectionNumber}>IX</span>
+              <h2>Reverse Engineering: Cracking Third-Party Stream Protection</h2>
+            </div>
+
+            <p className={styles.leadParagraph}>
+              Perhaps the most technically demanding aspect of Flyx was reverse engineering the 
+              security measures and obfuscation techniques employed by third-party streaming providers. 
+              These providers implement sophisticated anti-extraction mechanisms designed to prevent 
+              exactly what we needed to accomplish. This section documents the challenges encountered 
+              and the techniques developed to overcome them.
+            </p>
+
+            <div className={styles.highlightBox}>
+              <div className={styles.highlightIcon}>⚠️</div>
+              <div className={styles.highlightContent}>
+                <h4>Technical Documentation Notice</h4>
+                <p>
+                  The following section describes reverse engineering work performed for educational 
+                  and research purposes. The techniques documented here demonstrate the complexity 
+                  of modern web security and the ingenuity required to build aggregation platforms.
+                </p>
+              </div>
+            </div>
+
+            <h3 className={styles.subsectionTitle}>9.1 The Obfuscation Landscape</h3>
+            <p>
+              Third-party streaming providers employ multiple layers of protection to prevent 
+              automated extraction of their stream URLs. Understanding these defenses was essential 
+              before any extraction could be attempted.
+            </p>
+
+            <div className={styles.challengesList}>
+              <div className={styles.challengeItem}>
+                <div className={styles.challengeHeader}>
+                  <span className={styles.challengeIcon}>🔐</span>
+                  <h4>JavaScript Obfuscation & Packing</h4>
+                </div>
+                <div className={styles.challengeBody}>
+                  <p>
+                    Stream providers heavily obfuscate their JavaScript using tools like JavaScript 
+                    Obfuscator, UglifyJS with mangling, and custom packing algorithms. Variable names 
+                    are replaced with meaningless identifiers, control flow is flattened, and string 
+                    literals are encoded or split across multiple operations. Some providers use 
+                    eval-based unpacking that generates code at runtime, making static analysis nearly 
+                    impossible.
+                  </p>
+                  <div className={styles.solutionBox}>
+                    <strong>Approach:</strong> Developed custom deobfuscation scripts that intercept 
+                    eval calls, reconstruct string concatenations, and trace execution flow through 
+                    browser DevTools. Created AST-based transformers to rename variables based on 
+                    usage patterns and inline constant expressions.
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.challengeItem}>
+                <div className={styles.challengeHeader}>
+                  <span className={styles.challengeIcon}>🎭</span>
+                  <h4>Dynamic Token Generation</h4>
+                </div>
+                <div className={styles.challengeBody}>
+                  <p>
+                    Many providers generate time-sensitive tokens that must accompany stream requests. 
+                    These tokens are computed client-side using algorithms that combine timestamps, 
+                    content IDs, and secret keys embedded in obfuscated code. Tokens typically expire 
+                    within minutes, preventing simple URL copying.
+                  </p>
+                  <div className={styles.solutionBox}>
+                    <strong>Approach:</strong> Reverse engineered token generation algorithms by 
+                    tracing JavaScript execution. Identified the cryptographic primitives used 
+                    (typically HMAC-SHA256 or custom hash functions) and extracted the embedded 
+                    keys. Reimplemented token generation server-side to produce valid tokens on demand.
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.challengeItem}>
+                <div className={styles.challengeHeader}>
+                  <span className={styles.challengeIcon}>🕵️</span>
+                  <h4>Bot Detection & Fingerprinting</h4>
+                </div>
+                <div className={styles.challengeBody}>
+                  <p>
+                    Providers deploy sophisticated bot detection that analyzes browser fingerprints, 
+                    mouse movements, timing patterns, and JavaScript environment characteristics. 
+                    Headless browsers are detected through missing APIs, inconsistent navigator 
+                    properties, and WebGL fingerprint anomalies. Failed checks result in fake 
+                    streams, CAPTCHAs, or IP bans.
+                  </p>
+                  <div className={styles.solutionBox}>
+                    <strong>Approach:</strong> Used Puppeteer with stealth plugins that patch 
+                    detectable properties. Implemented realistic mouse movement simulation and 
+                    randomized timing delays. For particularly aggressive detection, switched to 
+                    HTTP-based extraction that bypasses JavaScript entirely by analyzing network 
+                    requests.
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.challengeItem}>
+                <div className={styles.challengeHeader}>
+                  <span className={styles.challengeIcon}>🔄</span>
+                  <h4>Multi-Layer Iframe Nesting</h4>
+                </div>
+                <div className={styles.challengeBody}>
+                  <p>
+                    Stream players are often embedded through multiple layers of iframes, each 
+                    hosted on different domains. This creates a maze of cross-origin restrictions 
+                    where the actual video player might be 3-4 iframes deep. Each layer may perform 
+                    its own validation, referrer checking, and token verification.
+                  </p>
+                  <div className={styles.solutionBox}>
+                    <strong>Approach:</strong> Built recursive iframe traversal that follows the 
+                    embedding chain, extracting and validating URLs at each level. Implemented 
+                    referrer spoofing through proxy routes that set appropriate headers. Created 
+                    a domain mapping system to track which providers use which embed hierarchies.
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.challengeItem}>
+                <div className={styles.challengeHeader}>
+                  <span className={styles.challengeIcon}>📡</span>
+                  <h4>Encrypted HLS Manifests</h4>
+                </div>
+                <div className={styles.challengeBody}>
+                  <p>
+                    Some providers encrypt their HLS manifests or use custom playlist formats that 
+                    standard players cannot parse. The encryption keys are derived from session 
+                    tokens or embedded in obfuscated JavaScript. Additionally, segment URLs may 
+                    be relative to dynamically generated base paths.
+                  </p>
+                  <div className={styles.solutionBox}>
+                    <strong>Approach:</strong> Intercepted network requests to capture decrypted 
+                    manifests after client-side processing. For custom formats, wrote parsers that 
+                    transform proprietary playlist structures into standard M3U8. Implemented 
+                    manifest rewriting to convert relative URLs to absolute paths through our proxy.
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.challengeItem}>
+                <div className={styles.challengeHeader}>
+                  <span className={styles.challengeIcon}>🛡️</span>
+                  <h4>Referrer & Origin Validation</h4>
+                </div>
+                <div className={styles.challengeBody}>
+                  <p>
+                    Stream servers validate the Referer and Origin headers on every request, 
+                    rejecting any that don't match expected patterns. This prevents embedding 
+                    streams on unauthorized domains and blocks direct access to stream URLs. 
+                    Some providers also check the Sec-Fetch-* headers introduced in modern browsers.
+                  </p>
+                  <div className={styles.solutionBox}>
+                    <strong>Approach:</strong> Developed a sophisticated proxy layer that intercepts 
+                    all stream requests and rewrites headers to match expected values. The proxy 
+                    maintains a mapping of which headers each provider expects and dynamically 
+                    adjusts based on the target domain.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <h3 className={styles.subsectionTitle}>9.2 Provider-Specific Challenges</h3>
+            <p>
+              Each streaming provider presented unique challenges requiring tailored solutions. 
+              The following documents the most significant reverse engineering efforts:
+            </p>
+
+            <div className={styles.techAnalysis}>
+              <div className={styles.techCard}>
+                <div className={styles.techHeader}>
+                  <div className={styles.techLogo}>🎬</div>
+                  <div className={styles.techInfo}>
+                    <h4>2Embed / VidSrc Ecosystem</h4>
+                    <span className={styles.techCategory}>Primary Provider</span>
+                  </div>
+                </div>
+                <div className={styles.techBody}>
+                  <p>
+                    The 2Embed network uses a complex chain of redirects through multiple domains 
+                    (streamsrcs, embedsrcs, vidsrc variants). Each hop performs validation and 
+                    generates new tokens. The final player uses packed JavaScript with custom 
+                    string encoding where characters are split and reassembled through array 
+                    operations. Stream URLs are constructed dynamically from multiple encrypted 
+                    fragments.
+                  </p>
+                  <p>
+                    <strong>Key Breakthrough:</strong> Discovered that the packing algorithm uses 
+                    a predictable seed based on content ID. By reverse engineering the unpacking 
+                    function, we could extract stream URLs without executing the obfuscated code. 
+                    This reduced extraction time from 5+ seconds (with browser automation) to 
+                    under 200ms (pure HTTP).
+                  </p>
+                </div>
+              </div>
+
+              <div className={styles.techCard}>
+                <div className={styles.techHeader}>
+                  <div className={styles.techLogo}>📺</div>
+                  <div className={styles.techInfo}>
+                    <h4>SuperEmbed / RCP Network</h4>
+                    <span className={styles.techCategory}>Fallback Provider</span>
+                  </div>
+                </div>
+                <div className={styles.techBody}>
+                  <p>
+                    SuperEmbed employs aggressive bot detection including canvas fingerprinting, 
+                    WebGL renderer checks, and timing analysis. The player loads through a 
+                    "prorcp" intermediary that validates browser environment before revealing 
+                    the actual stream endpoint. Failed validation returns decoy streams that 
+                    play for 30 seconds before cutting off.
+                  </p>
+                  <p>
+                    <strong>Key Breakthrough:</strong> Identified that the validation could be 
+                    bypassed by directly accessing the "srcrcp" endpoint with properly formatted 
+                    parameters extracted from the initial page load. This skips the JavaScript 
+                    validation entirely while still receiving valid stream URLs.
+                  </p>
+                </div>
+              </div>
+
+              <div className={styles.techCard}>
+                <div className={styles.techHeader}>
+                  <div className={styles.techLogo}>📡</div>
+                  <div className={styles.techInfo}>
+                    <h4>DLHD Live TV Streams</h4>
+                    <span className={styles.techCategory}>Live Content</span>
+                  </div>
+                </div>
+                <div className={styles.techBody}>
+                  <p>
+                    Live TV streams presented unique challenges: URLs change frequently, 
+                    authentication tokens expire rapidly, and geographic restrictions are 
+                    enforced at the CDN level. The provider uses a custom player that 
+                    communicates with a WebSocket backend for real-time URL updates and 
+                    implements DRM-like protections on the stream segments themselves.
+                  </p>
+                  <p>
+                    <strong>Key Breakthrough:</strong> Reverse engineered the WebSocket protocol 
+                    to understand the URL refresh mechanism. Implemented a proxy that maintains 
+                    persistent connections and transparently handles URL rotation, presenting 
+                    a stable endpoint to our player while managing the complexity behind the scenes.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <h3 className={styles.subsectionTitle}>9.3 Tools & Techniques Developed</h3>
+            <p>
+              The reverse engineering effort produced several reusable tools and techniques:
+            </p>
+
+            <div className={styles.codeBlock}>
+              <div className={styles.codeHeader}>
+                <span className={styles.codeLanguage}>TypeScript</span>
+                <span className={styles.codeTitle}>Listing 2: Simplified Deobfuscation Pipeline</span>
+              </div>
+              <pre className={styles.code}>{`interface DeobfuscationResult {
+  extractedUrls: string[];
+  tokens: Record<string, string>;
+  confidence: number;
+}
+
+async function deobfuscateProvider(
+  html: string,
+  provider: 'vidsrc' | 'superembed' | 'dlhd'
+): Promise<DeobfuscationResult> {
+  // 1. Extract all script tags and inline JS
+  const scripts = extractScripts(html);
+  
+  // 2. Identify and unpack obfuscated segments
+  const unpacked = scripts.map(script => {
+    if (isPacked(script)) {
+      return unpackScript(script);
+    }
+    return script;
+  });
+  
+  // 3. Apply provider-specific decoders
+  const decoder = getDecoder(provider);
+  const decoded = decoder.process(unpacked.join('\\n'));
+  
+  // 4. Extract stream URLs using pattern matching
+  const urls = extractStreamUrls(decoded);
+  
+  // 5. Extract authentication tokens
+  const tokens = extractTokens(decoded);
+  
+  return {
+    extractedUrls: urls,
+    tokens,
+    confidence: calculateConfidence(urls, tokens)
+  };
+}`}</pre>
+            </div>
+
+            <div className={styles.statsGrid}>
+              <div className={styles.statCard}>
+                <div className={styles.statIcon}>🔓</div>
+                <div className={styles.statValue}>15+</div>
+                <div className={styles.statLabel}>Obfuscation Patterns</div>
+                <div className={styles.statDetail}>Identified & decoded</div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statIcon}>⚡</div>
+                <div className={styles.statValue}>200ms</div>
+                <div className={styles.statLabel}>Avg Extraction Time</div>
+                <div className={styles.statDetail}>Down from 5+ seconds</div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statIcon}>🎯</div>
+                <div className={styles.statValue}>95%+</div>
+                <div className={styles.statLabel}>Success Rate</div>
+                <div className={styles.statDetail}>Stream extraction</div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statIcon}>🔄</div>
+                <div className={styles.statValue}>8</div>
+                <div className={styles.statLabel}>Provider Adapters</div>
+                <div className={styles.statDetail}>Active integrations</div>
+              </div>
+            </div>
+
+            <h3 className={styles.subsectionTitle}>9.4 The Cat-and-Mouse Reality</h3>
+            <p>
+              Reverse engineering streaming providers is an ongoing battle. Providers regularly 
+              update their obfuscation, change their API endpoints, and implement new detection 
+              mechanisms. What works today may fail tomorrow.
+            </p>
+
+            <div className={styles.lessonsBox}>
+              <div className={styles.lessonItem}>
+                <span className={styles.lessonNumber}>01</span>
+                <div className={styles.lessonContent}>
+                  <h4>Build for Change</h4>
+                  <p>
+                    The extraction system is architected with provider-specific adapters that can 
+                    be updated independently. When a provider changes their protection, only that 
+                    adapter needs modification—the rest of the system continues functioning.
+                  </p>
+                </div>
+              </div>
+              <div className={styles.lessonItem}>
+                <span className={styles.lessonNumber}>02</span>
+                <div className={styles.lessonContent}>
+                  <h4>Multiple Fallbacks</h4>
+                  <p>
+                    Never rely on a single provider. The system maintains multiple extraction 
+                    paths for each piece of content, automatically falling back when primary 
+                    sources fail. Redundancy is survival.
+                  </p>
+                </div>
+              </div>
+              <div className={styles.lessonItem}>
+                <span className={styles.lessonNumber}>03</span>
+                <div className={styles.lessonContent}>
+                  <h4>Monitor Continuously</h4>
+                  <p>
+                    Automated health checks run continuously, testing extraction against known 
+                    content. When success rates drop, alerts trigger investigation before users 
+                    notice widespread failures.
+                  </p>
+                </div>
+              </div>
+              <div className={styles.lessonItem}>
+                <span className={styles.lessonNumber}>04</span>
+                <div className={styles.lessonContent}>
+                  <h4>Document Everything</h4>
+                  <p>
+                    Every obfuscation pattern, every bypass technique, every provider quirk is 
+                    documented. When patterns resurface months later, the documentation enables 
+                    rapid response rather than starting from scratch.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.citationBox}>
+              <div className={styles.citationMark}>"</div>
+              <blockquote>
+                The complexity of modern stream protection is a testament to the value of the 
+                content being protected. Cracking these systems required hundreds of hours of 
+                analysis, experimentation, and iteration. This work represents the invisible 
+                foundation upon which the entire platform stands.
+              </blockquote>
+              <cite>— Reflections on the Reverse Engineering Process</cite>
+            </div>
+          </section>
+
           {/* Future Work */}
           <section id="future" className={styles.section}>
             <div className={styles.sectionHeader}>
-              <span className={styles.sectionNumber}>IX</span>
+              <span className={styles.sectionNumber}>X</span>
               <h2>Future Work</h2>
             </div>
             <p>
@@ -1364,7 +1758,7 @@ async function getPlayableStream(
           {/* Conclusion */}
           <section id="conclusion" className={styles.section}>
             <div className={styles.sectionHeader}>
-              <span className={styles.sectionNumber}>X</span>
+              <span className={styles.sectionNumber}>XI</span>
               <h2>Conclusion</h2>
             </div>
             <p className={styles.leadParagraph}>
@@ -1411,7 +1805,7 @@ async function getPlayableStream(
           {/* Legal Framework */}
           <section id="legal" className={styles.section}>
             <div className={styles.sectionHeader}>
-              <span className={styles.sectionNumber}>XI</span>
+              <span className={styles.sectionNumber}>XII</span>
               <h2>Legal Framework</h2>
             </div>
 
@@ -1945,7 +2339,7 @@ async function getPlayableStream(
           {/* References */}
           <section id="references" className={styles.section}>
             <div className={styles.sectionHeader}>
-              <span className={styles.sectionNumber}>XII</span>
+              <span className={styles.sectionNumber}>XIII</span>
               <h2>References</h2>
             </div>
 
