@@ -1,0 +1,454 @@
+.container {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #0a0a1a 0%, #0f0f23 50%, #1a1a2e 100%);
+  color: #f8fafc;
+  padding-bottom: 0;
+}
+
+/* Hero Section */
+.hero {
+  position: relative;
+  padding: 120px 24px 80px;
+  text-align: center;
+  overflow: hidden;
+}
+
+.heroContent {
+  position: relative;
+  z-index: 1;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  font-weight: 800;
+  margin: 0 0 20px 0;
+  letter-spacing: -2px;
+}
+
+.gradient {
+  background: linear-gradient(135deg, #7877c6 0%, #ff77c6 50%, #7877c6 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientShift 3s ease infinite;
+}
+
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 100% center; }
+}
+
+.subtitle {
+  font-size: clamp(1.1rem, 3vw, 1.5rem);
+  color: #94a3b8;
+  margin: 0;
+  font-weight: 400;
+}
+
+.heroGlow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(120, 119, 198, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Sections */
+.section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 60px 24px;
+}
+
+.sectionTitle {
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  margin: 0 0 40px 0;
+  color: #f8fafc;
+}
+
+/* Mission Card */
+.missionCard {
+  background: linear-gradient(135deg, rgba(120, 119, 198, 0.1) 0%, rgba(255, 119, 198, 0.05) 100%);
+  border: 1px solid rgba(120, 119, 198, 0.3);
+  border-radius: 24px;
+  padding: 48px;
+  text-align: center;
+}
+
+.missionIcon {
+  font-size: 48px;
+  margin-bottom: 24px;
+}
+
+.missionCard h2 {
+  font-size: 1.75rem;
+  margin: 0 0 24px 0;
+  color: #f8fafc;
+}
+
+.missionCard p {
+  color: #cbd5e1;
+  font-size: 1.1rem;
+  line-height: 1.8;
+  margin: 0 0 16px 0;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.missionCard p:last-child {
+  margin-bottom: 0;
+}
+
+
+/* Stats Grid */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 24px;
+}
+
+.statCard {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 32px 24px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.statCard:hover {
+  transform: translateY(-4px);
+  border-color: rgba(120, 119, 198, 0.4);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.statIcon {
+  font-size: 36px;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.statValue {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #f8fafc;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.statLabel {
+  color: #64748b;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Story Section */
+.storyContent {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.storyBlock {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 28px;
+}
+
+.storyBlock h3 {
+  font-size: 1.25rem;
+  margin: 0 0 16px 0;
+  color: #f8fafc;
+}
+
+.storyBlock p {
+  color: #94a3b8;
+  line-height: 1.7;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* Features Grid */
+.featuresGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.featureCard {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 28px;
+  transition: all 0.3s ease;
+}
+
+.featureCard:hover {
+  border-color: rgba(120, 119, 198, 0.4);
+  transform: translateY(-2px);
+}
+
+.featureIcon {
+  font-size: 32px;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.featureCard h3 {
+  font-size: 1.1rem;
+  margin: 0 0 12px 0;
+  color: #f8fafc;
+}
+
+.featureCard p {
+  color: #94a3b8;
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/* FAQ Section */
+.faqList {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.faqItem {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.faqItem:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.faqItem.expanded {
+  border-color: rgba(120, 119, 198, 0.4);
+}
+
+.faqQuestion {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.faqToggle {
+  font-size: 1.5rem;
+  color: #7877c6;
+  font-weight: 300;
+}
+
+.faqAnswer {
+  padding: 0 24px 20px;
+  color: #94a3b8;
+  line-height: 1.7;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 16px;
+  margin-top: -4px;
+}
+
+/* Contact Section */
+.contactCard {
+  background: linear-gradient(135deg, rgba(120, 119, 198, 0.1) 0%, rgba(255, 119, 198, 0.05) 100%);
+  border: 1px solid rgba(120, 119, 198, 0.2);
+  border-radius: 24px;
+  padding: 48px;
+  text-align: center;
+}
+
+.contactCard h2 {
+  font-size: 1.75rem;
+  margin: 0 0 16px 0;
+  color: #f8fafc;
+}
+
+.contactCard p {
+  color: #94a3b8;
+  max-width: 600px;
+  margin: 0 auto 32px;
+  line-height: 1.7;
+}
+
+.contactLinks {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.contactButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 28px;
+  background: linear-gradient(135deg, #7877c6 0%, #9333ea 100%);
+  color: white;
+  text-decoration: none;
+  border-radius: 12px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.contactButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(120, 119, 198, 0.4);
+}
+
+
+/* Legal Section */
+.legalSection {
+  background: #0a0a14;
+  padding: 80px 24px;
+  margin-top: 60px;
+}
+
+.legalTitle {
+  font-size: 1.75rem;
+  font-weight: 700;
+  text-align: center;
+  margin: 0 0 48px 0;
+  color: #f8fafc;
+}
+
+.legalContent {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.legalBlock {
+  margin-bottom: 32px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.legalBlock:last-of-type {
+  border-bottom: none;
+}
+
+.legalBlock h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin: 0 0 12px 0;
+}
+
+.legalBlock p {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  line-height: 1.8;
+  margin: 0;
+  text-align: justify;
+}
+
+.legalFooter {
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.legalFooter p {
+  color: #64748b;
+  font-size: 0.85rem;
+  margin: 0 0 12px 0;
+}
+
+.legalFooter p:last-child {
+  margin-bottom: 0;
+  color: #94a3b8;
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  padding: 40px 24px;
+  background: #050510;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.footer p {
+  margin: 0 0 8px 0;
+  color: #94a3b8;
+  font-size: 0.95rem;
+}
+
+.footerNote {
+  color: #64748b !important;
+  font-size: 0.85rem !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .hero {
+    padding: 100px 20px 60px;
+  }
+
+  .section {
+    padding: 40px 20px;
+  }
+
+  .missionCard {
+    padding: 32px 24px;
+  }
+
+  .storyContent {
+    grid-template-columns: 1fr;
+  }
+
+  .featuresGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .contactCard {
+    padding: 32px 24px;
+  }
+
+  .legalSection {
+    padding: 60px 20px;
+  }
+
+  .legalBlock p {
+    text-align: left;
+  }
+}
+
+@media (max-width: 480px) {
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .faqQuestion {
+    padding: 16px 20px;
+    font-size: 0.95rem;
+  }
+
+  .faqAnswer {
+    padding: 0 20px 16px;
+    font-size: 0.9rem;
+  }
+}

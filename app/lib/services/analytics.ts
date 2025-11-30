@@ -118,8 +118,9 @@ class AnalyticsService {
     this.userSession = userTrackingService.initialize();
     this.isInitialized = true;
     
-    // Track page load
+    // Track page load with session start
     this.trackPageView(window.location.pathname);
+    this.trackSessionStart();
     
     // Set up periodic flush
     this.scheduleFlush();
@@ -145,13 +146,77 @@ class AnalyticsService {
       }
     });
     
-    // Track before page unload
+    // Track before page unload - sync everything
     window.addEventListener('beforeunload', () => {
+      this.trackSessionEnd();
       this.flushEvents();
       this.syncAllWatchTime();
       this.stopLiveActivity();
       this.endLiveTVSession();
     });
+    
+    // Track page navigation for SPA
+    if (typeof window !== 'undefined') {
+      const originalPushState = history.pushState;
+      const originalReplaceState = history.replaceState;
+      
+      history.pushState = (...args) => {
+        originalPushState.apply(history, args);
+        this.trackPageView(window.location.pathname);
+      };
+      
+      history.replaceState = (...args) => {
+        originalReplaceState.apply(history, args);
+        this.trackPageView(window.location.pathname);
+      };
+      
+      window.addEventListener('popstate', () => {
+        this.trackPageView(window.location.pathname);
+      });
+    }
+  }
+  
+  /**
+   * Track session start for bounce rate calculation
+   */
+  private trackSessionStart(): void {
+    if (!this.userSession) return;
+    
+    this.track('session_start', {
+      entryPage: window.location.pathname,
+      referrer: document.referrer,
+      timestamp: Date.now(),
+    });
+    
+    // Store session start time
+    try {
+      sessionStorage.setItem('flyx_session_start', Date.now().toString());
+      sessionStorage.setItem('flyx_page_views', '1');
+    } catch (e) {
+      // Ignore storage errors
+    }
+  }
+  
+  /**
+   * Track session end for duration calculation
+   */
+  private trackSessionEnd(): void {
+    if (!this.userSession) return;
+    
+    try {
+      const startTime = parseInt(sessionStorage.getItem('flyx_session_start') || '0');
+      const pageViews = parseInt(sessionStorage.getItem('flyx_page_views') || '1');
+      const sessionDuration = startTime > 0 ? Math.round((Date.now() - startTime) / 1000) : 0;
+      
+      this.track('session_end', {
+        sessionDuration,
+        pageViews,
+        exitPage: window.location.pathname,
+        isBounce: pageViews <= 1,
+      });
+    } catch (e) {
+      // Ignore storage errors
+    }
   }
 
   /**
@@ -193,6 +258,19 @@ class AnalyticsService {
       loadTime: performance.now(),
       ...data,
     });
+    
+    // Increment page view count for bounce rate calculation
+    try {
+      const currentViews = parseInt(sessionStorage.getItem('flyx_page_views') || '0');
+      sessionStorage.setItem('flyx_page_views', (currentViews + 1).toString());
+    } catch (e) {
+      // Ignore storage errors
+    }
+    
+    // Update current activity to browsing when not watching
+    if (!this.currentActivity || this.currentActivity.type !== 'watching') {
+      this.currentActivity = { type: 'browsing' };
+    }
   }
 
   /**
@@ -233,13 +311,14 @@ class AnalyticsService {
     
     if (!sessionData) {
       sessionData = {
-        id: `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `ws_${this.userSession.userId}_${event.contentId}_${Date.now()}`,
         startedAt: Date.now(),
         totalWatchTime: 0,
         pauseCount: 0,
         seekCount: 0,
         lastUpdateTime: Date.now(),
         lastPosition: 0,
+        lastSyncTime: 0,
       };
     }
 
@@ -251,14 +330,18 @@ class AnalyticsService {
       case 'start':
         sessionData.startedAt = now;
         sessionData.lastPosition = event.currentTime;
+        // Sync immediately on start
+        this.syncWatchSession(event, sessionData);
         break;
         
       case 'pause':
         sessionData.pauseCount++;
-        if (timeSinceLastUpdate < 5) { // Only count watch time if reasonable
+        if (timeSinceLastUpdate > 0 && timeSinceLastUpdate < 10) {
           sessionData.totalWatchTime += timeSinceLastUpdate;
         }
         sessionData.lastPosition = event.currentTime;
+        // Sync on pause to capture accurate watch time
+        this.syncWatchSession(event, sessionData);
         break;
         
       case 'resume':
@@ -267,30 +350,36 @@ class AnalyticsService {
         
       case 'progress':
         // Track seek events (position jumped significantly)
-        if (Math.abs(event.currentTime - sessionData.lastPosition) > 5) {
+        const positionDelta = Math.abs(event.currentTime - sessionData.lastPosition);
+        if (positionDelta > 10) {
           sessionData.seekCount++;
-        } else if (timeSinceLastUpdate < 5) {
+        } else if (timeSinceLastUpdate > 0 && timeSinceLastUpdate < 10) {
+          // Only add watch time if reasonable interval
           sessionData.totalWatchTime += timeSinceLastUpdate;
         }
         sessionData.lastPosition = event.currentTime;
+        
+        // Sync every 30 seconds of accumulated watch time
+        const timeSinceLastSync = now - sessionData.lastSyncTime;
+        if (timeSinceLastSync >= 30000) {
+          this.syncWatchSession(event, sessionData);
+          sessionData.lastSyncTime = now;
+        }
         break;
         
       case 'complete':
-        if (timeSinceLastUpdate < 5) {
+        if (timeSinceLastUpdate > 0 && timeSinceLastUpdate < 10) {
           sessionData.totalWatchTime += timeSinceLastUpdate;
         }
         sessionData.lastPosition = event.currentTime;
         sessionData.endedAt = now;
+        // Always sync on complete
+        this.syncWatchSession(event, sessionData);
         break;
     }
 
     sessionData.lastUpdateTime = now;
     this.setSessionData(sessionKey, sessionData);
-
-    // Send session update to server periodically or on complete
-    if (event.action === 'complete' || sessionData.totalWatchTime % 30 < 1) {
-      this.syncWatchSession(event, sessionData);
-    }
   }
 
   /**
@@ -650,20 +739,23 @@ class AnalyticsService {
         quality: data.quality,
       };
       this.watchTimeAccumulator.set(key, session);
+      
+      // Track session start in user activity
+      this.trackUserActivity('session_start', data.contentId);
     }
     
     // Calculate time delta (only if playing)
     if (data.isPlaying) {
       const timeDelta = (now - session.lastSyncedAt) / 1000;
-      // Only add if reasonable (less than 5 seconds to avoid counting pauses)
-      if (timeDelta > 0 && timeDelta < 5) {
+      // Only add if reasonable (between 0.5 and 10 seconds to avoid counting pauses/seeks)
+      if (timeDelta >= 0.5 && timeDelta <= 10) {
         session.totalWatchTime += timeDelta;
       }
     }
     
-    // Detect seek
+    // Detect seek (position jumped more than 10 seconds)
     const positionDelta = Math.abs(data.currentPosition - session.lastPosition);
-    if (positionDelta > 5) {
+    if (positionDelta > 10 && data.isPlaying) {
       session.seekCount++;
     }
     
@@ -671,6 +763,49 @@ class AnalyticsService {
     session.lastSyncedAt = now;
     session.duration = data.duration;
     if (data.quality) session.quality = data.quality;
+    
+    // Update live activity with current position
+    if (data.isPlaying) {
+      this.currentActivity = {
+        type: 'watching',
+        contentId: data.contentId,
+        contentTitle: data.contentTitle,
+        contentType: data.contentType,
+        seasonNumber: data.seasonNumber,
+        episodeNumber: data.episodeNumber,
+        currentPosition: Math.round(data.currentPosition),
+        duration: Math.round(data.duration),
+        quality: data.quality,
+      };
+    }
+  }
+  
+  /**
+   * Track user activity for bounce rate and session metrics
+   */
+  private async trackUserActivity(action: string, contentId?: string): Promise<void> {
+    if (!this.userSession) return;
+    
+    try {
+      await fetch('/api/analytics/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          events: [{
+            id: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            type: 'user_activity',
+            userId: this.userSession.userId,
+            sessionId: this.userSession.sessionId,
+            deviceId: this.userSession.deviceId,
+            timestamp: Date.now(),
+            data: { action, contentId },
+            metadata: userTrackingService.getAnalyticsMetadata(),
+          }]
+        }),
+      });
+    } catch (error) {
+      console.error('[Analytics] Failed to track user activity:', error);
+    }
   }
 
   /**
@@ -693,13 +828,16 @@ class AnalyticsService {
     const sessions = Array.from(this.watchTimeAccumulator.entries());
     
     for (const [key, session] of sessions) {
-      // Only sync if there's meaningful watch time (at least 5 seconds)
-      if (session.totalWatchTime < 5) continue;
+      // Only sync if there's meaningful watch time (at least 3 seconds)
+      if (session.totalWatchTime < 3) continue;
       
       try {
         const completionPercentage = session.duration > 0 
           ? Math.round((session.lastPosition / session.duration) * 100) 
           : 0;
+        
+        const isCompleted = completionPercentage >= 90;
+        const now = Date.now();
 
         await fetch('/api/analytics/watch-session', {
           method: 'POST',
@@ -714,25 +852,57 @@ class AnalyticsService {
             seasonNumber: session.seasonNumber,
             episodeNumber: session.episodeNumber,
             startedAt: session.startedAt,
+            endedAt: isCompleted ? now : undefined,
             totalWatchTime: Math.round(session.totalWatchTime),
             lastPosition: Math.round(session.lastPosition),
             duration: Math.round(session.duration),
             completionPercentage,
             quality: session.quality,
-            isCompleted: completionPercentage >= 90,
+            isCompleted,
             pauseCount: session.pauseCount,
             seekCount: session.seekCount,
           }),
+          keepalive: true, // Ensure request completes even on page unload
         });
+        
+        // Also update user activity with watch time
+        await this.updateUserActivityWithWatchTime(session);
         
         console.log('[Analytics] Synced watch time:', {
           contentId: session.contentId,
           watchTime: Math.round(session.totalWatchTime),
           completion: completionPercentage,
+          isCompleted,
         });
       } catch (error) {
         console.error('[Analytics] Failed to sync watch time:', error);
       }
+    }
+  }
+  
+  /**
+   * Update user activity record with accumulated watch time
+   */
+  private async updateUserActivityWithWatchTime(session: {
+    contentId: string;
+    totalWatchTime: number;
+  }): Promise<void> {
+    if (!this.userSession) return;
+    
+    try {
+      await fetch('/api/analytics/user-metrics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: this.userSession.userId,
+          sessionId: this.userSession.sessionId,
+          watchTime: Math.round(session.totalWatchTime),
+          contentId: session.contentId,
+        }),
+        keepalive: true,
+      });
+    } catch (error) {
+      // Silently fail - this is supplementary tracking
     }
   }
 

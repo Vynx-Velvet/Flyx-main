@@ -84,34 +84,68 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST endpoint to manually update daily metrics
+// POST endpoint to update user activity and daily metrics
 export async function POST(request: NextRequest) {
   try {
-    const { date } = await request.json();
-
-    if (!date) {
-      return NextResponse.json(
-        { error: 'Date is required' },
-        { status: 400 }
-      );
-    }
+    const data = await request.json();
 
     // Initialize database
     await initializeDB();
     const db = getDB();
 
-    // Update metrics for the specified date
-    await db.updateDailyMetrics(date);
+    // Handle different types of updates
+    if (data.date) {
+      // Update metrics for the specified date
+      await db.updateDailyMetrics(data.date);
+      return NextResponse.json({
+        success: true,
+        message: `Daily metrics updated for ${data.date}`,
+      });
+    }
 
-    return NextResponse.json({
-      success: true,
-      message: `Daily metrics updated for ${date}`,
-    });
-  } catch (error) {
-    console.error('Failed to update daily metrics:', error);
+    if (data.userId && data.sessionId) {
+      // Update user activity with watch time
+      const userAgent = request.headers.get('user-agent') || '';
+      const deviceType = getDeviceType(userAgent);
+      
+      // Get country from headers (set by Vercel/Cloudflare)
+      const country = request.headers.get('x-vercel-ip-country') || 
+                      request.headers.get('cf-ipcountry') || 
+                      'Unknown';
+
+      await db.upsertUserActivity({
+        userId: data.userId,
+        sessionId: data.sessionId,
+        deviceType,
+        userAgent,
+        country,
+        watchTime: data.watchTime || 0,
+      });
+
+      return NextResponse.json({ success: true });
+    }
+
     return NextResponse.json(
-      { error: 'Failed to update daily metrics' },
+      { error: 'Invalid request - provide date or userId/sessionId' },
+      { status: 400 }
+    );
+  } catch (error) {
+    console.error('Failed to update metrics:', error);
+    return NextResponse.json(
+      { error: 'Failed to update metrics' },
       { status: 500 }
     );
   }
+}
+
+function getDeviceType(userAgent: string): string {
+  const ua = userAgent.toLowerCase();
+  if (ua.includes('mobile') || ua.includes('android') || ua.includes('iphone')) {
+    return 'mobile';
+  } else if (ua.includes('tablet') || ua.includes('ipad')) {
+    return 'tablet';
+  } else if (ua.includes('smart-tv') || ua.includes('smarttv')) {
+    return 'tv';
+  }
+  return 'desktop';
 }

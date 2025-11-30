@@ -143,7 +143,7 @@ export function useWatchProgress(options: WatchProgressOptions) {
 
   // Handle progress updates
   const handleProgress = useCallback((currentTime: number, duration: number) => {
-    if (!contentId) return;
+    if (!contentId || duration <= 0) return;
 
     onProgress?.(currentTime, duration);
 
@@ -152,12 +152,12 @@ export function useWatchProgress(options: WatchProgressOptions) {
       handleWatchStart(currentTime, duration);
     }
 
-    // Check for completion
+    const mappedContentType = contentType === 'episode' ? 'tv' : 'movie';
     const completionPercentage = currentTime / duration;
+
+    // Check for completion (90% threshold)
     if (completionPercentage >= COMPLETION_THRESHOLD && !wasCompletedRef.current) {
       wasCompletedRef.current = true;
-
-      const mappedContentType = contentType === 'episode' ? 'tv' : 'movie';
 
       trackWatchEvent({
         contentId,
@@ -174,16 +174,15 @@ export function useWatchProgress(options: WatchProgressOptions) {
         seasonNumber,
         episodeNumber,
         completionPercentage: Math.round(completionPercentage * 100),
+        totalWatchTime: Math.round(currentTime),
       });
 
       onComplete?.();
     }
 
-    // Save progress periodically (handled by analytics service now)
+    // Save progress periodically
     const timeSinceLastSave = Date.now() - lastSaveTimeRef.current;
     if (timeSinceLastSave >= SAVE_INTERVAL && currentTime >= MIN_WATCH_THRESHOLD) {
-      const mappedContentType = contentType === 'episode' ? 'tv' : 'movie';
-
       trackWatchEvent({
         contentId,
         contentType: mappedContentType,
@@ -207,7 +206,7 @@ export function useWatchProgress(options: WatchProgressOptions) {
         duration: Math.round(duration),
       });
 
-      // Also update enhanced watch time tracking
+      // Update enhanced watch time tracking - this is the key for accurate tracking
       updateWatchTime({
         contentId,
         contentType: mappedContentType,
@@ -222,12 +221,12 @@ export function useWatchProgress(options: WatchProgressOptions) {
       lastSaveTimeRef.current = Date.now();
     }
 
-    // Track analytics periodically
+    // Track analytics periodically (every 30 seconds)
     const timeSinceLastAnalytics = Date.now() - lastAnalyticsTimeRef.current;
     if (timeSinceLastAnalytics >= ANALYTICS_INTERVAL) {
-      trackContentEngagement(contentId, contentType === 'episode' ? 'tv' : 'movie', 'watch_progress', {
-        currentTime,
-        duration,
+      trackContentEngagement(contentId, mappedContentType, 'watch_progress', {
+        currentTime: Math.round(currentTime),
+        duration: Math.round(duration),
         completionPercentage: Math.round(completionPercentage * 100),
         seasonNumber,
         episodeNumber,
@@ -238,6 +237,7 @@ export function useWatchProgress(options: WatchProgressOptions) {
   }, [
     contentId,
     contentType,
+    contentTitle,
     seasonNumber,
     episodeNumber,
     onProgress,
@@ -245,6 +245,8 @@ export function useWatchProgress(options: WatchProgressOptions) {
     handleWatchStart,
     trackWatchEvent,
     trackContentEngagement,
+    updateActivity,
+    updateWatchTime,
   ]);
 
   // Get current progress
