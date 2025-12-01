@@ -54,6 +54,9 @@
 	background: rgba(255, 255, 255, 0.02);
 	border: 1px solid rgba(255, 255, 255, 0.05);
 	backdrop-filter: blur(10px);
+	flex-shrink: 0;
+	min-height: 48px;
+	min-width: fit-content;
 }
 
 .logo:hover {
@@ -69,6 +72,7 @@
 	gap: 0.75rem;
 	position: relative;
 	z-index: 2;
+	flex-shrink: 0;
 }
 
 .logo-icon {
@@ -76,11 +80,22 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	flex-shrink: 0;
+	min-width: 32px;
+	min-height: 32px;
+	width: 32px;
+	height: 32px;
 }
 
 .logo-svg {
 	transition: all 0.3s ease;
 	filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.3));
+	min-width: 32px;
+	min-height: 32px;
+	width: 32px;
+	height: 32px;
+	flex-shrink: 0;
+	aspect-ratio: 1 / 1;
 }
 
 .logo:hover .logo-svg {
@@ -92,6 +107,7 @@
 	display: flex;
 	flex-direction: column;
 	gap: 0.1rem;
+	flex-shrink: 0;
 }
 
 .logo-text {
@@ -283,7 +299,16 @@
 		font-size: 0.6rem;
 	}
 	
+	.logo-icon {
+		min-width: 28px;
+		min-height: 28px;
+		width: 28px;
+		height: 28px;
+	}
+	
 	.logo-svg {
+		min-width: 28px;
+		min-height: 28px;
 		width: 28px;
 		height: 28px;
 	}
@@ -319,7 +344,16 @@
 		font-size: 0.5rem;
 	}
 	
+	.logo-icon {
+		min-width: 24px;
+		min-height: 24px;
+		width: 24px;
+		height: 24px;
+	}
+	
 	.logo-svg {
+		min-width: 24px;
+		min-height: 24px;
 		width: 24px;
 		height: 24px;
 	}
