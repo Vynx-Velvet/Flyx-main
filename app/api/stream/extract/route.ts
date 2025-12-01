@@ -245,17 +245,29 @@ function isValidDuration(streamDurationSeconds: number, expectedRuntimeMinutes: 
   }
 
   const expectedSeconds = expectedRuntimeMinutes * 60;
+  const streamMinutes = Math.round(streamDurationSeconds / 60);
   
-  // Allow 30% tolerance for runtime differences (credits, different cuts, etc.)
-  // But reject anything less than 50% of expected (likely wrong content)
-  // And reject anything more than 150% of expected (likely wrong content or compilation)
-  const minAcceptable = expectedSeconds * 0.5;
-  const maxAcceptable = expectedSeconds * 1.5;
-
-  const isValid = streamDurationSeconds >= minAcceptable && streamDurationSeconds <= maxAcceptable;
+  // More lenient validation:
+  // - Allow up to 30 minutes difference (for extended cuts, different versions, credits)
+  // - OR allow 40% tolerance (whichever is more lenient)
+  // - But reject anything less than 20 minutes for movies (likely wrong content/ads)
+  // - For TV episodes, reject if less than 10 minutes
+  
+  const thirtyMinutesTolerance = 30 * 60; // 30 minutes in seconds
+  const percentageTolerance = expectedSeconds * 0.4; // 40% tolerance
+  const tolerance = Math.max(thirtyMinutesTolerance, percentageTolerance);
+  
+  const minAcceptable = expectedSeconds - tolerance;
+  const maxAcceptable = expectedSeconds + tolerance;
+  
+  // Absolute minimum - reject very short content (likely wrong/ads)
+  const absoluteMinimum = expectedRuntimeMinutes > 60 ? 20 * 60 : 10 * 60; // 20min for movies, 10min for TV
+  
+  const isValid = streamDurationSeconds >= Math.max(minAcceptable, absoluteMinimum) && 
+                  streamDurationSeconds <= maxAcceptable;
   
   if (!isValid) {
-    console.log(`[EXTRACT] Duration mismatch: stream=${Math.round(streamDurationSeconds / 60)}min, expected=${expectedRuntimeMinutes}min`);
+    console.log(`[EXTRACT] Duration mismatch: stream=${streamMinutes}min, expected=${expectedRuntimeMinutes}min (tolerance: ±${Math.round(tolerance/60)}min)`);
   }
 
   return isValid;
