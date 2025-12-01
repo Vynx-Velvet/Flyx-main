@@ -60,29 +60,28 @@ async function createAdmin(username, password) {
 
     // Check if admin already exists
     console.log(`🔍 Checking if admin user '${username}' already exists...`);
-    let existingAdminQuery, insertQuery, updateQuery;
+    let existingAdminQuery, insertQuery;
     
     if (db.isUsingNeon()) {
       existingAdminQuery = 'SELECT * FROM admin_users WHERE username = $1';
       insertQuery = 'INSERT INTO admin_users (id, username, password_hash, created_at) VALUES ($1, $2, $3, $4)';
-      updateQuery = 'UPDATE admin_users SET password_hash = $1, last_login = NULL WHERE username = $2';
     } else {
       existingAdminQuery = 'SELECT * FROM admin_users WHERE username = ?';
       insertQuery = 'INSERT INTO admin_users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)';
-      updateQuery = 'UPDATE admin_users SET password_hash = ?, last_login = NULL WHERE username = ?';
     }
     
     const existingAdminResult = await adapter.query(existingAdminQuery, [username]);
     const existingAdmin = existingAdminResult[0];
     
-    console.log('🔒 Hashing password...');
-    const passwordHash = bcrypt.hashSync(password, 12); // Increased salt rounds for better security
-    
     if (existingAdmin) {
-      console.log(`⚠️  Admin user '${username}' already exists. Updating password...`);
-      await adapter.execute(updateQuery, [passwordHash, username]);
-      console.log(`✅ Password updated for admin user '${username}'`);
+      // Admin already exists - DO NOT update password
+      // This prevents password reset on every deployment
+      console.log(`✅ Admin user '${username}' already exists. Skipping creation.`);
+      console.log(`   (Password was NOT changed - use admin panel to change password)`);
     } else {
+      console.log('🔒 Hashing password...');
+      const passwordHash = bcrypt.hashSync(password, 12); // Increased salt rounds for better security
+      
       console.log(`➕ Creating new admin user '${username}'...`);
       const adminId = generateId();
       const timestamp = Date.now();
@@ -90,7 +89,7 @@ async function createAdmin(username, password) {
       console.log(`✅ Admin user '${username}' created successfully`);
     }
 
-    // Verify the user was created/updated
+    // Verify the user exists
     console.log('🔍 Verifying admin user...');
     const verifyResult = await adapter.query(existingAdminQuery, [username]);
     if (verifyResult.length > 0) {
@@ -101,12 +100,17 @@ async function createAdmin(username, password) {
 
     console.log('\n🎉 Admin user setup completed successfully!');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📊 Admin panel: http://localhost:3000/admin');
+    console.log('📊 Admin panel: /admin');
     console.log(`👤 Username: ${username}`);
-    console.log(`🔑 Password: ${password}`);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('⚠️  IMPORTANT: Change the password after first login!');
-    console.log('💡 TIP: Keep these credentials secure and don\'t commit them to version control');
+    if (!existingAdmin) {
+      console.log(`🔑 Password: ${password}`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log('⚠️  IMPORTANT: Change the password after first login!');
+    } else {
+      console.log(`🔑 Password: (unchanged - use your existing password)`);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    }
+    console.log('💡 TIP: Use the admin panel settings to change your password');
 
   } catch (error) {
     console.error('\n❌ Error creating admin user:');

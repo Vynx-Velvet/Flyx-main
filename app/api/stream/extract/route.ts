@@ -48,8 +48,120 @@ function evictOldestCacheEntry() {
   }
 }
 
+// Runtime cache for TMDB lookups
+const runtimeCache = new Map<string, { runtime: number; imdbId: string; timestamp: number }>();
+const RUNTIME_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
 /**
- * Get IMDB ID from TMDB with caching
+ * Get IMDB ID and runtime from TMDB with caching
+ */
+async function getTmdbInfo(tmdbId: string, type: 'movie' | 'tv', season?: number, episode?: number): Promise<{ imdbId: string | null; runtime: number }> {
+  const cacheKey = type === 'tv' ? `${tmdbId}-${type}-${season}-${episode}` : `${tmdbId}-${type}`;
+
+  // Check cache
+  const cached = runtimeCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < RUNTIME_CACHE_TTL) {
+    console.log('[TMDB] Cache hit');
+    return { imdbId: cached.imdbId, runtime: cached.runtime };
+  }
+
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
+    if (!apiKey) {
+      throw new Error('TMDB API key not configured');
+    }
+
+    let imdbId: string | null = null;
+    let runtime = 0;
+
+    // Fetch external IDs for IMDB ID
+    const externalIdsUrl = `https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=${apiKey}`;
+    const controller1 = new AbortController();
+    const timeoutId1 = setTimeout(() => controller1.abort(), 5000);
+
+    const externalIdsResponse = await fetch(externalIdsUrl, {
+      signal: controller1.signal,
+      next: { revalidate: 86400 }
+    });
+    clearTimeout(timeoutId1);
+
+    if (externalIdsResponse.ok) {
+      const externalIds = await externalIdsResponse.json();
+      imdbId = externalIds.imdb_id || null;
+    }
+
+    // Fetch runtime
+    if (type === 'movie') {
+      const detailsUrl = `https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}`;
+      const controller2 = new AbortController();
+      const timeoutId2 = setTimeout(() => controller2.abort(), 5000);
+
+      const detailsResponse = await fetch(detailsUrl, {
+        signal: controller2.signal,
+        next: { revalidate: 86400 }
+      });
+      clearTimeout(timeoutId2);
+
+      if (detailsResponse.ok) {
+        const details = await detailsResponse.json();
+        runtime = details.runtime || 0; // Runtime in minutes
+      }
+    } else if (type === 'tv' && season && episode) {
+      // For TV, get episode runtime
+      const episodeUrl = `https://api.themoviedb.org/3/tv/${tmdbId}/season/${season}/episode/${episode}?api_key=${apiKey}`;
+      const controller2 = new AbortController();
+      const timeoutId2 = setTimeout(() => controller2.abort(), 5000);
+
+      const episodeResponse = await fetch(episodeUrl, {
+        signal: controller2.signal,
+        next: { revalidate: 86400 }
+      });
+      clearTimeout(timeoutId2);
+
+      if (episodeResponse.ok) {
+        const episodeDetails = await episodeResponse.json();
+        runtime = episodeDetails.runtime || 0; // Runtime in minutes
+      }
+
+      // If episode runtime not available, try to get average from show details
+      if (!runtime) {
+        const showUrl = `https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${apiKey}`;
+        const controller3 = new AbortController();
+        const timeoutId3 = setTimeout(() => controller3.abort(), 5000);
+
+        const showResponse = await fetch(showUrl, {
+          signal: controller3.signal,
+          next: { revalidate: 86400 }
+        });
+        clearTimeout(timeoutId3);
+
+        if (showResponse.ok) {
+          const showDetails = await showResponse.json();
+          // episode_run_time is an array, take the first/average
+          if (showDetails.episode_run_time && showDetails.episode_run_time.length > 0) {
+            runtime = showDetails.episode_run_time[0];
+          }
+        }
+      }
+    }
+
+    // Cache the result
+    if (imdbId) {
+      runtimeCache.set(cacheKey, { imdbId, runtime, timestamp: Date.now() });
+      // Also update the old imdbCache for backward compatibility
+      imdbCache.set(`${tmdbId}-${type}`, { imdbId, timestamp: Date.now() });
+    }
+
+    console.log(`[TMDB] Got info: IMDB=${imdbId}, runtime=${runtime}min`);
+    return { imdbId, runtime };
+  } catch (error) {
+    console.error('[EXTRACT] Failed to get TMDB info:', error);
+    return { imdbId: null, runtime: 0 };
+  }
+}
+
+/**
+ * Get IMDB ID from TMDB with caching (backward compatibility)
  */
 async function getImdbId(tmdbId: string, type: 'movie' | 'tv'): Promise<string | null> {
   const cacheKey = `${tmdbId}-${type}`;
@@ -61,43 +173,92 @@ async function getImdbId(tmdbId: string, type: 'movie' | 'tv'): Promise<string |
     return cached.imdbId;
   }
 
+  const info = await getTmdbInfo(tmdbId, type);
+  return info.imdbId;
+}
+
+/**
+ * Get stream duration from HLS playlist (in seconds)
+ * Returns 0 if unable to determine duration
+ */
+async function getStreamDuration(streamUrl: string, referer: string): Promise<number> {
   try {
-    const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
-    if (!apiKey) {
-      throw new Error('TMDB API key not configured');
-    }
-
-    const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/external_ids?api_key=${apiKey}`;
-
-    // Use fetch with timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    const response = await fetch(url, {
+    const response = await fetch(streamUrl, {
+      headers: {
+        'Referer': referer,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
       signal: controller.signal,
-      // Add caching headers
-      next: { revalidate: 86400 } // Cache for 24 hours
     });
-
     clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.status}`);
+    if (!response.ok) return 0;
+
+    const playlist = await response.text();
+
+    // For master playlists, we can't get duration directly
+    if (playlist.includes('#EXT-X-STREAM-INF')) {
+      // Try to fetch the first variant playlist
+      const lines = playlist.split('\n');
+      for (const line of lines) {
+        if (line.trim() && !line.startsWith('#')) {
+          // This is a variant URL
+          let variantUrl = line.trim();
+          if (!variantUrl.startsWith('http')) {
+            // Relative URL - construct absolute
+            const baseUrl = streamUrl.substring(0, streamUrl.lastIndexOf('/') + 1);
+            variantUrl = baseUrl + variantUrl;
+          }
+          // Recursively get duration from variant
+          return await getStreamDuration(variantUrl, referer);
+        }
+      }
+      return 0;
     }
 
-    const data = await response.json();
-    const imdbId = data.imdb_id || null;
-
-    // Cache the result
-    if (imdbId) {
-      imdbCache.set(cacheKey, { imdbId, timestamp: Date.now() });
+    // Parse segment durations from media playlist
+    let totalDuration = 0;
+    const extinfRegex = /#EXTINF:([0-9.]+)/g;
+    let match;
+    while ((match = extinfRegex.exec(playlist)) !== null) {
+      totalDuration += parseFloat(match[1]);
     }
 
-    return imdbId;
+    return totalDuration;
   } catch (error) {
-    console.error('[EXTRACT] Failed to get IMDB ID:', error);
-    return null;
+    console.warn('[EXTRACT] Failed to get stream duration:', error);
+    return 0;
   }
+}
+
+/**
+ * Validate stream duration against expected runtime
+ * Returns true if duration is within acceptable range
+ */
+function isValidDuration(streamDurationSeconds: number, expectedRuntimeMinutes: number): boolean {
+  if (streamDurationSeconds === 0 || expectedRuntimeMinutes === 0) {
+    // Can't validate, assume valid
+    return true;
+  }
+
+  const expectedSeconds = expectedRuntimeMinutes * 60;
+  
+  // Allow 30% tolerance for runtime differences (credits, different cuts, etc.)
+  // But reject anything less than 50% of expected (likely wrong content)
+  // And reject anything more than 150% of expected (likely wrong content or compilation)
+  const minAcceptable = expectedSeconds * 0.5;
+  const maxAcceptable = expectedSeconds * 1.5;
+
+  const isValid = streamDurationSeconds >= minAcceptable && streamDurationSeconds <= maxAcceptable;
+  
+  if (!isValid) {
+    console.log(`[EXTRACT] Duration mismatch: stream=${Math.round(streamDurationSeconds / 60)}min, expected=${expectedRuntimeMinutes}min`);
+  }
+
+  return isValid;
 }
 
 /**
@@ -107,7 +268,8 @@ async function extractWith2Embed(
   tmdbId: string,
   type: 'movie' | 'tv',
   season?: number,
-  episode?: number
+  episode?: number,
+  expectedRuntime?: number
 ): Promise<any[]> {
   console.log('[EXTRACT] Using 2Embed extractor (2embed.cc → player4u → yesmovies.baby)');
 
@@ -125,12 +287,36 @@ async function extractWith2Embed(
     throw new Error(result.error || 'Failed to extract streams');
   }
 
-  console.log(`[EXTRACT] Successfully extracted ${result.sources.length} quality options`);
+  console.log(`[EXTRACT] Extracted ${result.sources.length} sources, validating durations...`);
+
+  // Validate stream durations if we have expected runtime
+  let validatedSources = result.sources;
+  
+  if (expectedRuntime && expectedRuntime > 0) {
+    // Check duration of first source (they usually share the same content)
+    // This avoids checking every source which would be slow
+    const firstSource = result.sources[0];
+    if (firstSource) {
+      const streamDuration = await getStreamDuration(firstSource.url, firstSource.referer);
+      
+      if (streamDuration > 0) {
+        console.log(`[EXTRACT] Stream duration: ${Math.round(streamDuration / 60)}min, expected: ${expectedRuntime}min`);
+        
+        if (!isValidDuration(streamDuration, expectedRuntime)) {
+          console.warn('[EXTRACT] Duration validation FAILED - content may be incorrect');
+          // Filter out all sources from this extraction as they're likely all wrong
+          throw new Error('Content duration mismatch - source rejected for safety');
+        }
+      }
+    }
+  }
+
+  console.log(`[EXTRACT] Successfully validated ${validatedSources.length} quality options`);
   console.log('[EXTRACT] Source URLs:');
-  result.sources.forEach((s, i) => {
+  validatedSources.forEach((s, i) => {
     console.log(`  [${i + 1}] ${s.url}`);
   });
-  return result.sources;
+  return validatedSources;
 }
 
 /**
@@ -249,16 +435,37 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Get TMDB info including expected runtime for validation
+    const tmdbInfo = await getTmdbInfo(tmdbId, type, season, episode);
+    const expectedRuntime = tmdbInfo.runtime;
+    console.log(`[EXTRACT] Expected runtime from TMDB: ${expectedRuntime}min`);
+
     // Create a promise for this extraction
     let extractionPromise;
     if (provider === 'moviesapi') {
       const { extractMoviesApiStreams } = await import('@/app/lib/services/moviesapi-extractor');
-      extractionPromise = extractMoviesApiStreams(tmdbId, type, season, episode).then(res => {
+      extractionPromise = extractMoviesApiStreams(tmdbId, type, season, episode).then(async (res) => {
         if (!res.success) throw new Error(res.error || 'MoviesApi extraction failed');
+        
+        // Validate duration for moviesapi sources too
+        if (expectedRuntime && expectedRuntime > 0 && res.sources.length > 0) {
+          const firstSource = res.sources[0];
+          const streamDuration = await getStreamDuration(firstSource.url, firstSource.referer);
+          
+          if (streamDuration > 0) {
+            console.log(`[EXTRACT] MoviesAPI stream duration: ${Math.round(streamDuration / 60)}min, expected: ${expectedRuntime}min`);
+            
+            if (!isValidDuration(streamDuration, expectedRuntime)) {
+              console.warn('[EXTRACT] MoviesAPI duration validation FAILED - content may be incorrect');
+              throw new Error('Content duration mismatch - source rejected for safety');
+            }
+          }
+        }
+        
         return res.sources;
       });
     } else {
-      extractionPromise = extractWith2Embed(tmdbId, type, season, episode);
+      extractionPromise = extractWith2Embed(tmdbId, type, season, episode, expectedRuntime);
     }
 
     pendingRequests.set(cacheKey, extractionPromise);
