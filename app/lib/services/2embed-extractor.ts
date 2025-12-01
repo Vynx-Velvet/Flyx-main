@@ -229,11 +229,61 @@ function decodeJWPlayer(html: string): Record<string, string> | null {
 }
 
 /**
+ * Extract domain name from URL for display
+ * e.g., "54pkdcyxbsxbermn.premilkyway.com" -> "Premilkyway"
+ * e.g., "54pkdcyxbsxbermn.aurorionproductions.cyou" -> "Aurorionproductions"
+ */
+function extractSourceName(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+    
+    // Split by dots
+    const parts = hostname.split('.');
+    
+    // Find the main domain part (not the random subdomain, not the TLD)
+    // For "54pkdcyxbsxbermn.premilkyway.com" -> "premilkyway"
+    // For "yesmovies.baby" -> "yesmovies"
+    let mainPart = '';
+    
+    if (parts.length >= 3) {
+      // Has subdomain - take the second-to-last meaningful part
+      // e.g., ["54pkdcyxbsxbermn", "premilkyway", "com"] -> "premilkyway"
+      mainPart = parts[parts.length - 2];
+    } else if (parts.length === 2) {
+      // No subdomain - take the first part
+      // e.g., ["yesmovies", "baby"] -> "yesmovies"
+      mainPart = parts[0];
+    } else {
+      mainPart = hostname;
+    }
+    
+    // Skip if it looks like a random string (all lowercase letters/numbers, no vowels pattern)
+    // or if it's a common CDN/generic name
+    const genericNames = ['cdn', 'stream', 'video', 'hls', 'play', 'watch', 'embed'];
+    if (genericNames.includes(mainPart.toLowerCase())) {
+      // Try the subdomain instead
+      if (parts.length >= 3) {
+        mainPart = parts[0];
+      }
+    }
+    
+    // Capitalize first letter
+    mainPart = mainPart.charAt(0).toUpperCase() + mainPart.slice(1).toLowerCase();
+    
+    return mainPart;
+  } catch {
+    return 'Stream';
+  }
+}
+
+/**
  * Extract stream from a single quality option
  */
 async function extractStreamFromQuality(
   qualityOption: QualityOption,
-  player4uUrl: string
+  player4uUrl: string,
+  sourceIndex: number
 ): Promise<StreamSource | null> {
   try {
     // Step 1: Fetch /swp/ page
@@ -270,9 +320,30 @@ async function extractStreamFromQuality(
     // Check availability
     const status = await checkStreamAvailability(finalUrl, referer);
 
+    // Extract source name from the final stream URL domain
+    const sourceName = extractSourceName(finalUrl);
+    
+    // Detect quality from URL if possible
+    const urlLower = finalUrl.toLowerCase();
+    let qualityLabel = '';
+    if (urlLower.includes('1080') || urlLower.includes('fhd')) {
+      qualityLabel = '1080p';
+    } else if (urlLower.includes('720') || urlLower.includes('hd')) {
+      qualityLabel = '720p';
+    } else if (urlLower.includes('480') || urlLower.includes('sd')) {
+      qualityLabel = '480p';
+    } else if (urlLower.includes('4k') || urlLower.includes('2160')) {
+      qualityLabel = '4K';
+    }
+
+    // Build the display title from the actual source domain
+    const displayTitle = qualityLabel 
+      ? `${sourceName} ${qualityLabel} #${sourceIndex}`
+      : `${sourceName} #${sourceIndex}`;
+
     return {
-      quality: qualityOption.quality,
-      title: qualityOption.title,
+      quality: displayTitle,
+      title: displayTitle,
       url: finalUrl,
       referer,
       type: finalUrl.includes('.txt') ? 'hls' : 'm3u8',
@@ -280,7 +351,7 @@ async function extractStreamFromQuality(
       status
     };
   } catch (error) {
-    console.error(`Failed to extract ${qualityOption.quality}:`, error);
+    console.error(`Failed to extract source #${sourceIndex}:`, error);
     return null;
   }
 }
@@ -331,8 +402,8 @@ export async function extract2EmbedStreams(
     }
 
     // Step 5: Extract streams for each quality (parallel)
-    const streamPromises = qualityOptions.map(opt =>
-      extractStreamFromQuality(opt, player4uUrl)
+    const streamPromises = qualityOptions.map((opt, index) =>
+      extractStreamFromQuality(opt, player4uUrl, index + 1)
     );
 
     const streams = await Promise.all(streamPromises);
