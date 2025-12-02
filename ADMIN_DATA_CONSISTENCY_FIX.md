@@ -1,70 +1,80 @@
-# Admin Panel Data Consistency Fix
+# Admin Panel - Single Source of Truth
 
-## Problem
-Different admin pages were showing different numbers for the same metrics (e.g., active users, total users, DAU/WAU) because each page was:
-1. Making its own API calls to different endpoints
-2. Calculating metrics differently (different time windows, different tables)
-3. Not sharing data between pages
+## Architecture
 
-## Solution: Single Source of Truth
+All admin pages now use a unified data architecture:
 
-All admin pages now use the `StatsContext` which fetches data from a single unified API endpoint (`/api/admin/unified-stats`).
+### 1. Unified Stats Context (`/api/admin/unified-stats`)
+Single source of truth for key metrics displayed across all pages:
+- Live Users, DAU, WAU, MAU
+- Total Users, New Users, Returning Users
+- Sessions, Watch Time, Completion Rate
+- Geographic & Device data
 
-### Key Metrics (from unified stats)
-These metrics are now consistent across ALL admin pages:
-- **Live Users** - Real-time active users
-- **Total Users** - All-time unique users
-- **DAU (Daily Active Users)** - Users active in last 24 hours
-- **WAU (Weekly Active Users)** - Users active in last 7 days
-- **MAU (Monthly Active Users)** - Users active in last 30 days
-- **New Users Today** - First-time users in last 24 hours
-- **Returning Users** - Users who came back today
-- **Total Sessions** - Watch sessions today
-- **Total Watch Time** - Minutes watched today
-- **Avg Session Duration** - Average session length
-- **Completion Rate** - Average content completion
-- **Geographic Data** - Top countries
-- **Device Breakdown** - Device distribution
+### 2. User Profiles API (`/api/admin/users`)
+Comprehensive user tracking with detailed profiles:
+- **List all users**: `GET /api/admin/users`
+- **User profile**: `GET /api/admin/users?userId=xxx`
 
-### How to Use in Admin Pages
+User profiles include:
+- Basic info (first seen, last seen, location, device)
+- Live status (online/offline, current activity)
+- Engagement metrics (watch time, completion, streaks)
+- Content preferences (movies vs TV, quality)
+- Activity patterns (by hour, by day)
+- Complete watch history
+- Recent activity timeline
+
+### 3. How Pages Use Data
 
 ```tsx
 import { useStats } from '../context/StatsContext';
 
-export default function MyAdminPage() {
-  const { stats: unifiedStats, loading, refresh } = useStats();
+export default function AdminPage() {
+  // Key metrics from unified stats
+  const { stats: unifiedStats } = useStats();
   
-  // Use unified stats for key metrics
-  const totalUsers = unifiedStats.totalUsers;
-  const dau = unifiedStats.activeToday;
-  const wau = unifiedStats.activeThisWeek;
-  const liveUsers = unifiedStats.liveUsers;
-  
-  // ...
+  // All pages show the SAME numbers for:
+  // - unifiedStats.totalUsers
+  // - unifiedStats.activeToday (DAU)
+  // - unifiedStats.activeThisWeek (WAU)
+  // - unifiedStats.liveUsers
+  // etc.
 }
 ```
 
-### Pages Updated
-- `app/admin/components/OverviewStats.tsx` - Main dashboard stats
-- `app/admin/users/page.tsx` - User analytics
-- `app/admin/engagement/page.tsx` - Engagement metrics
-- `app/admin/live/page.tsx` - Live activity monitor
-- `app/admin/geographic/page.tsx` - Geographic analytics
-- `app/admin/sessions/page.tsx` - Session analytics
-
-### Data Flow
+### 4. Data Flow
 ```
-StatsContext (provider in AdminLayout)
-    ↓
-/api/admin/unified-stats (single API call)
-    ↓
-All admin pages use useStats() hook
-    ↓
-Consistent data everywhere!
+┌─────────────────────────────────────────────────────────┐
+│                    StatsContext                          │
+│              (auto-refreshes every 30s)                  │
+└─────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│              /api/admin/unified-stats                    │
+│   (aggregates from all tables - single source)          │
+└─────────────────────────────────────────────────────────┘
+                           │
+           ┌───────────────┼───────────────┐
+           ▼               ▼               ▼
+      Dashboard        Users Page      Live Page
+      (same #s)        (same #s)       (same #s)
 ```
 
-### Auto-Refresh
-The unified stats automatically refresh every 30 seconds, keeping all pages in sync.
+### 5. User Profile Features
 
-### Detailed Data
-Pages can still fetch additional detailed data (like individual user lists, session details, etc.) from other endpoints, but the KEY METRICS shown in cards/summaries should always come from unified stats.
+Click any user in the Users page to see:
+- **Profile Header**: User ID, online status, current activity
+- **Engagement Stats**: Watch time, completion rate, streaks
+- **Location & Device**: Country, city, device type
+- **Preferences**: Movies vs TV, quality preferences
+- **Activity Patterns**: Heatmaps by hour and day
+- **Watch History**: Last 50 watched items with completion %
+- **Recent Activity**: Page views, watch starts/ends
+
+### 6. Tables Used
+- `user_activity` - User sessions and activity
+- `live_activity` - Real-time presence
+- `watch_sessions` - Content viewing history
+- `analytics_events` - Page views and events
