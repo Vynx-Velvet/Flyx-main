@@ -3,16 +3,11 @@
  * Extracts streams from vidsrc-embed.ru → cloudnestra.com
  * 
  * ⚠️ SECURITY WARNING ⚠️
- * This extractor executes remote JavaScript code from third-party sites.
- * While we sandbox the execution, there is inherent risk in running untrusted code.
+ * This extractor executes remote JavaScript code from third-party sites
+ * using new Function(). This is DISABLED BY DEFAULT for safety.
  * 
- * This provider is DISABLED BY DEFAULT for safety.
  * To enable, set ENABLE_VIDSRC_PROVIDER=true in your environment.
- * 
- * SECURITY MEASURES:
- * - Decoder scripts run in isolated Cloudflare Worker (preferred)
- * - Fallback to Node.js VM sandbox with no network access
- * - Pattern validation and URL allowlisting
+ * By enabling this, you accept the security risk of running third-party code.
  */
 
 interface StreamSource {
@@ -31,23 +26,12 @@ interface ExtractionResult {
   error?: string;
 }
 
-interface SandboxResponse {
-  success: boolean;
-  decodedUrl?: string;
-  error?: string;
-}
-
 // ⚠️ SECURITY: VidSrc is DISABLED by default - must explicitly enable
+// When enabled, decoder scripts run via new Function() - user accepts the risk
 export const VIDSRC_ENABLED = process.env.ENABLE_VIDSRC_PROVIDER === 'true';
 
 // Domain for stream URLs
 const STREAM_DOMAIN = 'shadowlandschronicles.com';
-
-// Cloudflare Worker sandbox URL - set via environment variable
-const DECODER_SANDBOX_URL = process.env.DECODER_SANDBOX_URL || process.env.NEXT_PUBLIC_DECODER_SANDBOX_URL;
-
-// Allow local VM fallback only in development (set ALLOW_LOCAL_VM_FALLBACK=true)
-const ALLOW_LOCAL_VM_FALLBACK = process.env.ALLOW_LOCAL_VM_FALLBACK === 'true' || process.env.NODE_ENV === 'development';
 
 /**
  * Fetch with proper headers and timeout
@@ -103,97 +87,25 @@ function customBtoa(str: string): string {
 }
 
 /**
- * Execute decoder script via isolated Cloudflare Worker sandbox
+ * Execute decoder using new Function() - ONLY when VidSrc is explicitly enabled
  * 
- * SECURITY: The decoder runs in a completely separate V8 isolate on Cloudflare,
- * providing true process-level isolation. Even if the script is malicious:
- * - No access to our application's memory or globals
- * - No network access (fetch/WebSocket blocked at isolate level)
- * - No persistent storage access
- * - CPU/memory limits enforced by Cloudflare
- * - Output validated before being returned
+ * When ENABLE_VIDSRC_PROVIDER=true, the user has accepted the security risk
+ * of executing third-party decoder scripts. We use new Function() directly
+ * which is simpler and more reliable than VM sandboxing.
  */
-async function executeDecoderInSandbox(
+async function executeDecoder(
   decoderScript: string, 
   divId: string, 
   encodedContent: string
 ): Promise<string | null> {
-  if (!DECODER_SANDBOX_URL) {
-    console.error('[VidSrc] DECODER_SANDBOX_URL not configured - cannot execute decoder safely');
-    return null;
-  }
-
+  // VidSrc is enabled - user has accepted the risk, use new Function() directly
+  console.log('[VidSrc] Executing decoder with new Function() (VidSrc enabled by user)...');
+  
   try {
-    console.log('[VidSrc] Sending decoder to isolated Cloudflare sandbox...');
-    
-    const response = await fetch(`${DECODER_SANDBOX_URL}/decode`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Include API key if configured
-        ...(process.env.DECODER_SANDBOX_API_KEY && {
-          'X-API-Key': process.env.DECODER_SANDBOX_API_KEY
-        })
-      },
-      body: JSON.stringify({
-        script: decoderScript,
-        divId,
-        encodedContent
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[VidSrc] Sandbox returned error:', response.status, errorText);
-      return null;
-    }
-
-    const result: SandboxResponse = await response.json();
-    
-    if (!result.success) {
-      console.error('[VidSrc] Sandbox execution failed:', result.error);
-      return null;
-    }
-
-    console.log('[VidSrc] Sandbox execution successful');
-    return result.decodedUrl || null;
-    
-  } catch (error) {
-    console.error('[VidSrc] Failed to communicate with sandbox:', error);
-    return null;
-  }
-}
-
-/**
- * LOCAL FALLBACK: Execute decoder in Node.js VM sandbox with NO network access
- * 
- * SECURITY: Uses Node.js native vm module which provides proper sandboxing.
- * NOTE: This requires running with Node.js (npm run dev), not Bun (npm run dev:bun)
- * because Bun's VM implementation is incomplete.
- * 
- * The sandbox has:
- * - NO access to fetch, XMLHttpRequest, WebSocket
- * - NO access to require, import, process
- * - NO access to Node.js/Bun APIs
- * - Timeout protection against infinite loops
- * - Proper JavaScript built-ins (String, Array, etc.)
- */
-function executeDecoderLocal(decoderScript: string, divId: string, encodedContent: string): string | null {
-  // Validate script size (150KB limit - their scripts are ~112KB)
-  if (decoderScript.length > 150000) {
-    console.error('[VidSrc] Script too large:', decoderScript.length);
-    return null;
-  }
-
-  try {
-    // Use Node.js native vm module
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const vm = require('vm');
-    
-    // Create minimal window mock
+    // Create mock window to capture the result
     const mockWindow: Record<string, unknown> = {};
-
-    // Create minimal document mock - ONLY getElementById
+    
+    // Create mock document with getElementById
     const mockDocument = {
       getElementById: (id: string) => {
         if (id === divId) {
@@ -202,44 +114,32 @@ function executeDecoderLocal(decoderScript: string, divId: string, encodedConten
         return null;
       }
     };
-
-    // Create sandbox with browser-like globals but NO network/system access
-    const sandbox = {
-      window: mockWindow,
-      document: mockDocument,
-      atob: customAtob,
-      btoa: customBtoa,
-      setTimeout: (fn: () => void) => { if (typeof fn === 'function') fn(); },
-      setInterval: () => {},
-      clearTimeout: () => {},
-      clearInterval: () => {},
-      console: { log: () => {}, error: () => {}, warn: () => {}, info: () => {} },
-      // BLOCKED - these are undefined in the sandbox
-      fetch: undefined,
-      XMLHttpRequest: undefined,
-      WebSocket: undefined,
-      require: undefined,
-      process: undefined,
-      Buffer: undefined,
-      __dirname: undefined,
-      __filename: undefined,
-      module: undefined,
-      exports: undefined,
-    };
-
-    // Run in isolated VM context with timeout
-    // NOTE: This works with Node.js but NOT with Bun (Bun's VM is incomplete)
-    console.log('[VidSrc] Executing in Node.js VM sandbox (no network access)...');
-    vm.runInNewContext(decoderScript, sandbox, {
-      filename: 'decoder.js',
-      timeout: 5000,
-    });
+    
+    // Wrap the decoder script to inject our mocks
+    const wrappedScript = `
+      (function(window, document, atob, btoa) {
+        ${decoderScript}
+      })
+    `;
+    
+    // Create and execute the function
+    const decoderFn = new Function('return ' + wrappedScript)();
+    decoderFn(mockWindow, mockDocument, customAtob, customBtoa);
     
     // Check for captured result - the decoder sets window[divId] = decodedUrl
     const result = mockWindow[divId];
     if (typeof result === 'string' && result.includes('https://')) {
-      console.log('[VidSrc] VM execution successful');
+      console.log('[VidSrc] Decoder execution successful');
       return result;
+    }
+    
+    // Try alternate patterns - some decoders use different output methods
+    for (const key of Object.keys(mockWindow)) {
+      const value = mockWindow[key];
+      if (typeof value === 'string' && value.includes('https://') && value.includes('.m3u8')) {
+        console.log(`[VidSrc] Found URL in window.${key}`);
+        return value;
+      }
     }
     
     console.error('[VidSrc] No decoded URL found in window');
@@ -247,49 +147,9 @@ function executeDecoderLocal(decoderScript: string, divId: string, encodedConten
     return null;
     
   } catch (error) {
-    // VM module not available (Edge runtime) - this is expected on Vercel Edge
-    if (error instanceof Error && error.message.includes('Cannot find module')) {
-      console.error('[VidSrc] VM module not available (Edge runtime) - need Cloudflare sandbox');
-      return null;
-    }
-    console.error('[VidSrc] VM execution failed:', error);
+    console.error('[VidSrc] Decoder execution failed:', error);
     return null;
   }
-}
-
-/**
- * Execute decoder - REQUIRES Cloudflare sandbox, local VM only as fallback in dev
- * 
- * SECURITY POLICY:
- * 1. Always try Cloudflare Worker sandbox first (true V8 isolation)
- * 2. Only fall back to local VM in development mode
- * 3. In production without sandbox configured, FAIL SAFE (don't execute untrusted code)
- */
-async function executeDecoder(
-  decoderScript: string, 
-  divId: string, 
-  encodedContent: string
-): Promise<string | null> {
-  // STEP 1: Try Cloudflare sandbox first (preferred - true isolation)
-  if (DECODER_SANDBOX_URL) {
-    console.log('[VidSrc] Using Cloudflare Worker sandbox for secure execution...');
-    const result = await executeDecoderInSandbox(decoderScript, divId, encodedContent);
-    if (result) return result;
-    console.warn('[VidSrc] Cloudflare sandbox failed');
-  } else {
-    console.warn('[VidSrc] DECODER_SANDBOX_URL not configured');
-  }
-  
-  // STEP 2: Fall back to local VM ONLY if explicitly allowed
-  if (ALLOW_LOCAL_VM_FALLBACK) {
-    console.warn('[VidSrc] Falling back to local Node.js VM sandbox (development mode)');
-    return executeDecoderLocal(decoderScript, divId, encodedContent);
-  }
-  
-  // STEP 3: FAIL SAFE - don't execute untrusted code without proper sandbox
-  console.error('[VidSrc] SECURITY: Cannot execute decoder - no sandbox available');
-  console.error('[VidSrc] Configure DECODER_SANDBOX_URL for production or set ALLOW_LOCAL_VM_FALLBACK=true for development');
-  return null;
 }
 
 /**
