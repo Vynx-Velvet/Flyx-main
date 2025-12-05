@@ -17,7 +17,7 @@
 /data
 # Chromium executable (downloaded locally)
 /bin
-
+/Vixen-Extractor
 # misc
 .DS_Store
 .env

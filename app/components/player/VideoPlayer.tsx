@@ -89,8 +89,8 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
   const [showVolumeIndicator, setShowVolumeIndicator] = useState(false);
 
   const [showNextEpisodeButton, setShowNextEpisodeButton] = useState(false);
-  const [provider, setProvider] = useState('2embed');
-  const [menuProvider, setMenuProvider] = useState('2embed');
+  const [provider, setProvider] = useState('vidsrc');
+  const [menuProvider, setMenuProvider] = useState('vidsrc');
   const [showServerMenu, setShowServerMenu] = useState(false);
   const [sourcesCache, setSourcesCache] = useState<Record<string, any[]>>({});
   const [loadingProviders, setLoadingProviders] = useState<Record<string, boolean>>({});
@@ -294,21 +294,21 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
 
         // Check for 2embed fallback condition: all sources are generic "Source"
         if (providerName === '2embed' && sources.every((s: any) => s.quality === 'Source')) {
-          console.log('[VideoPlayer] All 2embed sources are generic "Source". Attempting fallback to moviesapi.');
+          console.log('[VideoPlayer] All 2embed sources are generic "Source". Attempting fallback to vidsrc.');
 
-          // Switch to moviesapi for playback, but keep 2embed sources in cache
-          setProvider('moviesapi');
-          setMenuProvider('moviesapi');
+          // Switch to vidsrc for playback, but keep 2embed sources in cache
+          setProvider('vidsrc');
+          setMenuProvider('vidsrc');
 
-          // Recursively fetch moviesapi sources
+          // Recursively fetch vidsrc sources
           try {
-            const moviesApiSources = await fetchSources('moviesapi', true);
-            if (moviesApiSources && moviesApiSources.length > 0) {
-              setAvailableSources(moviesApiSources);
-              return moviesApiSources;
+            const vidsrcSources = await fetchSources('vidsrc', true);
+            if (vidsrcSources && vidsrcSources.length > 0) {
+              setAvailableSources(vidsrcSources);
+              return vidsrcSources;
             }
           } catch (e) {
-            console.warn('[VideoPlayer] Fallback to moviesapi failed, sticking with 2embed sources');
+            console.warn('[VideoPlayer] Fallback to vidsrc failed, sticking with 2embed sources');
             // Fall through to use 2embed sources
           }
         }
@@ -345,12 +345,12 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
 
     // Clear cache when content changes
     setSourcesCache({});
-    setMenuProvider('2embed');
-    setProvider('2embed');
+    setMenuProvider('vidsrc');
+    setProvider('vidsrc');
     setLoadingProviders({});
 
-    // Fetch initial sources
-    fetchSources('2embed').then(sources => {
+    // Fetch initial sources (VidSrc is primary)
+    fetchSources('vidsrc').then(sources => {
       if (sources && sources.length > 0) {
         setAvailableSources(sources);
         setCurrentSourceIndex(0);
@@ -365,7 +365,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
             const targetUrl = initialSource.directUrl || initialSource.url;
             const proxyParams = new URLSearchParams({
               url: targetUrl,
-              source: '2embed',
+              source: 'vidsrc',
               referer: initialSource.referer || ''
             });
             finalUrl = `/api/stream-proxy?${proxyParams.toString()}`;
@@ -1004,7 +1004,7 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
         const targetUrl = source.directUrl || source.url;
         const proxyParams = new URLSearchParams({
           url: targetUrl,
-          source: provider === 'moviesapi' ? 'moviesapi' : '2embed',
+          source: provider, // Use current provider for proxy source
           referer: source.referer || ''
         });
         finalUrl = `/api/stream-proxy?${proxyParams.toString()}`;
@@ -1549,13 +1549,13 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
 
                 <div className={styles.tabsContainer}>
                   <button
-                    className={`${styles.tab} ${menuProvider === '2embed' ? styles.active : ''}`}
+                    className={`${styles.tab} ${menuProvider === 'vidsrc' ? styles.active : ''}`}
                     onClick={() => {
-                      setMenuProvider('2embed');
-                      fetchSources('2embed');
+                      setMenuProvider('vidsrc');
+                      fetchSources('vidsrc');
                     }}
                   >
-                    2Embed
+                    VidSrc
                   </button>
                   <button
                     className={`${styles.tab} ${menuProvider === 'moviesapi' ? styles.active : ''}`}
@@ -1565,6 +1565,15 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
                     }}
                   >
                     MoviesAPI
+                  </button>
+                  <button
+                    className={`${styles.tab} ${menuProvider === '2embed' ? styles.active : ''}`}
+                    onClick={() => {
+                      setMenuProvider('2embed');
+                      fetchSources('2embed');
+                    }}
+                  >
+                    2Embed
                   </button>
                 </div>
 

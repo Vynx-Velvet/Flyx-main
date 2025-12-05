@@ -64,18 +64,30 @@ export async function GET(request: NextRequest) {
         }
         
         // Return the redirected content
-        const contentType = redirectResponse.headers.get('content-type') || '';
-        const arrayBuffer = await redirectResponse.arrayBuffer();
+        const redirectContentType = redirectResponse.headers.get('content-type') || '';
+        const redirectArrayBuffer = await redirectResponse.arrayBuffer();
         
-        return new NextResponse(arrayBuffer, {
+        // Detect actual content type from data
+        const redirectFirstBytes = new Uint8Array(redirectArrayBuffer.slice(0, 4));
+        const redirectIsMpegTs = redirectFirstBytes[0] === 0x47;
+        const redirectIsFmp4 = (redirectFirstBytes[0] === 0x00 && redirectFirstBytes[1] === 0x00 && redirectFirstBytes[2] === 0x00);
+        
+        let redirectActualContentType = redirectContentType || 'video/mp2t';
+        if (redirectIsMpegTs) {
+          redirectActualContentType = 'video/mp2t';
+        } else if (redirectIsFmp4) {
+          redirectActualContentType = 'video/mp4';
+        }
+        
+        return new NextResponse(redirectArrayBuffer, {
           status: 200,
           headers: {
-            'Content-Type': contentType || 'video/mp2t',
+            'Content-Type': redirectActualContentType,
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, OPTIONS',
             'Access-Control-Allow-Headers': 'Range, Content-Type',
             'Cache-Control': 'public, max-age=3600',
-            'Content-Length': arrayBuffer.byteLength.toString(),
+            'Content-Length': redirectArrayBuffer.byteLength.toString(),
           },
         });
       }
@@ -89,14 +101,30 @@ export async function GET(request: NextRequest) {
     }
 
     const contentType = response.headers.get('content-type') || '';
-    const isPlaylist = contentType.includes('mpegurl') || 
-                      contentType.includes('text') || 
-                      decodedUrl.includes('.m3u8') || 
-                      decodedUrl.includes('.txt');
+    
+    // Check if this is actually video data by looking at the first bytes
+    // Some servers disguise video segments as .html files with text/html content-type
+    const arrayBuffer = await response.arrayBuffer();
+    const firstBytes = new Uint8Array(arrayBuffer.slice(0, 4));
+    const isMpegTs = firstBytes[0] === 0x47; // MPEG-TS sync byte
+    const isFmp4 = (firstBytes[0] === 0x00 && firstBytes[1] === 0x00 && firstBytes[2] === 0x00); // fMP4 box
+    const isVideoData = isMpegTs || isFmp4;
+    
+    // Only treat as playlist if:
+    // 1. Content-type indicates playlist AND
+    // 2. URL looks like a playlist AND
+    // 3. Data doesn't look like video
+    const isPlaylist = !isVideoData && (
+      contentType.includes('mpegurl') || 
+      decodedUrl.includes('.m3u8') || 
+      decodedUrl.includes('.txt') ||
+      (contentType.includes('text') && !decodedUrl.includes('.html'))
+    );
 
     // For playlists, rewrite URLs to go through our proxy
     if (isPlaylist) {
-      const text = await response.text();
+      // Convert arrayBuffer back to text for playlist processing
+      const text = new TextDecoder().decode(arrayBuffer);
       const rewrittenPlaylist = rewritePlaylistUrls(text, decodedUrl, source, referer);
       
       return new NextResponse(rewrittenPlaylist, {
@@ -111,13 +139,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // For segments, stream the binary data
-    const arrayBuffer = await response.arrayBuffer();
+    // For segments, return the binary data with correct content type
+    let actualContentType = 'video/mp2t';
+    if (isMpegTs) {
+      actualContentType = 'video/mp2t';
+    } else if (isFmp4) {
+      actualContentType = 'video/mp4';
+    }
     
     return new NextResponse(arrayBuffer, {
       status: 200,
       headers: {
-        'Content-Type': contentType || 'video/mp2t',
+        'Content-Type': actualContentType,
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
         'Access-Control-Allow-Headers': 'Range, Content-Type',

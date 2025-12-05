@@ -1,9 +1,10 @@
 /**
- * Stream Extract API - Self-Hosted Decoder (Primary Method)
+ * Stream Extract API - Multi-Provider Stream Extraction
  * 
- * Uses the self-hosted decoder running on Vercel's Node.js runtime
- * Primary: MoviesAPI (moviesapi.club → vidora.stream)
- * Fallback: 2Embed (2embed.cc → player4u → yesmovies.baby)
+ * Provider Priority:
+ * 1. VidSrc (vidsrc-embed.ru → cloudnestra.com) - Primary
+ * 2. MoviesAPI (moviesapi.club → vidora.stream) - Fallback
+ * 3. 2Embed (2embed.cc → player4u → yesmovies.baby) - Last resort
  * 
  * GET /api/stream/extract?tmdbId=550&type=movie
  * GET /api/stream/extract?tmdbId=1396&type=tv&season=1&episode=1
@@ -12,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { extract2EmbedStreams } from '@/app/lib/services/2embed-extractor';
 import { extractMoviesApiStreams } from '@/app/lib/services/moviesapi-extractor';
+import { extractVidSrcStreams } from '@/app/lib/services/vidsrc-extractor';
 import { performanceMonitor } from '@/app/lib/utils/performance-monitor';
 
 // Node.js runtime (default) - required for fetch
@@ -251,6 +253,34 @@ function isValidDuration(streamDurationSeconds: number, expectedRuntimeMinutes: 
 }
 
 /**
+ * Get title from TMDB for content validation
+ */
+async function getTmdbTitle(tmdbId: string, type: 'movie' | 'tv'): Promise<string | null> {
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_TMDB_API_KEY;
+    if (!apiKey) return null;
+
+    const url = `https://api.themoviedb.org/3/${type}/${tmdbId}?api_key=${apiKey}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      next: { revalidate: 86400 }
+    });
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const data = await response.json();
+      return type === 'movie' ? data.title : data.name;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Complete extraction flow using 2Embed with multi-quality support
  */
 async function extractWith2Embed(
@@ -258,19 +288,32 @@ async function extractWith2Embed(
   type: 'movie' | 'tv',
   season?: number,
   episode?: number,
-  expectedRuntime?: number
+  expectedRuntime?: number,
+  expectedTitle?: string
 ): Promise<any[]> {
   console.log('[EXTRACT] Using 2Embed extractor (2embed.cc → player4u → yesmovies.baby)');
 
   // Get IMDB ID from TMDB
   const imdbId = await getImdbId(tmdbId, type);
+  
+  // We can try with TMDB ID even if IMDB lookup fails
   if (!imdbId) {
-    throw new Error('Failed to get IMDB ID from TMDB');
+    console.warn('[EXTRACT] Failed to get IMDB ID, will try with TMDB ID only');
+  } else {
+    console.log(`[EXTRACT] Got IMDB ID: ${imdbId}`);
   }
 
-  console.log(`[EXTRACT] Got IMDB ID: ${imdbId}`);
+  // Get title for content validation if not provided
+  let titleForValidation = expectedTitle;
+  if (!titleForValidation) {
+    titleForValidation = await getTmdbTitle(tmdbId, type) || undefined;
+    if (titleForValidation) {
+      console.log(`[EXTRACT] Got title for validation: "${titleForValidation}"`);
+    }
+  }
 
-  const result = await extract2EmbedStreams(imdbId, season, episode);
+  // Pass both IMDB and TMDB IDs - extractor will try both, with title for validation
+  const result = await extract2EmbedStreams(imdbId || '', season, episode, tmdbId, titleForValidation);
 
   if (!result.success || result.sources.length === 0) {
     throw new Error(result.error || 'Failed to extract streams');
@@ -328,7 +371,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') as 'movie' | 'tv';
     const season = searchParams.get('season') ? parseInt(searchParams.get('season')!) : undefined;
     const episode = searchParams.get('episode') ? parseInt(searchParams.get('episode')!) : undefined;
-    const provider = searchParams.get('provider') || '2embed';
+    const provider = searchParams.get('provider') || 'vidsrc';
 
     // Validate parameters
     if (!tmdbId) {
@@ -466,44 +509,62 @@ export async function GET(request: NextRequest) {
         return { sources, provider: '2embed' };
       }
       
-      // Default behavior (no specific provider): Try MoviesAPI first, fallback to 2Embed
-      console.log('[EXTRACT] Trying primary source: MoviesAPI...');
-      try {
-        const moviesApiResult = await extractMoviesApiStreams(tmdbId, type, season, episode);
+      // If explicitly requesting vidsrc, use it directly
+      if (provider === 'vidsrc') {
+        console.log('[EXTRACT] Using VidSrc (explicit request)...');
+        const vidsrcResult = await extractVidSrcStreams(tmdbId, type, season, episode);
         
-        // Check for working sources
-        const workingSources = moviesApiResult.sources.filter(s => s.status === 'working');
-        
-        if (workingSources.length > 0) {
-          // Validate duration for moviesapi sources
-          if (expectedRuntime && expectedRuntime > 0) {
-            const firstSource = workingSources[0];
-            const streamDuration = await getStreamDuration(firstSource.url, firstSource.referer);
-            
-            if (streamDuration > 0) {
-              console.log(`[EXTRACT] MoviesAPI stream duration: ${Math.round(streamDuration / 60)}min, expected: ${expectedRuntime}min`);
-              
-              if (!isValidDuration(streamDuration, expectedRuntime)) {
-                console.warn('[EXTRACT] MoviesAPI duration validation FAILED - trying fallback');
-                throw new Error('Content duration mismatch');
-              }
-            }
-          }
+        if (vidsrcResult.sources.length > 0) {
+          const workingSources = vidsrcResult.sources.filter(s => s.status === 'working');
           
-          console.log(`[EXTRACT] ✓ MoviesAPI succeeded with ${workingSources.length} working source(s)`);
-          return { sources: moviesApiResult.sources, provider: 'moviesapi' };
+          if (workingSources.length > 0) {
+            console.log(`[EXTRACT] ✓ VidSrc: ${workingSources.length} working, ${vidsrcResult.sources.length} total`);
+            return { sources: vidsrcResult.sources, provider: 'vidsrc' };
+          }
         }
         
-        throw new Error(moviesApiResult.error || 'MoviesAPI returned no working sources');
-      } catch (moviesApiError) {
-        console.warn('[EXTRACT] MoviesAPI failed:', moviesApiError instanceof Error ? moviesApiError.message : moviesApiError);
+        if (vidsrcResult.sources.length > 0) {
+          console.log(`[EXTRACT] VidSrc: ${vidsrcResult.sources.length} sources (none working)`);
+          return { sources: vidsrcResult.sources, provider: 'vidsrc' };
+        }
         
-        // Fallback to 2Embed
-        console.log('[EXTRACT] Trying fallback source: 2Embed...');
+        throw new Error(vidsrcResult.error || 'VidSrc returned no sources');
+      }
+      
+      // Default behavior (no specific provider): Try VidSrc first, then MoviesAPI, then 2Embed
+      console.log('[EXTRACT] Trying primary source: VidSrc...');
+      try {
+        const vidsrcResult = await extractVidSrcStreams(tmdbId, type, season, episode);
+        const workingVidsrc = vidsrcResult.sources.filter(s => s.status === 'working');
         
-        const sources = await extractWith2Embed(tmdbId, type, season, episode, expectedRuntime);
-        console.log(`[EXTRACT] ✓ 2Embed succeeded with ${sources.length} source(s)`);
-        return { sources, provider: '2embed' };
+        if (workingVidsrc.length > 0) {
+          console.log(`[EXTRACT] ✓ VidSrc succeeded with ${workingVidsrc.length} working source(s)`);
+          return { sources: vidsrcResult.sources, provider: 'vidsrc' };
+        }
+        throw new Error(vidsrcResult.error || 'VidSrc returned no working sources');
+      } catch (vidsrcError) {
+        console.warn('[EXTRACT] VidSrc failed:', vidsrcError instanceof Error ? vidsrcError.message : vidsrcError);
+        
+        // Fallback to MoviesAPI
+        console.log('[EXTRACT] Trying fallback source: MoviesAPI...');
+        try {
+          const moviesApiResult = await extractMoviesApiStreams(tmdbId, type, season, episode);
+          const workingSources = moviesApiResult.sources.filter(s => s.status === 'working');
+          
+          if (workingSources.length > 0) {
+            console.log(`[EXTRACT] ✓ MoviesAPI succeeded with ${workingSources.length} working source(s)`);
+            return { sources: moviesApiResult.sources, provider: 'moviesapi' };
+          }
+          throw new Error(moviesApiResult.error || 'MoviesAPI returned no working sources');
+        } catch (moviesApiError) {
+          console.warn('[EXTRACT] MoviesAPI failed:', moviesApiError instanceof Error ? moviesApiError.message : moviesApiError);
+          
+          // Final fallback to 2Embed
+          console.log('[EXTRACT] Trying final fallback: 2Embed...');
+          const sources = await extractWith2Embed(tmdbId, type, season, episode, expectedRuntime);
+          console.log(`[EXTRACT] ✓ 2Embed succeeded with ${sources.length} source(s)`);
+          return { sources, provider: '2embed' };
+        }
       }
     })();
 
