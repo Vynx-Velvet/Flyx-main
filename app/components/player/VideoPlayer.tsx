@@ -1238,36 +1238,6 @@ export default function VideoPlayer({ tmdbId, mediaType, season, episode, title,
     }
   }, [availableSubtitles]);
 
-  const changeSource = async (source: any, index: number) => {
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
-    // Reset HLS levels when changing source
-    setHlsLevels([]);
-    setCurrentHlsLevel(-1);
-    setCurrentResolution('');
-    
-    setCurrentSourceIndex(index);
-    
-    // Check if source has a valid URL - if not, it needs to be fetched
-    if (!source.url || source.url === '') {
-      console.log(`[VideoPlayer] Source "${source.title}" has no URL, skipping...`);
-      // Don't try to play sources without URLs - they need to be fetched first via the server menu
-      return;
-    }
-    
-    let finalUrl = source.url;
-    if (source.requiresSegmentProxy) {
-      const isAlreadyProxied = finalUrl.includes('/api/stream-proxy') || finalUrl.includes('/stream/?url=');
-      if (!isAlreadyProxied) {
-        const targetUrl = source.directUrl || source.url;
-        finalUrl = getStreamProxyUrl(targetUrl, provider, source.referer || '');
-      }
-    }
-    setStreamUrl(finalUrl);
-  };
-
   // Change HLS quality level
   const changeHlsLevel = (levelIndex: number) => {
     if (hlsRef.current) {
