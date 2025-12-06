@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAdmin } from '../context/AdminContext';
 import { useStats } from '../context/StatsContext';
-import GeographicHeatmap from '../components/GeographicHeatmap';
+import WorldMap from '../components/WorldMap';
 
 interface GeoStat {
   country: string;
@@ -373,7 +373,7 @@ export default function AdminGeographicPage() {
 
       {/* Content based on view mode */}
       {viewMode === 'list' ? (
-        <GeographicHeatmap data={geoData} />
+        <WorldMap data={geoData} />
       ) : (
         <div style={{
           background: 'linear-gradient(135deg, rgba(10, 10, 20, 0.98), rgba(15, 15, 30, 0.95))',
