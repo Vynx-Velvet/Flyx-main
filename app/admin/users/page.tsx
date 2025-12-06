@@ -99,8 +99,9 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'lastSeen' | 'totalWatchTime' | 'totalSessions'>('lastSeen');
+  const [sortBy, setSortBy] = useState<'lastSeen' | 'totalWatchTime' | 'totalSessions' | 'firstSeen'>('lastSeen');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [prioritizeOnline, setPrioritizeOnline] = useState(true);
   const [filterStatus, setFilterStatus] = useState<'all' | 'online' | 'offline'>('all');
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
@@ -203,20 +204,37 @@ export default function AdminUsersPage() {
 
   const filteredUsers = useMemo(() => {
     let result = [...users];
+    
+    // Apply search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(u => u.userId?.toLowerCase().includes(query) || u.country?.toLowerCase().includes(query) || u.city?.toLowerCase().includes(query));
+      result = result.filter(u => 
+        u.userId?.toLowerCase().includes(query) || 
+        u.country?.toLowerCase().includes(query) || 
+        u.countryName?.toLowerCase().includes(query) ||
+        u.city?.toLowerCase().includes(query)
+      );
     }
+    
+    // Apply status filter
     if (filterStatus === 'online') result = result.filter(u => u.isOnline);
     else if (filterStatus === 'offline') result = result.filter(u => !u.isOnline);
 
+    // Sort users
     result.sort((a, b) => {
+      // Always prioritize online users at the top if enabled
+      if (prioritizeOnline && a.isOnline !== b.isOnline) {
+        return a.isOnline ? -1 : 1;
+      }
+      
+      // Then sort by selected field
       const aVal = a[sortBy] || 0;
       const bVal = b[sortBy] || 0;
       return sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
     });
+    
     return result;
-  }, [users, searchQuery, filterStatus, sortBy, sortOrder]);
+  }, [users, searchQuery, filterStatus, sortBy, sortOrder, prioritizeOnline]);
 
   // Validate timestamp is reasonable (not in the future, not too old)
   const isValidTimestamp = (ts: number): boolean => {
@@ -293,7 +311,7 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
         <input type="text" placeholder="Search by ID, country, city..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={inputStyle} />
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} style={selectStyle}>
           <option value="all">All Users</option>
@@ -302,11 +320,35 @@ export default function AdminUsersPage() {
         </select>
         <select value={`${sortBy}-${sortOrder}`} onChange={(e) => { const [f, o] = e.target.value.split('-'); setSortBy(f as any); setSortOrder(o as any); }} style={selectStyle}>
           <option value="lastSeen-desc">Last Active</option>
+          <option value="lastSeen-asc">Least Active</option>
           <option value="totalWatchTime-desc">Most Watch Time</option>
+          <option value="totalWatchTime-asc">Least Watch Time</option>
           <option value="totalSessions-desc">Most Sessions</option>
-          <option value="firstSeen-asc">Oldest Users</option>
+          <option value="totalSessions-asc">Least Sessions</option>
           <option value="firstSeen-desc">Newest Users</option>
+          <option value="firstSeen-asc">Oldest Users</option>
         </select>
+        
+        {/* Online Priority Toggle */}
+        <button
+          onClick={() => setPrioritizeOnline(!prioritizeOnline)}
+          style={{
+            padding: '10px 16px',
+            background: prioritizeOnline ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+            border: `1px solid ${prioritizeOnline ? 'rgba(16, 185, 129, 0.4)' : 'rgba(255, 255, 255, 0.1)'}`,
+            borderRadius: '8px',
+            color: prioritizeOnline ? '#10b981' : '#94a3b8',
+            fontSize: '13px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <span style={{ fontSize: '10px' }}>{prioritizeOnline ? '✓' : '○'}</span>
+          Online First
+        </button>
       </div>
 
       {/* Users Table */}
@@ -329,11 +371,26 @@ export default function AdminUsersPage() {
               <tr style={{ background: 'rgba(255, 255, 255, 0.02)' }}>
                 <th style={thStyle}>User</th>
                 <th style={thStyle}>Status</th>
-                <th style={thStyle}>Watch Time</th>
-                <th style={thStyle}>Sessions</th>
+                <th 
+                  style={{ ...thStyle, cursor: 'pointer', userSelect: 'none' }} 
+                  onClick={() => { setSortBy('totalWatchTime'); setSortOrder(sortBy === 'totalWatchTime' && sortOrder === 'desc' ? 'asc' : 'desc'); }}
+                >
+                  Watch Time {sortBy === 'totalWatchTime' && (sortOrder === 'desc' ? '↓' : '↑')}
+                </th>
+                <th 
+                  style={{ ...thStyle, cursor: 'pointer', userSelect: 'none' }} 
+                  onClick={() => { setSortBy('totalSessions'); setSortOrder(sortBy === 'totalSessions' && sortOrder === 'desc' ? 'asc' : 'desc'); }}
+                >
+                  Sessions {sortBy === 'totalSessions' && (sortOrder === 'desc' ? '↓' : '↑')}
+                </th>
                 <th style={thStyle}>Location</th>
                 <th style={thStyle}>Device</th>
-                <th style={thStyle}>First Seen</th>
+                <th 
+                  style={{ ...thStyle, cursor: 'pointer', userSelect: 'none' }} 
+                  onClick={() => { setSortBy('firstSeen'); setSortOrder(sortBy === 'firstSeen' && sortOrder === 'desc' ? 'asc' : 'desc'); }}
+                >
+                  First Seen {sortBy === 'firstSeen' && (sortOrder === 'desc' ? '↓' : '↑')}
+                </th>
                 <th style={thStyle}>Actions</th>
               </tr>
             </thead>
