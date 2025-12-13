@@ -54,7 +54,7 @@
     "lucide-react": "^0.542.0",
     "mpegts.js": "^1.8.0",
     "nanoid": "^5.0.4",
-    "next": "^14.2.0",
+    "next": "14.2.35",
     "pako": "^2.1.0",
     "puppeteer": "^24.29.1",
     "puppeteer-core": "^24.30.0",
