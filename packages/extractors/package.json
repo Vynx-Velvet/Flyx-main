@@ -1,0 +1,28 @@
+{
+  "name": "@flyx/extractors",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Flyx unified extraction pipeline and per-provider extraction logic",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./services": "./src/services/index.ts",
+    "./unified": "./src/unified/ExtractionPipeline.ts"
+  },
+  "dependencies": {
+    "@flyx/config": "*",
+    "@flyx/core": "*"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.1.0"
+  }
+}

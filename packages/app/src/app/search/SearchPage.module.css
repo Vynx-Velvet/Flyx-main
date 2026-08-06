@@ -1,0 +1,309 @@
+/* Search Page — Eclipse Design */
+.searchPage {
+  min-height: 100vh;
+  background: transparent;
+}
+
+/* Enhanced search input */
+.searchInput {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 14px;
+}
+
+.searchInput:focus {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(46, 230, 197, 0.45);
+  box-shadow: 0 0 0 3px rgba(46, 230, 197, 0.1);
+}
+
+/* Results grid animations */
+.resultsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.resultCard {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #12121a;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+
+.resultCard:hover {
+  transform: translateY(-6px) scale(1.03);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(46, 230, 197, 0.15);
+  border-color: rgba(46, 230, 197, 0.25);
+}
+
+.resultCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(46, 230, 197, 0.08) 0%, rgba(155, 140, 255, 0.08) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 1;
+}
+
+.resultCard:hover::before {
+  opacity: 1;
+}
+
+/* Loading animation */
+.loadingSpinner {
+  width: 3rem;
+  height: 3rem;
+  border: 3px solid rgba(46, 230, 197, 0.15);
+  border-top-color: #2ee6c5;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Filter panel */
+.filterPanel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 1.5rem;
+}
+
+.filterSelect {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.5rem;
+  color: white;
+  padding: 0.5rem 0.75rem;
+  transition: all 0.3s ease;
+}
+
+.filterSelect:focus {
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+}
+
+.filterSelect option {
+  background: #1f2937;
+  color: white;
+}
+
+/* Suggestion chips */
+.suggestionChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.suggestionChip:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Category cards */
+.categoryCard {
+  position: relative;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  color: white;
+  font-weight: 600;
+  text-align: center;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.categoryCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.categoryCard:hover::before {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.categoryCard:hover {
+  transform: translateY(-8px) scale(1.05);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .resultsGrid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.75rem;
+    padding: 0 0.75rem;
+  }
+
+  .filterPanel {
+    padding: 1rem;
+    margin: 0 0.75rem;
+  }
+
+  .categoryCard {
+    padding: 1rem;
+    /* Better touch target */
+    min-height: 80px;
+    -webkit-tap-highlight-color: rgba(124, 58, 237, 0.2);
+  }
+
+  .categoryCard:active {
+    transform: scale(0.97);
+  }
+
+  .resultCard {
+    -webkit-tap-highlight-color: rgba(124, 58, 237, 0.2);
+  }
+
+  .resultCard:active {
+    transform: scale(0.97);
+  }
+
+  .suggestionChip {
+    padding: 0.625rem 1rem;
+    font-size: 0.8125rem;
+    /* Better touch target */
+    min-height: 40px;
+  }
+
+  .searchInput {
+    font-size: 16px; /* Prevents iOS zoom on focus */
+    padding: 0.875rem 1rem;
+    min-height: 48px;
+  }
+
+  .filterSelect {
+    font-size: 16px; /* Prevents iOS zoom on focus */
+    padding: 0.625rem 0.875rem;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  .resultsGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.625rem;
+    padding: 0 0.5rem;
+  }
+
+  .filterPanel {
+    padding: 0.875rem;
+    margin: 0 0.5rem;
+  }
+
+  .categoryCard {
+    padding: 0.875rem;
+    min-height: 70px;
+  }
+
+  .suggestionChip {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* Safe area support */
+@supports (padding: max(0px)) {
+  @media (max-width: 768px) {
+    .resultsGrid {
+      padding-left: max(0.75rem, env(safe-area-inset-left));
+      padding-right: max(0.75rem, env(safe-area-inset-right));
+    }
+  }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  .resultCard,
+  .suggestionChip,
+  .categoryCard {
+    transition: none;
+  }
+
+  .resultCard:hover,
+  .suggestionChip:hover,
+  .categoryCard:hover {
+    transform: none;
+  }
+
+  .loadingSpinner {
+    animation: none;
+  }
+}
+
+/* Focus styles for keyboard navigation */
+.resultCard:focus,
+.suggestionChip:focus,
+.categoryCard:focus {
+  outline: 2px solid #7c3aed;
+  outline-offset: 2px;
+}
+
+/* Glass morphism effects */
+.glassPanel {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Gradient text */
+.gradientText {
+  background: linear-gradient(135deg, #7c3aed 0%, #ec4899 50%, #06b6d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Enhanced hover effects */
+.enhancedHover {
+  position: relative;
+  overflow: hidden;
+}
+
+.enhancedHover::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.enhancedHover:hover::after {
+  left: 100%;
+}

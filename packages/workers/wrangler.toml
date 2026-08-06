@@ -1,0 +1,17 @@
+# Flyx 3.0 — Media Proxy Worker
+# Deploy with: cd packages/workers && npx wrangler deploy
+
+name = "flyx-media-proxy-v3"
+compatibility_date = "2026-07-16"
+main = "./src/media-proxy/index.ts"
+
+# Route for the media proxy
+routes = [
+  { pattern = "media-proxy.flyx.app/*", zone_id = "" }
+]
+
+[env.production]
+vars = { FLYX_DEPLOY_TARGET = "cloudflare" }
+
+[observability]
+enabled = false

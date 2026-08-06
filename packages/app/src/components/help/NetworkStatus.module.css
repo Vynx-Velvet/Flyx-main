@@ -1,0 +1,246 @@
+/* ── Card ──────────────────────────────── */
+.card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(20px);
+  overflow: hidden;
+  position: relative;
+}
+
+.cardSuccess {
+  border-color: rgba(0, 229, 191, 0.2);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.2),
+    0 0 60px rgba(0, 229, 191, 0.08);
+}
+
+.cardSuccess::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: radial-gradient(ellipse at 50% 0%, rgba(0, 229, 191, 0.04), transparent 70%);
+  pointer-events: none;
+}
+
+.cardWarning {
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+/* ── Inner layout ──────────────────────── */
+.inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.iconWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #00e5bf, #00c4a0);
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 229, 191, 0.2);
+}
+
+.iconWrap svg {
+  width: 20px;
+  height: 20px;
+  color: #030307;
+}
+
+.iconWarning {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #f0f0f5;
+  margin-bottom: 0.2rem;
+}
+
+.subtitle {
+  font-size: 0.775rem;
+  color: rgba(255, 255, 255, 0.4);
+  line-height: 1.4;
+}
+
+/* ── Loading ───────────────────────────── */
+.loadingBar {
+  height: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.loadingFill {
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, #00e5bf, transparent);
+  border-radius: 1px;
+  animation: loadingSlide 1.5s ease-in-out infinite;
+}
+
+@keyframes loadingSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+/* ── URL display ────────────────────────── */
+.urlRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.urlPill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 229, 191, 0.06);
+  border: 1px solid rgba(0, 229, 191, 0.15);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.urlDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00e5bf;
+  flex-shrink: 0;
+  animation: dotPulse 2s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.urlText {
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: var(--font-inter), "Inter", "SF Mono", "Consolas", monospace;
+  color: #00e5bf;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: all;
+}
+
+/* ── Copy button ────────────────────────── */
+.copyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.625rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.775rem;
+  font-weight: 500;
+  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.copyBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f0f0f5;
+}
+
+.copyBtn:active {
+  transform: scale(0.97);
+}
+
+.copyBtnDone {
+  border-color: rgba(0, 229, 191, 0.3);
+  color: #00e5bf;
+  background: rgba(0, 229, 191, 0.08);
+}
+
+/* ── Status note ────────────────────────── */
+.statusNote {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.725rem;
+  color: rgba(0, 229, 191, 0.5);
+  margin: 0;
+}
+
+.statusNote .statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00e5bf;
+  flex-shrink: 0;
+}
+
+/* ── Manual steps ───────────────────────── */
+.manualSteps {
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.manualSteps p {
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 0 0.5rem;
+}
+
+.manualSteps p:last-child {
+  margin-bottom: 0;
+}
+
+.manualSteps strong {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.manualSteps code {
+  font-size: 0.725rem;
+  font-family: var(--font-inter), "Inter", "SF Mono", "Consolas", monospace;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* ── Responsive ─────────────────────────── */
+@media (max-width: 768px) {
+  .card {
+    padding: 1rem;
+  }
+
+  .urlRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .urlText {
+    font-size: 0.775rem;
+  }
+
+  .copyBtn {
+    justify-content: center;
+  }
+}

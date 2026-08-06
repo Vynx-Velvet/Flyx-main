@@ -1,0 +1,29 @@
+# Flyx 3.0 — Cloudflare Pages / Workers configuration
+# Set FLYX_DEPLOY_TARGET=cloudflare to use this config
+
+name = "flyx-v3"
+compatibility_date = "2026-07-16"
+compatibility_flags = ["nodejs_compat"]
+main = "./.next/worker/index.js"
+
+# D1 Databases
+[[d1_databases]]
+binding = "DB"
+database_name = "flyx-v3-db"
+database_id = ""
+
+# KV Namespaces
+[[kv_namespaces]]
+binding = "CACHE"
+id = ""
+
+# Environment-specific config
+[env.production]
+vars = { FLYX_DEPLOY_TARGET = "cloudflare" }
+
+[env.preview]
+vars = { FLYX_DEPLOY_TARGET = "cloudflare" }
+
+# Observability (enable for debugging, disable for cost savings)
+[observability]
+enabled = false

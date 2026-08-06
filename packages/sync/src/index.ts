@@ -1,0 +1,3 @@
+// @flyx/sync — stub
+export {}
+
