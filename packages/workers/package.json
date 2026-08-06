@@ -1,0 +1,24 @@
+{
+  "name": "@flyx/workers",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Flyx Cloudflare Workers — media proxy, sync, DLHD, CDN-Live extractors",
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "deploy": "wrangler deploy",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@flyx/core": "*",
+    "@flyx/db": "*",
+    "@flyx/sync": "*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250701.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.1.0",
+    "wrangler": "^4.0.0"
+  }
+}

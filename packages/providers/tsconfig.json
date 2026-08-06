@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    
+    "paths": {
+      "@flyx/core": ["../core/src/index.ts"],
+      "@flyx/core/types": ["../core/src/types/index.ts"],
+      "@flyx/core/errors": ["../core/src/errors/index.ts"],
+      "@flyx/core/utils": ["../core/src/utils/index.ts"],
+      "@flyx/config": ["../config/src/index.ts"],
+      "@flyx/extractors/services": ["../extractors/src/services/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}

@@ -1,0 +1,3 @@
+// @flyx/admin — stub
+export {}
+

@@ -1,0 +1,69 @@
+{
+  "name": "flyx",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Flyx 3.0 — Privacy-first streaming platform",
+  "workspaces": [
+    "packages/app",
+    "packages/admin",
+    "packages/config",
+    "packages/core",
+    "packages/db",
+    "packages/cli",
+    "packages/extractors",
+    "packages/player",
+    "packages/providers",
+    "packages/shared",
+    "packages/sync",
+    "packages/workers",
+    "tools/*"
+  ],
+  "scripts": {
+    "build": "node ./node_modules/turbo/bin/turbo run build",
+    "dev": "node ./scripts/dev.mjs",
+    "dev:turbo": "node ./node_modules/turbo/bin/turbo run dev --filter=@flyx/app",
+    "dev:all": "node ./node_modules/turbo/bin/turbo run dev",
+    "dev:app": "node ./scripts/dev.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e:extractor": "vitest run --project=extractors",
+    "test:e2e:manga-api": "vitest run --project=app",
+    "test:e2e:reader": "playwright test --config=packages/app/playwright.config.ts",
+    "test:e2e:manga": "npm run test:e2e:extractor && npm run test:e2e:manga-api && npm run test:e2e:reader",
+    "lint": "eslint packages/*/src --ext .ts,.tsx",
+    "lint:fix": "eslint packages/*/src --ext .ts,.tsx --fix",
+    "type-check": "node ./node_modules/turbo/bin/turbo run type-check",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx,css}\"",
+    "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx,css}\"",
+    "clean": "node ./node_modules/turbo/bin/turbo run clean",
+    "generate:provider": "tsx tools/scripts/generate-providers.ts",
+    "validate:priorities": "tsx tools/scripts/validate-priorities.ts",
+    "deploy:local": "cd packages/app && next build && next start",
+    "deploy:cloudflare": "cd packages/app && next build && npx @opennextjs/cloudflare build && npx wrangler deploy",
+    "deploy:worker": "cd packages/workers && npx wrangler deploy",
+    "deploy:all": "npm run deploy:cloudflare && npm run deploy:worker",
+    "cli": "node packages/cli/cli.js",
+    "cli:link": "npm link --workspace @flyx/cli",
+    "build:standalone": "node scripts/build-standalone.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "eslint": "^9.39.0",
+    "eslint-config-prettier": "^10.0.0",
+    "eslint-plugin-import": "^2.31.0",
+    "prettier": "^3.5.0",
+    "turbo": "^2.5.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@10.9.0",
+  "dependencies": {
+    "jose": "^6.2.4",
+    "lucide-react": "^1.25.0",
+    "tls-client": "^0.0.5"
+  }
+}

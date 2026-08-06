@@ -1,0 +1,5956 @@
+{
+  "totalChannels": 850,
+  "lastUpdated": "2025-11-27T04:40:07.385Z",
+  "channels": [
+    {
+      "id": "51",
+      "name": "ABC USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "A"
+    },
+    {
+      "id": "206",
+      "name": "AHC (American Heroes Channel)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "283",
+      "name": "Antenna TV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "A"
+    },
+    {
+      "id": "302",
+      "name": "A&E USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "A"
+    },
+    {
+      "id": "303",
+      "name": "AMC USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "A"
+    },
+    {
+      "id": "304",
+      "name": "Animal Planet",
+      "category": "documentary",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "123",
+      "name": "Astro SuperSport 1",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "124",
+      "name": "Astro SuperSport 2",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "125",
+      "name": "Astro SuperSport 3",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "126",
+      "name": "Astro SuperSport 4",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "134",
+      "name": "Arena Sport 1 Premium",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "135",
+      "name": "Arena Sport 2 Premium",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "139",
+      "name": "Arena Sport 3 Premium",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "429",
+      "name": "Arena Sport 1 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "430",
+      "name": "Arena Sport 2 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "431",
+      "name": "Arena Sport 3 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "581",
+      "name": "Arena Sport 4 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "432",
+      "name": "Arena Sport 1 Croatia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "433",
+      "name": "Arena Sport 2 Croatia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "434",
+      "name": "Arena Sport 3 Croatia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "580",
+      "name": "Arena Sport 4 Croatia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "781",
+      "name": "Alkass One",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "782",
+      "name": "Alkass Two",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "783",
+      "name": "Alkass Three",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "784",
+      "name": "Alkass Four",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "579",
+      "name": "Arena Sport 1 BiH",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "600",
+      "name": "Abu Dhabi Sports 1 UAE",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "A"
+    },
+    {
+      "id": "601",
+      "name": "Abu Dhabi Sports 2 UAE",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "A"
+    },
+    {
+      "id": "609",
+      "name": "Abu Dhabi Sports 1 Premium",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "A"
+    },
+    {
+      "id": "610",
+      "name": "Abu Dhabi Sports 2 Premium",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "A"
+    },
+    {
+      "id": "370",
+      "name": "Astro Cricket",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "531",
+      "name": "Antena 3 Spain",
+      "category": "entertainment",
+      "country": "spain",
+      "firstLetter": "A"
+    },
+    {
+      "id": "612",
+      "name": "Arena Sports Tenis Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "664",
+      "name": "ACC Network USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "A"
+    },
+    {
+      "id": "295",
+      "name": "Adult Swim",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "269",
+      "name": "A Sport PK",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "717",
+      "name": "AXN Movies Portugal",
+      "category": "movies",
+      "country": "portugal",
+      "firstLetter": "A"
+    },
+    {
+      "id": "725",
+      "name": "Arte DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "A"
+    },
+    {
+      "id": "742",
+      "name": "AXS TV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "A"
+    },
+    {
+      "id": "766",
+      "name": "ABC NY USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "A"
+    },
+    {
+      "id": "844",
+      "name": "Azteca 7 MX",
+      "category": "entertainment",
+      "country": "mexico",
+      "firstLetter": "A"
+    },
+    {
+      "id": "923",
+      "name": "Altitude Sports",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "934",
+      "name": "Azteca Uno MX",
+      "category": "entertainment",
+      "country": "mexico",
+      "firstLetter": "A"
+    },
+    {
+      "id": "940",
+      "name": "Arena Sport 5 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "941",
+      "name": "Arena Sport 6 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "942",
+      "name": "Arena Sport 7 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "943",
+      "name": "Arena Sport 8 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "944",
+      "name": "Arena Sport 9 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "945",
+      "name": "Arena Sport 10 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "A"
+    },
+    {
+      "id": "958",
+      "name": "Arte France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "A"
+    },
+    {
+      "id": "961",
+      "name": "Automoto La chaîne",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "A"
+    },
+    {
+      "id": "1000",
+      "name": "ATV Turkey",
+      "category": "entertainment",
+      "country": "turkey",
+      "firstLetter": "A"
+    },
+    {
+      "id": "1011",
+      "name": "A Spor Turkey",
+      "category": "entertainment",
+      "country": "turkey",
+      "firstLetter": "A"
+    },
+    {
+      "id": "61",
+      "name": "beIN Sports MENA English 1",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "B"
+    },
+    {
+      "id": "90",
+      "name": "beIN Sports MENA English 2",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "B"
+    },
+    {
+      "id": "91",
+      "name": "beIN Sports 1 Arabic",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "B"
+    },
+    {
+      "id": "92",
+      "name": "beIN Sports 2 Arabic",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "B"
+    },
+    {
+      "id": "93",
+      "name": "beIN Sports 3 Arabic",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "B"
+    },
+    {
+      "id": "94",
+      "name": "beIN Sports 4 Arabic",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "B"
+    },
+    {
+      "id": "95",
+      "name": "beIN Sports 5 Arabic",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "B"
+    },
+    {
+      "id": "96",
+      "name": "beIN Sports 6 Arabic",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "B"
+    },
+    {
+      "id": "97",
+      "name": "beIN Sports 7 Arabic",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "B"
+    },
+    {
+      "id": "98",
+      "name": "beIN Sports 8 Arabic",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "B"
+    },
+    {
+      "id": "99",
+      "name": "beIN Sports 9 Arabic",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "B"
+    },
+    {
+      "id": "100",
+      "name": "beIN SPORTS XTRA 1",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "B"
+    },
+    {
+      "id": "494",
+      "name": "beIN Sports MAX 4 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "B"
+    },
+    {
+      "id": "495",
+      "name": "beIN Sports MAX 5 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "B"
+    },
+    {
+      "id": "496",
+      "name": "beIN Sports MAX 6 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "B"
+    },
+    {
+      "id": "497",
+      "name": "beIN Sports MAX 7 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "B"
+    },
+    {
+      "id": "498",
+      "name": "beIN Sports MAX 8 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "B"
+    },
+    {
+      "id": "499",
+      "name": "beIN Sports MAX 9 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "B"
+    },
+    {
+      "id": "500",
+      "name": "beIN Sports MAX 10 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "B"
+    },
+    {
+      "id": "116",
+      "name": "beIN SPORTS 1 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "B"
+    },
+    {
+      "id": "117",
+      "name": "beIN SPORTS 2 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "B"
+    },
+    {
+      "id": "118",
+      "name": "beIN SPORTS 3 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "B"
+    },
+    {
+      "id": "62",
+      "name": "beIN SPORTS 1 Turkey",
+      "category": "sports",
+      "country": "turkey",
+      "firstLetter": "B"
+    },
+    {
+      "id": "63",
+      "name": "beIN SPORTS 2 Turkey",
+      "category": "sports",
+      "country": "turkey",
+      "firstLetter": "B"
+    },
+    {
+      "id": "64",
+      "name": "beIN SPORTS 3 Turkey",
+      "category": "sports",
+      "country": "turkey",
+      "firstLetter": "B"
+    },
+    {
+      "id": "67",
+      "name": "beIN SPORTS 4 Turkey",
+      "category": "sports",
+      "country": "turkey",
+      "firstLetter": "B"
+    },
+    {
+      "id": "578",
+      "name": "BeIN Sports HD Qatar",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "B"
+    },
+    {
+      "id": "425",
+      "name": "BeIN SPORTS USA",
+      "category": "sports",
+      "country": "usa",
+      "firstLetter": "B"
+    },
+    {
+      "id": "372",
+      "name": "beIN SPORTS en Espa単ol",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "B"
+    },
+    {
+      "id": "491",
+      "name": "beIN SPORTS Australia 1",
+      "category": "sports",
+      "country": "australia",
+      "firstLetter": "B"
+    },
+    {
+      "id": "492",
+      "name": "beIN SPORTS Australia 2",
+      "category": "sports",
+      "country": "australia",
+      "firstLetter": "B"
+    },
+    {
+      "id": "493",
+      "name": "beIN SPORTS Australia 3",
+      "category": "sports",
+      "country": "australia",
+      "firstLetter": "B"
+    },
+    {
+      "id": "522",
+      "name": "Barca TV Spain",
+      "category": "entertainment",
+      "country": "spain",
+      "firstLetter": "B"
+    },
+    {
+      "id": "380",
+      "name": "Benfica TV PT",
+      "category": "entertainment",
+      "country": "portugal",
+      "firstLetter": "B"
+    },
+    {
+      "id": "648",
+      "name": "Boomerang",
+      "category": "kids",
+      "country": "international",
+      "firstLetter": "B"
+    },
+    {
+      "id": "476",
+      "name": "BNT 1 Bulgaria",
+      "category": "entertainment",
+      "country": "bulgaria",
+      "firstLetter": "B"
+    },
+    {
+      "id": "477",
+      "name": "BNT 2 Bulgaria",
+      "category": "entertainment",
+      "country": "bulgaria",
+      "firstLetter": "B"
+    },
+    {
+      "id": "478",
+      "name": "BNT 3 Bulgaria",
+      "category": "entertainment",
+      "country": "bulgaria",
+      "firstLetter": "B"
+    },
+    {
+      "id": "737",
+      "name": "BR Fernsehen DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "B"
+    },
+    {
+      "id": "479",
+      "name": "bTV Bulgaria",
+      "category": "entertainment",
+      "country": "bulgaria",
+      "firstLetter": "B"
+    },
+    {
+      "id": "481",
+      "name": "bTV Action Bulgaria",
+      "category": "entertainment",
+      "country": "bulgaria",
+      "firstLetter": "B"
+    },
+    {
+      "id": "484",
+      "name": "bTV Lady Bulgaria",
+      "category": "entertainment",
+      "country": "bulgaria",
+      "firstLetter": "B"
+    },
+    {
+      "id": "305",
+      "name": "BBC America (BBCA)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "B"
+    },
+    {
+      "id": "306",
+      "name": "BET USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "B"
+    },
+    {
+      "id": "307",
+      "name": "Bravo USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "B"
+    },
+    {
+      "id": "349",
+      "name": "BBC News Channel HD",
+      "category": "news",
+      "country": "international",
+      "firstLetter": "B"
+    },
+    {
+      "id": "356",
+      "name": "BBC One UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "B"
+    },
+    {
+      "id": "357",
+      "name": "BBC Two UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "B"
+    },
+    {
+      "id": "358",
+      "name": "BBC Three UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "B"
+    },
+    {
+      "id": "359",
+      "name": "BBC Four UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "B"
+    },
+    {
+      "id": "397",
+      "name": "BIG TEN Network (BTN USA)",
+      "category": "sports",
+      "country": "usa",
+      "firstLetter": "B"
+    },
+    {
+      "id": "712",
+      "name": "beIN Sports 1 Malaysia",
+      "category": "sports",
+      "country": "malaysia",
+      "firstLetter": "B"
+    },
+    {
+      "id": "713",
+      "name": "beIN Sports 2 Malaysia",
+      "category": "sports",
+      "country": "malaysia",
+      "firstLetter": "B"
+    },
+    {
+      "id": "714",
+      "name": "beIN Sports 3 Malaysia",
+      "category": "sports",
+      "country": "malaysia",
+      "firstLetter": "B"
+    },
+    {
+      "id": "957",
+      "name": "BFM TV France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "B"
+    },
+    {
+      "id": "1010",
+      "name": "bein Sports 5 Turkey",
+      "category": "sports",
+      "country": "turkey",
+      "firstLetter": "B"
+    },
+    {
+      "id": "275",
+      "name": "Bandsports Brasil",
+      "category": "sports",
+      "country": "brazil",
+      "firstLetter": "B"
+    },
+    {
+      "id": "271",
+      "name": "Canal+ MotoGP France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "C"
+    },
+    {
+      "id": "273",
+      "name": "Canal+ Formula 1",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "280",
+      "name": "CW PIX 11 USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "C"
+    },
+    {
+      "id": "52",
+      "name": "CBS USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "C"
+    },
+    {
+      "id": "281",
+      "name": "Court TV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "C"
+    },
+    {
+      "id": "300",
+      "name": "CW USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "C"
+    },
+    {
+      "id": "309",
+      "name": "CNBC USA",
+      "category": "news",
+      "country": "usa",
+      "firstLetter": "C"
+    },
+    {
+      "id": "310",
+      "name": "Comedy Central",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "339",
+      "name": "Cartoon Network",
+      "category": "kids",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "345",
+      "name": "CNN USA",
+      "category": "news",
+      "country": "usa",
+      "firstLetter": "C"
+    },
+    {
+      "id": "374",
+      "name": "Cinemax USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "C"
+    },
+    {
+      "id": "535",
+      "name": "Cuatro Spain",
+      "category": "entertainment",
+      "country": "spain",
+      "firstLetter": "C"
+    },
+    {
+      "id": "354",
+      "name": "Channel 4 UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "C"
+    },
+    {
+      "id": "355",
+      "name": "Channel 5 UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "C"
+    },
+    {
+      "id": "308",
+      "name": "CBS Sports Network (CBSSN)",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "121",
+      "name": "Canal+ France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "C"
+    },
+    {
+      "id": "122",
+      "name": "Canal+ Sport France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "C"
+    },
+    {
+      "id": "463",
+      "name": "Canal+ Foot France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "C"
+    },
+    {
+      "id": "464",
+      "name": "Canal+ Sport360",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "540",
+      "name": "Canal 11 Portugal",
+      "category": "entertainment",
+      "country": "portugal",
+      "firstLetter": "C"
+    },
+    {
+      "id": "48",
+      "name": "Canal+ Sport Poland",
+      "category": "sports",
+      "country": "poland",
+      "firstLetter": "C"
+    },
+    {
+      "id": "73",
+      "name": "Canal+ Sport 2 Poland",
+      "category": "sports",
+      "country": "poland",
+      "firstLetter": "C"
+    },
+    {
+      "id": "259",
+      "name": "Canal+ Sport 3 Poland",
+      "category": "sports",
+      "country": "poland",
+      "firstLetter": "C"
+    },
+    {
+      "id": "75",
+      "name": "Canal+ Sport 5 Poland",
+      "category": "sports",
+      "country": "poland",
+      "firstLetter": "C"
+    },
+    {
+      "id": "566",
+      "name": "Canal+ Premium Poland",
+      "category": "entertainment",
+      "country": "poland",
+      "firstLetter": "C"
+    },
+    {
+      "id": "567",
+      "name": "Canal+ Family Poland",
+      "category": "entertainment",
+      "country": "poland",
+      "firstLetter": "C"
+    },
+    {
+      "id": "570",
+      "name": "Canal+ Seriale Poland",
+      "category": "entertainment",
+      "country": "poland",
+      "firstLetter": "C"
+    },
+    {
+      "id": "486",
+      "name": "Canal+ Sport 1 Afrique",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "487",
+      "name": "Canal+ Sport 2 Afrique",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "488",
+      "name": "Canal+ Sport 3 Afrique",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "489",
+      "name": "Canal+ Sport 4 Afrique",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "490",
+      "name": "Canal+ Sport 5 Afrique",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "805",
+      "name": "CANAL 9 Denmark",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "C"
+    },
+    {
+      "id": "89",
+      "name": "Combate Brasil",
+      "category": "entertainment",
+      "country": "brazil",
+      "firstLetter": "C"
+    },
+    {
+      "id": "622",
+      "name": "Cosmote Sport 1 HD",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "623",
+      "name": "Cosmote Sport 2 HD",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "624",
+      "name": "Cosmote Sport 3 HD",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "625",
+      "name": "Cosmote Sport 4 HD",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "626",
+      "name": "Cosmote Sport 5 HD",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "627",
+      "name": "Cosmote Sport 6 HD",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "628",
+      "name": "Cosmote Sport 7 HD",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "629",
+      "name": "Cosmote Sport 8 HD",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "630",
+      "name": "Cosmote Sport 9 HD",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "546",
+      "name": "Channel 9 Israel",
+      "category": "entertainment",
+      "country": "israel",
+      "firstLetter": "C"
+    },
+    {
+      "id": "547",
+      "name": "Channel 10 Israe",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "548",
+      "name": "Channel 11 Israel",
+      "category": "entertainment",
+      "country": "israel",
+      "firstLetter": "C"
+    },
+    {
+      "id": "549",
+      "name": "Channel 12 Israel",
+      "category": "entertainment",
+      "country": "israel",
+      "firstLetter": "C"
+    },
+    {
+      "id": "551",
+      "name": "Channel 13 Israel",
+      "category": "entertainment",
+      "country": "israel",
+      "firstLetter": "C"
+    },
+    {
+      "id": "552",
+      "name": "Channel 14 Israel",
+      "category": "entertainment",
+      "country": "israel",
+      "firstLetter": "C"
+    },
+    {
+      "id": "812",
+      "name": "C More First Sweden",
+      "category": "entertainment",
+      "country": "sweden",
+      "firstLetter": "C"
+    },
+    {
+      "id": "813",
+      "name": "C More Hits Sweden",
+      "category": "entertainment",
+      "country": "sweden",
+      "firstLetter": "C"
+    },
+    {
+      "id": "814",
+      "name": "C More Series Sweden",
+      "category": "entertainment",
+      "country": "sweden",
+      "firstLetter": "C"
+    },
+    {
+      "id": "748",
+      "name": "COZI TV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "C"
+    },
+    {
+      "id": "647",
+      "name": "CMT USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "C"
+    },
+    {
+      "id": "602",
+      "name": "CTV Canada",
+      "category": "entertainment",
+      "country": "canada",
+      "firstLetter": "C"
+    },
+    {
+      "id": "838",
+      "name": "CTV 2 Canada",
+      "category": "entertainment",
+      "country": "canada",
+      "firstLetter": "C"
+    },
+    {
+      "id": "669",
+      "name": "Crime+ Investigation USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "C"
+    },
+    {
+      "id": "696",
+      "name": "Comet USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "C"
+    },
+    {
+      "id": "697",
+      "name": "Cooking Channel USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "C"
+    },
+    {
+      "id": "715",
+      "name": "Cleo TV",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "750",
+      "name": "C SPAN 1",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "767",
+      "name": "CBSNY USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "C"
+    },
+    {
+      "id": "776",
+      "name": "Chicago Sports Network",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "831",
+      "name": "Citytv",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "832",
+      "name": "CBC CA",
+      "category": "entertainment",
+      "country": "canada",
+      "firstLetter": "C"
+    },
+    {
+      "id": "933",
+      "name": "Claro Sports MX",
+      "category": "sports",
+      "country": "mexico",
+      "firstLetter": "C"
+    },
+    {
+      "id": "936",
+      "name": "Canal5 MX",
+      "category": "entertainment",
+      "country": "mexico",
+      "firstLetter": "C"
+    },
+    {
+      "id": "956",
+      "name": "C8 France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "C"
+    },
+    {
+      "id": "964",
+      "name": "CNews France",
+      "category": "news",
+      "country": "france",
+      "firstLetter": "C"
+    },
+    {
+      "id": "1020",
+      "name": "Canal+ Sport CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "1033",
+      "name": "CT Sport CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "910",
+      "name": "CBS Sports Golazo",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "C"
+    },
+    {
+      "id": "790",
+      "name": "CMTV Portugal",
+      "category": "entertainment",
+      "country": "portugal",
+      "firstLetter": "C"
+    },
+    {
+      "id": "911",
+      "name": "Cytavision Sports 1 Cyprus",
+      "category": "sports",
+      "country": "cyprus",
+      "firstLetter": "C"
+    },
+    {
+      "id": "912",
+      "name": "Cytavision Sports 2 Cyprus",
+      "category": "sports",
+      "country": "cyprus",
+      "firstLetter": "C"
+    },
+    {
+      "id": "913",
+      "name": "Cytavision Sports 3 Cyprus",
+      "category": "sports",
+      "country": "cyprus",
+      "firstLetter": "C"
+    },
+    {
+      "id": "914",
+      "name": "Cytavision Sports 4 Cyprus",
+      "category": "sports",
+      "country": "cyprus",
+      "firstLetter": "C"
+    },
+    {
+      "id": "915",
+      "name": "Cytavision Sports 5 Cyprus",
+      "category": "sports",
+      "country": "cyprus",
+      "firstLetter": "C"
+    },
+    {
+      "id": "916",
+      "name": "Cytavision Sports 6 Cyprus",
+      "category": "sports",
+      "country": "cyprus",
+      "firstLetter": "C"
+    },
+    {
+      "id": "917",
+      "name": "Cytavision Sports 7 Cyprus",
+      "category": "sports",
+      "country": "cyprus",
+      "firstLetter": "C"
+    },
+    {
+      "id": "230",
+      "name": "DAZN 1 UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "D"
+    },
+    {
+      "id": "285",
+      "name": "Discovery Velocity CA",
+      "category": "documentary",
+      "country": "canada",
+      "firstLetter": "D"
+    },
+    {
+      "id": "426",
+      "name": "DAZN 1 Bar DE",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "D"
+    },
+    {
+      "id": "427",
+      "name": "DAZN 2 Bar DE",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "D"
+    },
+    {
+      "id": "445",
+      "name": "DAZN 1 Spain",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "D"
+    },
+    {
+      "id": "446",
+      "name": "DAZN 2 Spain",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "D"
+    },
+    {
+      "id": "447",
+      "name": "DAZN 3 Spain",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "D"
+    },
+    {
+      "id": "448",
+      "name": "DAZN 4 Spain",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "D"
+    },
+    {
+      "id": "537",
+      "name": "DAZN F1 ES",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "D"
+    },
+    {
+      "id": "538",
+      "name": "DAZN LaLiga",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "D"
+    },
+    {
+      "id": "918",
+      "name": "DAZN Portugal FIFA Mundial de Clubes",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "D"
+    },
+    {
+      "id": "801",
+      "name": "DR1 Denmark",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "D"
+    },
+    {
+      "id": "802",
+      "name": "DR2 Denmark",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "D"
+    },
+    {
+      "id": "960",
+      "name": "DAZN Ligue 1 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "D"
+    },
+    {
+      "id": "400",
+      "name": "Digi Sport 1 Romania",
+      "category": "sports",
+      "country": "romania",
+      "firstLetter": "D"
+    },
+    {
+      "id": "401",
+      "name": "Digi Sport 2 Romania",
+      "category": "sports",
+      "country": "romania",
+      "firstLetter": "D"
+    },
+    {
+      "id": "402",
+      "name": "Digi Sport 3 Romania",
+      "category": "sports",
+      "country": "romania",
+      "firstLetter": "D"
+    },
+    {
+      "id": "403",
+      "name": "Digi Sport 4 Romania",
+      "category": "sports",
+      "country": "romania",
+      "firstLetter": "D"
+    },
+    {
+      "id": "465",
+      "name": "Diema Sport Bulgaria",
+      "category": "sports",
+      "country": "bulgaria",
+      "firstLetter": "D"
+    },
+    {
+      "id": "466",
+      "name": "Diema Sport 2 Bulgaria",
+      "category": "sports",
+      "country": "bulgaria",
+      "firstLetter": "D"
+    },
+    {
+      "id": "467",
+      "name": "Diema Sport 3 Bulgaria",
+      "category": "sports",
+      "country": "bulgaria",
+      "firstLetter": "D"
+    },
+    {
+      "id": "482",
+      "name": "Diema Bulgaria",
+      "category": "entertainment",
+      "country": "bulgaria",
+      "firstLetter": "D"
+    },
+    {
+      "id": "485",
+      "name": "Diema Family Bulgaria",
+      "category": "entertainment",
+      "country": "bulgaria",
+      "firstLetter": "D"
+    },
+    {
+      "id": "604",
+      "name": "Dubai Sports 1 UAE",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "D"
+    },
+    {
+      "id": "605",
+      "name": "Dubai Sports 2 UAE",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "D"
+    },
+    {
+      "id": "606",
+      "name": "Dubai Sports 3 UAE",
+      "category": "sports",
+      "country": "middle-east",
+      "firstLetter": "D"
+    },
+    {
+      "id": "608",
+      "name": "Dubai Racing 2 UAE",
+      "category": "entertainment",
+      "country": "middle-east",
+      "firstLetter": "D"
+    },
+    {
+      "id": "786",
+      "name": "DSTV Mzansi Magic",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "D"
+    },
+    {
+      "id": "827",
+      "name": "DSTV M-Net",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "D"
+    },
+    {
+      "id": "828",
+      "name": "DSTV kykNET & kie",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "D"
+    },
+    {
+      "id": "877",
+      "name": "DAZN ZONA Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "D"
+    },
+    {
+      "id": "311",
+      "name": "Discovery Life Channel",
+      "category": "documentary",
+      "country": "international",
+      "firstLetter": "D"
+    },
+    {
+      "id": "312",
+      "name": "Disney Channel",
+      "category": "kids",
+      "country": "international",
+      "firstLetter": "D"
+    },
+    {
+      "id": "313",
+      "name": "Discovery Channel",
+      "category": "documentary",
+      "country": "international",
+      "firstLetter": "D"
+    },
+    {
+      "id": "657",
+      "name": "Discovery Family",
+      "category": "documentary",
+      "country": "international",
+      "firstLetter": "D"
+    },
+    {
+      "id": "314",
+      "name": "Disney XD",
+      "category": "kids",
+      "country": "international",
+      "firstLetter": "D"
+    },
+    {
+      "id": "651",
+      "name": "Destination America",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "D"
+    },
+    {
+      "id": "652",
+      "name": "Disney JR",
+      "category": "kids",
+      "country": "international",
+      "firstLetter": "D"
+    },
+    {
+      "id": "348",
+      "name": "Dave",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "D"
+    },
+    {
+      "id": "44",
+      "name": "ESPN USA",
+      "category": "sports",
+      "country": "usa",
+      "firstLetter": "E"
+    },
+    {
+      "id": "45",
+      "name": "ESPN2 USA",
+      "category": "sports",
+      "country": "usa",
+      "firstLetter": "E"
+    },
+    {
+      "id": "316",
+      "name": "ESPNU USA",
+      "category": "sports",
+      "country": "usa",
+      "firstLetter": "E"
+    },
+    {
+      "id": "379",
+      "name": "ESPN 1 NL",
+      "category": "sports",
+      "country": "netherlands",
+      "firstLetter": "E"
+    },
+    {
+      "id": "386",
+      "name": "ESPN 2 NL",
+      "category": "sports",
+      "country": "netherlands",
+      "firstLetter": "E"
+    },
+    {
+      "id": "71",
+      "name": "Eleven Sports 1 Poland",
+      "category": "sports",
+      "country": "poland",
+      "firstLetter": "E"
+    },
+    {
+      "id": "72",
+      "name": "Eleven Sports 2 Poland",
+      "category": "sports",
+      "country": "poland",
+      "firstLetter": "E"
+    },
+    {
+      "id": "428",
+      "name": "Eleven Sports 3 Poland",
+      "category": "sports",
+      "country": "poland",
+      "firstLetter": "E"
+    },
+    {
+      "id": "455",
+      "name": "Eleven Sports 1 Portugal",
+      "category": "sports",
+      "country": "portugal",
+      "firstLetter": "E"
+    },
+    {
+      "id": "456",
+      "name": "Eleven Sports 2 Portugal",
+      "category": "sports",
+      "country": "portugal",
+      "firstLetter": "E"
+    },
+    {
+      "id": "457",
+      "name": "Eleven Sports 3 Portugal",
+      "category": "sports",
+      "country": "portugal",
+      "firstLetter": "E"
+    },
+    {
+      "id": "458",
+      "name": "Eleven Sports 4 Portugal",
+      "category": "sports",
+      "country": "portugal",
+      "firstLetter": "E"
+    },
+    {
+      "id": "459",
+      "name": "Eleven Sports 5 Portugal",
+      "category": "sports",
+      "country": "portugal",
+      "firstLetter": "E"
+    },
+    {
+      "id": "41",
+      "name": "EuroSport 1 Greece",
+      "category": "sports",
+      "country": "greece",
+      "firstLetter": "E"
+    },
+    {
+      "id": "42",
+      "name": "EuroSport 2 Greece",
+      "category": "sports",
+      "country": "greece",
+      "firstLetter": "E"
+    },
+    {
+      "id": "57",
+      "name": "EuroSport 1 Poland",
+      "category": "sports",
+      "country": "poland",
+      "firstLetter": "E"
+    },
+    {
+      "id": "58",
+      "name": "EuroSport 2 Poland",
+      "category": "sports",
+      "country": "poland",
+      "firstLetter": "E"
+    },
+    {
+      "id": "231",
+      "name": "Eurosport 1 SW",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "E"
+    },
+    {
+      "id": "232",
+      "name": "Eurosport 2 SW",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "E"
+    },
+    {
+      "id": "233",
+      "name": "Eurosport 1 NL",
+      "category": "sports",
+      "country": "netherlands",
+      "firstLetter": "E"
+    },
+    {
+      "id": "234",
+      "name": "Eurosport 2 NL",
+      "category": "sports",
+      "country": "netherlands",
+      "firstLetter": "E"
+    },
+    {
+      "id": "524",
+      "name": "EuroSport 1 Spain",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "E"
+    },
+    {
+      "id": "525",
+      "name": "EuroSport 2 Spain",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "E"
+    },
+    {
+      "id": "878",
+      "name": "EuroSport 1 Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "E"
+    },
+    {
+      "id": "879",
+      "name": "EuroSport 2 Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "E"
+    },
+    {
+      "id": "387",
+      "name": "ESPN Premium Argentina",
+      "category": "sports",
+      "country": "argentina",
+      "firstLetter": "E"
+    },
+    {
+      "id": "81",
+      "name": "ESPN Brasil",
+      "category": "sports",
+      "country": "brazil",
+      "firstLetter": "E"
+    },
+    {
+      "id": "82",
+      "name": "ESPN2 Brasil",
+      "category": "sports",
+      "country": "brazil",
+      "firstLetter": "E"
+    },
+    {
+      "id": "83",
+      "name": "ESPN3 Brasil",
+      "category": "sports",
+      "country": "brazil",
+      "firstLetter": "E"
+    },
+    {
+      "id": "85",
+      "name": "ESPN4 Brasil",
+      "category": "sports",
+      "country": "brazil",
+      "firstLetter": "E"
+    },
+    {
+      "id": "149",
+      "name": "ESPN Argentina",
+      "category": "sports",
+      "country": "argentina",
+      "firstLetter": "E"
+    },
+    {
+      "id": "150",
+      "name": "ESPN2 Argentina",
+      "category": "sports",
+      "country": "argentina",
+      "firstLetter": "E"
+    },
+    {
+      "id": "375",
+      "name": "ESPN Deportes",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "E"
+    },
+    {
+      "id": "288",
+      "name": "ESPNews",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "E"
+    },
+    {
+      "id": "315",
+      "name": "E! Entertainment Television",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "E"
+    },
+    {
+      "id": "363",
+      "name": "E4 Channel",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "E"
+    },
+    {
+      "id": "888",
+      "name": "ESPN 3 NL",
+      "category": "sports",
+      "country": "netherlands",
+      "firstLetter": "E"
+    },
+    {
+      "id": "774",
+      "name": "ERT 1 Greece",
+      "category": "entertainment",
+      "country": "greece",
+      "firstLetter": "E"
+    },
+    {
+      "id": "772",
+      "name": "Eurosport 1 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "E"
+    },
+    {
+      "id": "773",
+      "name": "Eurosport 2 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "E"
+    },
+    {
+      "id": "798",
+      "name": "ESPN3 Argentina",
+      "category": "sports",
+      "country": "argentina",
+      "firstLetter": "E"
+    },
+    {
+      "id": "925",
+      "name": "ESPN 1 MX",
+      "category": "sports",
+      "country": "mexico",
+      "firstLetter": "E"
+    },
+    {
+      "id": "926",
+      "name": "ESPN 2 MX",
+      "category": "sports",
+      "country": "mexico",
+      "firstLetter": "E"
+    },
+    {
+      "id": "927",
+      "name": "ESPN 3 MX",
+      "category": "sports",
+      "country": "mexico",
+      "firstLetter": "E"
+    },
+    {
+      "id": "928",
+      "name": "ESPN 4 MX",
+      "category": "sports",
+      "country": "mexico",
+      "firstLetter": "E"
+    },
+    {
+      "id": "279",
+      "name": "FUSE TV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "F"
+    },
+    {
+      "id": "39",
+      "name": "Fox Sports 1 USA",
+      "category": "sports",
+      "country": "usa",
+      "firstLetter": "F"
+    },
+    {
+      "id": "758",
+      "name": "Fox Sports 2 USA",
+      "category": "sports",
+      "country": "usa",
+      "firstLetter": "F"
+    },
+    {
+      "id": "756",
+      "name": "FOX Soccer Plus",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "369",
+      "name": "Fox Cricket",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "643",
+      "name": "FOX Deportes USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "F"
+    },
+    {
+      "id": "820",
+      "name": "FOX Sports 502 AU",
+      "category": "sports",
+      "country": "australia",
+      "firstLetter": "F"
+    },
+    {
+      "id": "821",
+      "name": "FOX Sports 503 AU",
+      "category": "sports",
+      "country": "australia",
+      "firstLetter": "F"
+    },
+    {
+      "id": "822",
+      "name": "FOX Sports 504 AU",
+      "category": "sports",
+      "country": "australia",
+      "firstLetter": "F"
+    },
+    {
+      "id": "823",
+      "name": "FOX Sports 505 AU",
+      "category": "sports",
+      "country": "australia",
+      "firstLetter": "F"
+    },
+    {
+      "id": "824",
+      "name": "FOX Sports 506 AU",
+      "category": "sports",
+      "country": "australia",
+      "firstLetter": "F"
+    },
+    {
+      "id": "825",
+      "name": "FOX Sports 507 AU",
+      "category": "sports",
+      "country": "australia",
+      "firstLetter": "F"
+    },
+    {
+      "id": "929",
+      "name": "Fox Sports 1 MX",
+      "category": "sports",
+      "country": "mexico",
+      "firstLetter": "F"
+    },
+    {
+      "id": "930",
+      "name": "Fox Sports 2 MX",
+      "category": "sports",
+      "country": "mexico",
+      "firstLetter": "F"
+    },
+    {
+      "id": "931",
+      "name": "Fox Sports 3 MX",
+      "category": "sports",
+      "country": "mexico",
+      "firstLetter": "F"
+    },
+    {
+      "id": "787",
+      "name": "Fox Sports Argentina",
+      "category": "sports",
+      "country": "argentina",
+      "firstLetter": "F"
+    },
+    {
+      "id": "788",
+      "name": "Fox Sports 2 Argentina",
+      "category": "sports",
+      "country": "argentina",
+      "firstLetter": "F"
+    },
+    {
+      "id": "789",
+      "name": "Fox Sports 3 Argentina",
+      "category": "sports",
+      "country": "argentina",
+      "firstLetter": "F"
+    },
+    {
+      "id": "830",
+      "name": "Fox Sports Premium MX",
+      "category": "sports",
+      "country": "mexico",
+      "firstLetter": "F"
+    },
+    {
+      "id": "568",
+      "name": "FilmBox Premium Poland",
+      "category": "movies",
+      "country": "poland",
+      "firstLetter": "F"
+    },
+    {
+      "id": "757",
+      "name": "Fight Network",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "297",
+      "name": "Fox Business",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "483",
+      "name": "FOX HD Bulgaria",
+      "category": "entertainment",
+      "country": "bulgaria",
+      "firstLetter": "F"
+    },
+    {
+      "id": "54",
+      "name": "FOX USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "F"
+    },
+    {
+      "id": "317",
+      "name": "FX USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "F"
+    },
+    {
+      "id": "298",
+      "name": "FXX USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "F"
+    },
+    {
+      "id": "301",
+      "name": "Freeform",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "347",
+      "name": "Fox News",
+      "category": "news",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "381",
+      "name": "FX Movie Channel",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "665",
+      "name": "FYI",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "688",
+      "name": "Film4 UK",
+      "category": "movies",
+      "country": "uk",
+      "firstLetter": "F"
+    },
+    {
+      "id": "744",
+      "name": "Fashion TV",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "751",
+      "name": "FETV - Family Entertainment Television",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "768",
+      "name": "FOXNY USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "F"
+    },
+    {
+      "id": "775",
+      "name": "Fox Weather Channel",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "890",
+      "name": "FanDuel Sports Network Arizona",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "891",
+      "name": "FanDuel Sports Network Detroit",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "F"
+    },
+    {
+      "id": "892",
+      "name": "FanDuel Sports Network Florida",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "893",
+      "name": "FanDuel Sports Network Great Lakes",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "894",
+      "name": "FanDuel Sports Network Indiana",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "895",
+      "name": "FanDuel Sports Network Kansas City",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "896",
+      "name": "FanDuel Sports Network Midwest",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "897",
+      "name": "FanDuel Sports Network New Orleans",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "898",
+      "name": "FanDuel Sports Network North",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "899",
+      "name": "FanDuel Sports Network Ohio",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "900",
+      "name": "FanDuel Sports Network Oklahoma",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "902",
+      "name": "FanDuel Sports Network SoCal",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "903",
+      "name": "FanDuel Sports Network South",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "904",
+      "name": "FanDuel Sports Network Southeast",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "905",
+      "name": "FanDuel Sports Network Sun",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "906",
+      "name": "FanDuel Sports Network West",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "907",
+      "name": "FanDuel Sports Network Wisconsin",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "F"
+    },
+    {
+      "id": "950",
+      "name": "France 2",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "F"
+    },
+    {
+      "id": "951",
+      "name": "France 3",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "F"
+    },
+    {
+      "id": "952",
+      "name": "France 4",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "F"
+    },
+    {
+      "id": "953",
+      "name": "France 5",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "F"
+    },
+    {
+      "id": "530",
+      "name": "GOL PLAY Spain",
+      "category": "entertainment",
+      "country": "spain",
+      "firstLetter": "G"
+    },
+    {
+      "id": "318",
+      "name": "GOLF Channel USA",
+      "category": "sports",
+      "country": "usa",
+      "firstLetter": "G"
+    },
+    {
+      "id": "319",
+      "name": "Game Show Network",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "G"
+    },
+    {
+      "id": "597",
+      "name": "GOLTV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "G"
+    },
+    {
+      "id": "687",
+      "name": "Gold UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "G"
+    },
+    {
+      "id": "699",
+      "name": "Great American Family Channel (GAC)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "G"
+    },
+    {
+      "id": "743",
+      "name": "Galavisi贸n USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "G"
+    },
+    {
+      "id": "752",
+      "name": "Grit Channel",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "G"
+    },
+    {
+      "id": "760",
+      "name": "Globo SP",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "G"
+    },
+    {
+      "id": "761",
+      "name": "Globo RIO",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "G"
+    },
+    {
+      "id": "836",
+      "name": "Global CA",
+      "category": "entertainment",
+      "country": "canada",
+      "firstLetter": "G"
+    },
+    {
+      "id": "320",
+      "name": "The Hallmark Channel",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "296",
+      "name": "Hallmark Movies & Mysterie",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "H"
+    },
+    {
+      "id": "282",
+      "name": "Heroes & Icons (H&I) USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "H"
+    },
+    {
+      "id": "321",
+      "name": "HBO USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "H"
+    },
+    {
+      "id": "689",
+      "name": "HBO2 USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "H"
+    },
+    {
+      "id": "690",
+      "name": "HBO Comedy USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "H"
+    },
+    {
+      "id": "691",
+      "name": "HBO Family USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "H"
+    },
+    {
+      "id": "692",
+      "name": "HBO Latino USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "H"
+    },
+    {
+      "id": "693",
+      "name": "HBO Signature USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "H"
+    },
+    {
+      "id": "694",
+      "name": "HBO Zone USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "H"
+    },
+    {
+      "id": "569",
+      "name": "HBO Poland",
+      "category": "movies",
+      "country": "poland",
+      "firstLetter": "H"
+    },
+    {
+      "id": "322",
+      "name": "History USA",
+      "category": "documentary",
+      "country": "usa",
+      "firstLetter": "H"
+    },
+    {
+      "id": "323",
+      "name": "Headline News",
+      "category": "news",
+      "country": "international",
+      "firstLetter": "H"
+    },
+    {
+      "id": "382",
+      "name": "HGTV",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "H"
+    },
+    {
+      "id": "846",
+      "name": "Happy TV Serbia",
+      "category": "entertainment",
+      "country": "balkans",
+      "firstLetter": "H"
+    },
+    {
+      "id": "553",
+      "name": "HOT3 Israel",
+      "category": "entertainment",
+      "country": "israel",
+      "firstLetter": "H"
+    },
+    {
+      "id": "350",
+      "name": "ITV 1 UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "I"
+    },
+    {
+      "id": "351",
+      "name": "ITV 2 UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "I"
+    },
+    {
+      "id": "352",
+      "name": "ITV 3 UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "I"
+    },
+    {
+      "id": "353",
+      "name": "ITV 4 UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "I"
+    },
+    {
+      "id": "876",
+      "name": "ITVBE",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "I"
+    },
+    {
+      "id": "854",
+      "name": "Italia 1 Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "I"
+    },
+    {
+      "id": "324",
+      "name": "Investigation Discovery (ID USA)",
+      "category": "documentary",
+      "country": "usa",
+      "firstLetter": "I"
+    },
+    {
+      "id": "325",
+      "name": "ION USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "I"
+    },
+    {
+      "id": "656",
+      "name": "IFC TV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "I"
+    },
+    {
+      "id": "803",
+      "name": "Kanal 4 Denmark",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "K"
+    },
+    {
+      "id": "804",
+      "name": "Kanal 5 Denmark",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "K"
+    },
+    {
+      "id": "731",
+      "name": "Kabel Eins (Kabel 1) DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "K"
+    },
+    {
+      "id": "1001",
+      "name": "Kanal D Turkey",
+      "category": "entertainment",
+      "country": "turkey",
+      "firstLetter": "K"
+    },
+    {
+      "id": "276",
+      "name": "LaLigaTV UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "L"
+    },
+    {
+      "id": "278",
+      "name": "Law & Crime Network",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "L"
+    },
+    {
+      "id": "539",
+      "name": "LaLiga SmartBank TV",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "L"
+    },
+    {
+      "id": "645",
+      "name": "L'Equipe France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "L"
+    },
+    {
+      "id": "534",
+      "name": "La Sexta Spain",
+      "category": "entertainment",
+      "country": "spain",
+      "firstLetter": "L"
+    },
+    {
+      "id": "826",
+      "name": "Liverpool TV (LFC TV)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "L"
+    },
+    {
+      "id": "849",
+      "name": "Logo TV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "L"
+    },
+    {
+      "id": "924",
+      "name": "Las Estrellas",
+      "category": "entertainment",
+      "country": "spain",
+      "firstLetter": "L"
+    },
+    {
+      "id": "962",
+      "name": "LCI France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "L"
+    },
+    {
+      "id": "326",
+      "name": "Lifetime Network",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "L"
+    },
+    {
+      "id": "389",
+      "name": "Lifetime Movies Network",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "L"
+    },
+    {
+      "id": "855",
+      "name": "La7 Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "L"
+    },
+    {
+      "id": "856",
+      "name": "LA7d HD+ Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "L"
+    },
+    {
+      "id": "136",
+      "name": "Match Football 1 Russia",
+      "category": "sports",
+      "country": "russia",
+      "firstLetter": "M"
+    },
+    {
+      "id": "137",
+      "name": "Match Football 2 Russia",
+      "category": "sports",
+      "country": "russia",
+      "firstLetter": "M"
+    },
+    {
+      "id": "138",
+      "name": "Match Football 3 Russia",
+      "category": "sports",
+      "country": "russia",
+      "firstLetter": "M"
+    },
+    {
+      "id": "573",
+      "name": "Match Premier Russia",
+      "category": "sports",
+      "country": "russia",
+      "firstLetter": "M"
+    },
+    {
+      "id": "127",
+      "name": "Match TV Russia",
+      "category": "sports",
+      "country": "russia",
+      "firstLetter": "M"
+    },
+    {
+      "id": "395",
+      "name": "МАТЧ! БОЕЦ Russia",
+      "category": "entertainment",
+      "country": "russia",
+      "firstLetter": "�"
+    },
+    {
+      "id": "84",
+      "name": "Movistar Laliga",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "M"
+    },
+    {
+      "id": "435",
+      "name": "Movistar Liga de Campeones",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "M"
+    },
+    {
+      "id": "436",
+      "name": "Movistar Deportes Spain",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "M"
+    },
+    {
+      "id": "438",
+      "name": "Movistar Deportes 2 Spain",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "M"
+    },
+    {
+      "id": "526",
+      "name": "Movistar Deportes 3 Spain",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "M"
+    },
+    {
+      "id": "527",
+      "name": "Movistar Deportes 4 Spain",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "M"
+    },
+    {
+      "id": "528",
+      "name": "Movistar Golf Spain",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "M"
+    },
+    {
+      "id": "563",
+      "name": "Motowizja Poland",
+      "category": "entertainment",
+      "country": "poland",
+      "firstLetter": "M"
+    },
+    {
+      "id": "765",
+      "name": "MSG USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "M"
+    },
+    {
+      "id": "327",
+      "name": "MSNBC",
+      "category": "news",
+      "country": "international",
+      "firstLetter": "M"
+    },
+    {
+      "id": "299",
+      "name": "Magnolia Network",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "M"
+    },
+    {
+      "id": "265",
+      "name": "M4 Sports Hungary",
+      "category": "sports",
+      "country": "hungary",
+      "firstLetter": "M"
+    },
+    {
+      "id": "437",
+      "name": "Movistar Supercopa de España",
+      "category": "sports",
+      "country": "spain",
+      "firstLetter": "M"
+    },
+    {
+      "id": "367",
+      "name": "MTV UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "M"
+    },
+    {
+      "id": "371",
+      "name": "MTV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "M"
+    },
+    {
+      "id": "377",
+      "name": "MUTV UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "M"
+    },
+    {
+      "id": "470",
+      "name": "M6 France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "M"
+    },
+    {
+      "id": "646",
+      "name": "MAVTV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "M"
+    },
+    {
+      "id": "779",
+      "name": "Max Sport 1 Croatia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "M"
+    },
+    {
+      "id": "780",
+      "name": "Max Sport 2 Croatia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "M"
+    },
+    {
+      "id": "770",
+      "name": "Marquee Sports Network",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "M"
+    },
+    {
+      "id": "472",
+      "name": "Max Sport 1 Bulgaria",
+      "category": "sports",
+      "country": "bulgaria",
+      "firstLetter": "M"
+    },
+    {
+      "id": "473",
+      "name": "Max Sport 2 Bulgaria",
+      "category": "sports",
+      "country": "bulgaria",
+      "firstLetter": "M"
+    },
+    {
+      "id": "474",
+      "name": "Max Sport 3 Bulgaria",
+      "category": "sports",
+      "country": "bulgaria",
+      "firstLetter": "M"
+    },
+    {
+      "id": "475",
+      "name": "Max Sport 4 Bulgaria",
+      "category": "sports",
+      "country": "bulgaria",
+      "firstLetter": "M"
+    },
+    {
+      "id": "399",
+      "name": "MLB Network USA",
+      "category": "sports",
+      "country": "usa",
+      "firstLetter": "M"
+    },
+    {
+      "id": "829",
+      "name": "MASN USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "M"
+    },
+    {
+      "id": "654",
+      "name": "MY9TV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "M"
+    },
+    {
+      "id": "661",
+      "name": "Motor Trend",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "M"
+    },
+    {
+      "id": "662",
+      "name": "METV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "M"
+    },
+    {
+      "id": "733",
+      "name": "MDR DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "M"
+    },
+    {
+      "id": "749",
+      "name": "Mundotoro TV Spain",
+      "category": "entertainment",
+      "country": "spain",
+      "firstLetter": "M"
+    },
+    {
+      "id": "778",
+      "name": "Monumental Sports Network",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "M"
+    },
+    {
+      "id": "806",
+      "name": "MTV Denmark",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "M"
+    },
+    {
+      "id": "791",
+      "name": "MGM+ USA / Epix",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "M"
+    },
+    {
+      "id": "277",
+      "name": "NBC10 Philadelphia",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "663",
+      "name": "NHL Network USA",
+      "category": "sports",
+      "country": "usa",
+      "firstLetter": "N"
+    },
+    {
+      "id": "667",
+      "name": "NFL RedZone",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "468",
+      "name": "Nova Sport Bulgaria",
+      "category": "sports",
+      "country": "bulgaria",
+      "firstLetter": "N"
+    },
+    {
+      "id": "582",
+      "name": "Nova Sport Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "N"
+    },
+    {
+      "id": "631",
+      "name": "Nova Sports 1 Greece",
+      "category": "sports",
+      "country": "greece",
+      "firstLetter": "N"
+    },
+    {
+      "id": "632",
+      "name": "Nova Sports 2 Greece",
+      "category": "sports",
+      "country": "greece",
+      "firstLetter": "N"
+    },
+    {
+      "id": "633",
+      "name": "Nova Sports 3 Greece",
+      "category": "sports",
+      "country": "greece",
+      "firstLetter": "N"
+    },
+    {
+      "id": "634",
+      "name": "Nova Sports 4 Greece",
+      "category": "sports",
+      "country": "greece",
+      "firstLetter": "N"
+    },
+    {
+      "id": "635",
+      "name": "Nova Sports 5 Greece",
+      "category": "sports",
+      "country": "greece",
+      "firstLetter": "N"
+    },
+    {
+      "id": "636",
+      "name": "Nova Sports 6 Greece",
+      "category": "sports",
+      "country": "greece",
+      "firstLetter": "N"
+    },
+    {
+      "id": "599",
+      "name": "Nova Sports Premier League Greece",
+      "category": "sports",
+      "country": "greece",
+      "firstLetter": "N"
+    },
+    {
+      "id": "637",
+      "name": "Nova Sports Start Greece",
+      "category": "sports",
+      "country": "greece",
+      "firstLetter": "N"
+    },
+    {
+      "id": "638",
+      "name": "Nova Sports Prime Greece",
+      "category": "sports",
+      "country": "greece",
+      "firstLetter": "N"
+    },
+    {
+      "id": "639",
+      "name": "Nova Sports News Greece",
+      "category": "sports",
+      "country": "greece",
+      "firstLetter": "N"
+    },
+    {
+      "id": "666",
+      "name": "Nick Music",
+      "category": "kids",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "762",
+      "name": "NESN USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "N"
+    },
+    {
+      "id": "53",
+      "name": "NBC USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "N"
+    },
+    {
+      "id": "404",
+      "name": "NBA TV USA",
+      "category": "sports",
+      "country": "usa",
+      "firstLetter": "N"
+    },
+    {
+      "id": "777",
+      "name": "NBC Sports Philadelphia",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "405",
+      "name": "NFL Network",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "753",
+      "name": "NBC Sports Bay Area",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "754",
+      "name": "NBC Sports Boston",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "755",
+      "name": "NBC Sports California",
+      "category": "sports",
+      "country": "canada",
+      "firstLetter": "N"
+    },
+    {
+      "id": "769",
+      "name": "NBCNY USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "N"
+    },
+    {
+      "id": "480",
+      "name": "Nova TV Bulgaria",
+      "category": "entertainment",
+      "country": "bulgaria",
+      "firstLetter": "N"
+    },
+    {
+      "id": "847",
+      "name": "Nova S Serbia",
+      "category": "entertainment",
+      "country": "balkans",
+      "firstLetter": "N"
+    },
+    {
+      "id": "292",
+      "name": "NewsNation USA",
+      "category": "news",
+      "country": "usa",
+      "firstLetter": "N"
+    },
+    {
+      "id": "328",
+      "name": "National Geographic (NGC)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "329",
+      "name": "NICK JR",
+      "category": "kids",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "330",
+      "name": "NICK",
+      "category": "kids",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "649",
+      "name": "Nicktoons",
+      "category": "kids",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "736",
+      "name": "NDR DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "N"
+    },
+    {
+      "id": "613",
+      "name": "Newsmax USA",
+      "category": "news",
+      "country": "usa",
+      "firstLetter": "N"
+    },
+    {
+      "id": "745",
+      "name": "Nat Geo Wild USA",
+      "category": "documentary",
+      "country": "usa",
+      "firstLetter": "N"
+    },
+    {
+      "id": "835",
+      "name": "Noovo CA",
+      "category": "entertainment",
+      "country": "canada",
+      "firstLetter": "N"
+    },
+    {
+      "id": "845",
+      "name": "NBC Universo",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "1003",
+      "name": "NOW TV Turkey",
+      "category": "entertainment",
+      "country": "turkey",
+      "firstLetter": "N"
+    },
+    {
+      "id": "1021",
+      "name": "Nova Sport 1 CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "1022",
+      "name": "Nova Sport 2 CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "1023",
+      "name": "Nova Sport 3 CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "1024",
+      "name": "Nova Sport 4 CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "1025",
+      "name": "Nova Sport 5 CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "1026",
+      "name": "Nova Sport 6 CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "N"
+    },
+    {
+      "id": "611",
+      "name": "OnTime Sports",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "O"
+    },
+    {
+      "id": "541",
+      "name": "ONE 1 HD Israel",
+      "category": "entertainment",
+      "country": "israel",
+      "firstLetter": "O"
+    },
+    {
+      "id": "542",
+      "name": "ONE 2 HD Israel",
+      "category": "entertainment",
+      "country": "israel",
+      "firstLetter": "O"
+    },
+    {
+      "id": "439",
+      "name": "Orange Sport 1 Romania",
+      "category": "sports",
+      "country": "romania",
+      "firstLetter": "O"
+    },
+    {
+      "id": "440",
+      "name": "Orange Sport 2 Romania",
+      "category": "sports",
+      "country": "romania",
+      "firstLetter": "O"
+    },
+    {
+      "id": "441",
+      "name": "Orange Sport 3 Romania",
+      "category": "sports",
+      "country": "romania",
+      "firstLetter": "O"
+    },
+    {
+      "id": "442",
+      "name": "Orange Sport 4 Romania",
+      "category": "sports",
+      "country": "romania",
+      "firstLetter": "O"
+    },
+    {
+      "id": "331",
+      "name": "Oprah Winfrey Network (OWN)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "O"
+    },
+    {
+      "id": "332",
+      "name": "Oxygen True Crime",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "O"
+    },
+    {
+      "id": "848",
+      "name": "Outdoor Channel USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "O"
+    },
+    {
+      "id": "1027",
+      "name": "Oneplay Sport 1 CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "O"
+    },
+    {
+      "id": "1028",
+      "name": "Oneplay Sport 2 CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "O"
+    },
+    {
+      "id": "1029",
+      "name": "Oneplay Sport 3 CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "O"
+    },
+    {
+      "id": "562",
+      "name": "Polsat Poland",
+      "category": "entertainment",
+      "country": "poland",
+      "firstLetter": "P"
+    },
+    {
+      "id": "47",
+      "name": "Polsat Sport Poland",
+      "category": "sports",
+      "country": "poland",
+      "firstLetter": "P"
+    },
+    {
+      "id": "50",
+      "name": "Polsat Sport 2 Poland",
+      "category": "sports",
+      "country": "poland",
+      "firstLetter": "P"
+    },
+    {
+      "id": "129",
+      "name": "Polsat Sport 3 Poland",
+      "category": "sports",
+      "country": "poland",
+      "firstLetter": "P"
+    },
+    {
+      "id": "443",
+      "name": "Polsat News Poland",
+      "category": "news",
+      "country": "poland",
+      "firstLetter": "P"
+    },
+    {
+      "id": "564",
+      "name": "Polsat Film Poland",
+      "category": "movies",
+      "country": "poland",
+      "firstLetter": "P"
+    },
+    {
+      "id": "718",
+      "name": "Porto Canal Portugal",
+      "category": "entertainment",
+      "country": "portugal",
+      "firstLetter": "P"
+    },
+    {
+      "id": "730",
+      "name": "ProSieben (PRO7) DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "P"
+    },
+    {
+      "id": "771",
+      "name": "Premier Sports Ireland 1",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "P"
+    },
+    {
+      "id": "450",
+      "name": "PTV Sports",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "P"
+    },
+    {
+      "id": "43",
+      "name": "PDC TV",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "P"
+    },
+    {
+      "id": "88",
+      "name": "Premier Brasil",
+      "category": "sports",
+      "country": "brazil",
+      "firstLetter": "P"
+    },
+    {
+      "id": "583",
+      "name": "Prima Sport 1",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "P"
+    },
+    {
+      "id": "584",
+      "name": "Prima Sport 2",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "P"
+    },
+    {
+      "id": "585",
+      "name": "Prima Sport 3",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "P"
+    },
+    {
+      "id": "586",
+      "name": "Prima Sport 4",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "P"
+    },
+    {
+      "id": "334",
+      "name": "Paramount Network",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "P"
+    },
+    {
+      "id": "653",
+      "name": "POP TV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "P"
+    },
+    {
+      "id": "799",
+      "name": "Premier Sports Ireland 2",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "P"
+    },
+    {
+      "id": "843",
+      "name": "Prima TV RO",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "P"
+    },
+    {
+      "id": "1030",
+      "name": "Premier Sport 1 CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "P"
+    },
+    {
+      "id": "1031",
+      "name": "Premier Sport 2 CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "P"
+    },
+    {
+      "id": "1032",
+      "name": "Premier Sport 3 CZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "P"
+    },
+    {
+      "id": "287",
+      "name": "Pac-12 Network USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "P"
+    },
+    {
+      "id": "210",
+      "name": "PBS USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "P"
+    },
+    {
+      "id": "293",
+      "name": "Reelz Channel",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "R"
+    },
+    {
+      "id": "364",
+      "name": "RTE 1",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "R"
+    },
+    {
+      "id": "365",
+      "name": "RTE 2",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "R"
+    },
+    {
+      "id": "119",
+      "name": "RMC Sport 1 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "R"
+    },
+    {
+      "id": "120",
+      "name": "RMC Sport 2 France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "R"
+    },
+    {
+      "id": "954",
+      "name": "RMC Story France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "R"
+    },
+    {
+      "id": "719",
+      "name": "RTP 1 Portugal",
+      "category": "entertainment",
+      "country": "portugal",
+      "firstLetter": "R"
+    },
+    {
+      "id": "720",
+      "name": "RTP 2 Portugal",
+      "category": "entertainment",
+      "country": "portugal",
+      "firstLetter": "R"
+    },
+    {
+      "id": "721",
+      "name": "RTP 3 Portugal",
+      "category": "entertainment",
+      "country": "portugal",
+      "firstLetter": "R"
+    },
+    {
+      "id": "850",
+      "name": "Rai 1 Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "R"
+    },
+    {
+      "id": "851",
+      "name": "Rai 2 Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "R"
+    },
+    {
+      "id": "852",
+      "name": "Rai 3 Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "R"
+    },
+    {
+      "id": "853",
+      "name": "Rai 4 Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "R"
+    },
+    {
+      "id": "882",
+      "name": "Rai Sport Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "R"
+    },
+    {
+      "id": "858",
+      "name": "Rai Premium Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "R"
+    },
+    {
+      "id": "523",
+      "name": "Real Madrid TV Spain",
+      "category": "entertainment",
+      "country": "spain",
+      "firstLetter": "R"
+    },
+    {
+      "id": "740",
+      "name": "RTL DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "R"
+    },
+    {
+      "id": "839",
+      "name": "RDS CA",
+      "category": "entertainment",
+      "country": "canada",
+      "firstLetter": "R"
+    },
+    {
+      "id": "840",
+      "name": "RDS 2 CA",
+      "category": "entertainment",
+      "country": "canada",
+      "firstLetter": "R"
+    },
+    {
+      "id": "841",
+      "name": "RDS Info CA",
+      "category": "entertainment",
+      "country": "canada",
+      "firstLetter": "R"
+    },
+    {
+      "id": "471",
+      "name": "Ring Bulgaria",
+      "category": "entertainment",
+      "country": "bulgaria",
+      "firstLetter": "R"
+    },
+    {
+      "id": "390",
+      "name": "RTL7 Netherland",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "R"
+    },
+    {
+      "id": "555",
+      "name": "Racing Tv UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "R"
+    },
+    {
+      "id": "607",
+      "name": "Rally Tv",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "R"
+    },
+    {
+      "id": "920",
+      "name": "Root Sports Northwest",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "R"
+    },
+    {
+      "id": "35",
+      "name": "Sky Sports Football UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "36",
+      "name": "Sky Sports+ Plus",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "37",
+      "name": "Sky Sports Action UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "38",
+      "name": "Sky Sports Main Event",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "46",
+      "name": "Sky Sports Tennis UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "130",
+      "name": "Sky sports Premier League",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "60",
+      "name": "Sky Sports F1 UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "65",
+      "name": "Sky Sports Cricket",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "70",
+      "name": "Sky Sports Golf UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "240",
+      "name": "Sky Sports 1 DE",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "241",
+      "name": "Sky Sports 2 DE",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "574",
+      "name": "Sky Sports Golf Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "575",
+      "name": "Sky Sport MotoGP Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "576",
+      "name": "Sky Sport Tennis Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "577",
+      "name": "Sky Sport F1 Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "366",
+      "name": "Sky Sports News UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "449",
+      "name": "Sky Sports MIX UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "556",
+      "name": "Sky Sport Top Event DE",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "557",
+      "name": "Sky Sport Mix DE",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "558",
+      "name": "Sky Sport Bundesliga 1 HD",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "559",
+      "name": "Sky Sport Austria 1 HD",
+      "category": "sports",
+      "country": "australia",
+      "firstLetter": "S"
+    },
+    {
+      "id": "759",
+      "name": "SportsNet New York (SNY)",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "460",
+      "name": "Sky Sport MAX Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "461",
+      "name": "Sky Sport UNO Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "462",
+      "name": "Sky Sport Arena Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "554",
+      "name": "Sky Sports Racing UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "881",
+      "name": "Sky UNO Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "885",
+      "name": "SONY TEN 1",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "886",
+      "name": "SONY TEN 2",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "887",
+      "name": "SONY TEN 3",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "946",
+      "name": "Sky Sport Bundesliga 2",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "947",
+      "name": "Sky Sport Bundesliga 3",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "948",
+      "name": "Sky Sport Bundesliga 4",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "949",
+      "name": "Sky Sport Bundesliga 5",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "965",
+      "name": "Sport en France",
+      "category": "sports",
+      "country": "france",
+      "firstLetter": "S"
+    },
+    {
+      "id": "970",
+      "name": "Starz Cinema",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "971",
+      "name": "Starz Comedy",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "972",
+      "name": "Starz Edge",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "973",
+      "name": "Starz In Black",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "974",
+      "name": "Starz Kids & Family",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "975",
+      "name": "Starz Encore",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "976",
+      "name": "Starz Encore Action",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "977",
+      "name": "Starz Encore Black",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "978",
+      "name": "Starz Encore Classic",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "979",
+      "name": "Starz Encore Family",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "980",
+      "name": "Starz Encore Suspense",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "981",
+      "name": "Starz Encore Westerns",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "982",
+      "name": "Spectrum SportsNet USA",
+      "category": "sports",
+      "country": "usa",
+      "firstLetter": "S"
+    },
+    {
+      "id": "588",
+      "name": "Sky Sport 1 NZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "589",
+      "name": "Sky Sport 2 NZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "590",
+      "name": "Sky Sport 3 NZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "591",
+      "name": "Sky Sport 4 NZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "592",
+      "name": "Sky Sport 5 NZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "593",
+      "name": "Sky Sport 6 NZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "594",
+      "name": "Sky Sport 7 NZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "595",
+      "name": "Sky Sport 8 NZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "596",
+      "name": "Sky Sport 9 NZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "587",
+      "name": "Sky Sport Select NZ",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "49",
+      "name": "Sport TV1 Portugal",
+      "category": "sports",
+      "country": "portugal",
+      "firstLetter": "S"
+    },
+    {
+      "id": "74",
+      "name": "Sport TV2 Portugal",
+      "category": "sports",
+      "country": "portugal",
+      "firstLetter": "S"
+    },
+    {
+      "id": "289",
+      "name": "Sport TV4 Portugal",
+      "category": "sports",
+      "country": "portugal",
+      "firstLetter": "S"
+    },
+    {
+      "id": "454",
+      "name": "Sport TV3 Portugal",
+      "category": "sports",
+      "country": "portugal",
+      "firstLetter": "S"
+    },
+    {
+      "id": "290",
+      "name": "Sport TV5 Portugal",
+      "category": "sports",
+      "country": "portugal",
+      "firstLetter": "S"
+    },
+    {
+      "id": "291",
+      "name": "Sport TV6 Portugal",
+      "category": "sports",
+      "country": "portugal",
+      "firstLetter": "S"
+    },
+    {
+      "id": "722",
+      "name": "SIC Portugal",
+      "category": "entertainment",
+      "country": "portugal",
+      "firstLetter": "S"
+    },
+    {
+      "id": "385",
+      "name": "SEC Network USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "S"
+    },
+    {
+      "id": "78",
+      "name": "SporTV Brasil",
+      "category": "sports",
+      "country": "brazil",
+      "firstLetter": "S"
+    },
+    {
+      "id": "79",
+      "name": "SporTV2 Brasil",
+      "category": "sports",
+      "country": "brazil",
+      "firstLetter": "S"
+    },
+    {
+      "id": "80",
+      "name": "SporTV3 Brasil",
+      "category": "sports",
+      "country": "brazil",
+      "firstLetter": "S"
+    },
+    {
+      "id": "101",
+      "name": "Sport Klub 1 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "S"
+    },
+    {
+      "id": "102",
+      "name": "Sport Klub 2 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "S"
+    },
+    {
+      "id": "103",
+      "name": "Sport Klub 3 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "S"
+    },
+    {
+      "id": "104",
+      "name": "Sport Klub 4 Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "S"
+    },
+    {
+      "id": "453",
+      "name": "Sport Klub HD Serbia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "S"
+    },
+    {
+      "id": "406",
+      "name": "Sportsnet Ontario",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "411",
+      "name": "Sportsnet One",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "407",
+      "name": "Sportsnet West",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "408",
+      "name": "Sportsnet East",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "409",
+      "name": "Sportsnet 360",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "410",
+      "name": "Sportsnet World",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "412",
+      "name": "SuperSport Grandstand",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "413",
+      "name": "SuperSport PSL",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "414",
+      "name": "SuperSport Premier league",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "415",
+      "name": "SuperSport LaLiga",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "416",
+      "name": "SuperSport Variety 1",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "417",
+      "name": "SuperSport Variety 2",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "418",
+      "name": "SuperSport Variety 3",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "419",
+      "name": "SuperSport Variety 4",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "420",
+      "name": "SuperSport Action",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "421",
+      "name": "SuperSport Rugby",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "422",
+      "name": "SuperSport Golf",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "423",
+      "name": "SuperSport Tennis",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "424",
+      "name": "SuperSport Motorsport",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "56",
+      "name": "Supersport Football",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "368",
+      "name": "SuperSport Cricket",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "572",
+      "name": "SuperSport MaXimo 1",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "716",
+      "name": "Sporting TV Portugal",
+      "category": "sports",
+      "country": "portugal",
+      "firstLetter": "S"
+    },
+    {
+      "id": "571",
+      "name": "SportDigital Fussball",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "764",
+      "name": "Spectrum Sportsnet LA",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "640",
+      "name": "Sportdigital1+ Germany",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "641",
+      "name": "Sport1 Germany",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "670",
+      "name": "S4C UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "710",
+      "name": "Sport KLUB Golf Croatia",
+      "category": "sports",
+      "country": "balkans",
+      "firstLetter": "S"
+    },
+    {
+      "id": "729",
+      "name": "SAT.1 DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "671",
+      "name": "Sky Cinema Premiere UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "672",
+      "name": "Sky Cinema Select UK",
+      "category": "movies",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "673",
+      "name": "Sky Cinema Hits UK",
+      "category": "movies",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "674",
+      "name": "Sky Cinema Greats UK",
+      "category": "movies",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "675",
+      "name": "Sky Cinema Animation UK",
+      "category": "movies",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "676",
+      "name": "Sky Cinema Family UK",
+      "category": "movies",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "677",
+      "name": "Sky Cinema Action UK",
+      "category": "movies",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "678",
+      "name": "Sky Cinema Comedy UK",
+      "category": "movies",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "679",
+      "name": "Sky Cinema Thriller UK",
+      "category": "movies",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "680",
+      "name": "Sky Cinema Drama UK",
+      "category": "movies",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "681",
+      "name": "Sky Cinema Sci-Fi Horror UK",
+      "category": "movies",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "695",
+      "name": "Showtime SHOxBET USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "S"
+    },
+    {
+      "id": "811",
+      "name": "SEE Denmark",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "859",
+      "name": "Sky Cinema Collection Italy",
+      "category": "movies",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "860",
+      "name": "Sky Cinema Uno Italy",
+      "category": "movies",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "861",
+      "name": "Sky Cinema Action Italy",
+      "category": "movies",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "862",
+      "name": "Sky Cinema Comedy Italy",
+      "category": "movies",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "863",
+      "name": "Sky Cinema Uno +24 Italy",
+      "category": "movies",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "864",
+      "name": "Sky Cinema Romance Italy",
+      "category": "movies",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "865",
+      "name": "Sky Cinema Family Italy",
+      "category": "movies",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "866",
+      "name": "Sky Cinema Due +24 Italy",
+      "category": "movies",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "867",
+      "name": "Sky Cinema Drama Italy",
+      "category": "movies",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "868",
+      "name": "8Sky Cinema Suspense Italy",
+      "category": "movies",
+      "country": "italy",
+      "firstLetter": "8"
+    },
+    {
+      "id": "869",
+      "name": "Sky Sport 24 Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "870",
+      "name": "Sky Sport Calcio Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "871",
+      "name": "Sky Calcio 1 (251) Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "872",
+      "name": "Sky Calcio 2 (252) Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "873",
+      "name": "Sky Calcio 3 (253) Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "874",
+      "name": "Sky Calcio 4 (254) Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "875",
+      "name": "Sky Sport Basket Italy",
+      "category": "sports",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "880",
+      "name": "Sky Serie Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "S"
+    },
+    {
+      "id": "284",
+      "name": "StarzPlay CricLife 1 HD",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "682",
+      "name": "Sky Showcase UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "683",
+      "name": "Sky Arts UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "684",
+      "name": "Sky Comedy UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "685",
+      "name": "Sky Crime",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "686",
+      "name": "Sky History",
+      "category": "documentary",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "708",
+      "name": "Sky MAX UK",
+      "category": "entertainment",
+      "country": "uk",
+      "firstLetter": "S"
+    },
+    {
+      "id": "614",
+      "name": "SSC Sport 1",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "615",
+      "name": "SSC Sport 2",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "616",
+      "name": "SSC Sport 3",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "617",
+      "name": "SSC Sport 4",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "618",
+      "name": "SSC Sport 5",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "619",
+      "name": "SSC Sport Extra 1",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "620",
+      "name": "SSC Sport Extra 2",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "621",
+      "name": "SSC Sport Extra 3",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "140",
+      "name": "Sport 1 Israel",
+      "category": "sports",
+      "country": "israel",
+      "firstLetter": "S"
+    },
+    {
+      "id": "141",
+      "name": "Sport 2 Israel",
+      "category": "sports",
+      "country": "israel",
+      "firstLetter": "S"
+    },
+    {
+      "id": "142",
+      "name": "Sport 3 Israel",
+      "category": "sports",
+      "country": "israel",
+      "firstLetter": "S"
+    },
+    {
+      "id": "143",
+      "name": "Sport 4 Israel",
+      "category": "sports",
+      "country": "israel",
+      "firstLetter": "S"
+    },
+    {
+      "id": "144",
+      "name": "Sport 5 Israel",
+      "category": "sports",
+      "country": "israel",
+      "firstLetter": "S"
+    },
+    {
+      "id": "145",
+      "name": "Sport 5 PLUS Israel",
+      "category": "sports",
+      "country": "usa",
+      "firstLetter": "S"
+    },
+    {
+      "id": "146",
+      "name": "Sport 5 Live Israel",
+      "category": "sports",
+      "country": "israel",
+      "firstLetter": "S"
+    },
+    {
+      "id": "147",
+      "name": "Sport 5 Star Israel",
+      "category": "sports",
+      "country": "israel",
+      "firstLetter": "S"
+    },
+    {
+      "id": "148",
+      "name": "Sport 5 Gold Israel",
+      "category": "sports",
+      "country": "israel",
+      "firstLetter": "S"
+    },
+    {
+      "id": "294",
+      "name": "Science Channel",
+      "category": "documentary",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "333",
+      "name": "Showtime USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "S"
+    },
+    {
+      "id": "335",
+      "name": "Starz",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "361",
+      "name": "Sky Witness HD",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "732",
+      "name": "Sixx DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "362",
+      "name": "Sky Atlantic",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "373",
+      "name": "SYFY USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "S"
+    },
+    {
+      "id": "658",
+      "name": "Sundance TV",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "735",
+      "name": "SWR DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "738",
+      "name": "SUPER RTL DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "739",
+      "name": "SR Fernsehen DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "785",
+      "name": "Sky Sports Golf DE",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "603",
+      "name": "Smithsonian Channel",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "274",
+      "name": "Sky Sports F1 DE",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "884",
+      "name": "Sky Sports Tennis DE",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "883",
+      "name": "SBS6 NL",
+      "category": "entertainment",
+      "country": "netherlands",
+      "firstLetter": "S"
+    },
+    {
+      "id": "811",
+      "name": "SEE Denmark",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "S"
+    },
+    {
+      "id": "267",
+      "name": "Star Sports 1 IN",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "268",
+      "name": "Star Sports Hindi IN",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "792",
+      "name": "Showtime 2 USA (SHO2) USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "S"
+    },
+    {
+      "id": "793",
+      "name": "Showtime Showcase USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "S"
+    },
+    {
+      "id": "794",
+      "name": "Showtime Extreme USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "S"
+    },
+    {
+      "id": "795",
+      "name": "Showtime Family Zone (SHO Family Zone) USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "S"
+    },
+    {
+      "id": "796",
+      "name": "Showtime Next (SHO Next) USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "S"
+    },
+    {
+      "id": "797",
+      "name": "Showtime Women USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "S"
+    },
+    {
+      "id": "921",
+      "name": "Space City Home Network",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "922",
+      "name": "SportsNet Pittsburgh",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "S"
+    },
+    {
+      "id": "1002",
+      "name": "Show TV Turkey",
+      "category": "entertainment",
+      "country": "turkey",
+      "firstLetter": "S"
+    },
+    {
+      "id": "1004",
+      "name": "Star TV Turkey",
+      "category": "entertainment",
+      "country": "turkey",
+      "firstLetter": "S"
+    },
+    {
+      "id": "31",
+      "name": "TNT Sports 1 UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "T"
+    },
+    {
+      "id": "32",
+      "name": "TNT Sports 2 UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "T"
+    },
+    {
+      "id": "33",
+      "name": "TNT Sports 3 UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "T"
+    },
+    {
+      "id": "34",
+      "name": "TNT Sports 4 UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "T"
+    },
+    {
+      "id": "111",
+      "name": "TSN1",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "112",
+      "name": "TSN2",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "113",
+      "name": "TSN3",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "114",
+      "name": "TSN4",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "115",
+      "name": "TSN5",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "565",
+      "name": "TVN HD Poland",
+      "category": "entertainment",
+      "country": "poland",
+      "firstLetter": "T"
+    },
+    {
+      "id": "444",
+      "name": "TVN24 Poland",
+      "category": "entertainment",
+      "country": "poland",
+      "firstLetter": "T"
+    },
+    {
+      "id": "560",
+      "name": "TVP1 Poland",
+      "category": "entertainment",
+      "country": "poland",
+      "firstLetter": "T"
+    },
+    {
+      "id": "561",
+      "name": "TVP2 Poland",
+      "category": "entertainment",
+      "country": "poland",
+      "firstLetter": "T"
+    },
+    {
+      "id": "532",
+      "name": "Telecinco Spain",
+      "category": "entertainment",
+      "country": "spain",
+      "firstLetter": "T"
+    },
+    {
+      "id": "533",
+      "name": "TVE La 1 Spain",
+      "category": "entertainment",
+      "country": "spain",
+      "firstLetter": "T"
+    },
+    {
+      "id": "536",
+      "name": "TVE La 2 Spain",
+      "category": "entertainment",
+      "country": "spain",
+      "firstLetter": "T"
+    },
+    {
+      "id": "723",
+      "name": "TVI Portugal",
+      "category": "entertainment",
+      "country": "portugal",
+      "firstLetter": "T"
+    },
+    {
+      "id": "724",
+      "name": "TVI Reality Portugal",
+      "category": "entertainment",
+      "country": "portugal",
+      "firstLetter": "T"
+    },
+    {
+      "id": "529",
+      "name": "Teledeporte Spain (TDP)",
+      "category": "entertainment",
+      "country": "spain",
+      "firstLetter": "T"
+    },
+    {
+      "id": "746",
+      "name": "TYC Sports Argentina",
+      "category": "sports",
+      "country": "argentina",
+      "firstLetter": "T"
+    },
+    {
+      "id": "128",
+      "name": "TVP Sport Poland",
+      "category": "sports",
+      "country": "poland",
+      "firstLetter": "T"
+    },
+    {
+      "id": "87",
+      "name": "TNT Brasil",
+      "category": "entertainment",
+      "country": "brazil",
+      "firstLetter": "T"
+    },
+    {
+      "id": "388",
+      "name": "TNT Sports Argentina",
+      "category": "sports",
+      "country": "argentina",
+      "firstLetter": "T"
+    },
+    {
+      "id": "642",
+      "name": "TNT Sports HD Chile",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "40",
+      "name": "Tennis Channel",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "741",
+      "name": "Ten Sports PK",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "66",
+      "name": "TUDN USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "T"
+    },
+    {
+      "id": "131",
+      "name": "Telemundo",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "336",
+      "name": "TBS USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "T"
+    },
+    {
+      "id": "337",
+      "name": "TLC",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "338",
+      "name": "TNT USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "T"
+    },
+    {
+      "id": "469",
+      "name": "TF1 France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "T"
+    },
+    {
+      "id": "833",
+      "name": "TVA Sports",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "834",
+      "name": "TVA Sports 2",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "932",
+      "name": "TVC Deportes MX",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "T"
+    },
+    {
+      "id": "935",
+      "name": "TUDN MX",
+      "category": "entertainment",
+      "country": "mexico",
+      "firstLetter": "T"
+    },
+    {
+      "id": "955",
+      "name": "TMC France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "T"
+    },
+    {
+      "id": "340",
+      "name": "Travel Channel",
+      "category": "documentary",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "341",
+      "name": "TruTV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "T"
+    },
+    {
+      "id": "342",
+      "name": "TVLAND",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "644",
+      "name": "TCM USA",
+      "category": "movies",
+      "country": "usa",
+      "firstLetter": "T"
+    },
+    {
+      "id": "698",
+      "name": "TMC Channel USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "T"
+    },
+    {
+      "id": "384",
+      "name": "The Food Network",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "394",
+      "name": "The Weather Channel",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "452",
+      "name": "TVP INFO",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "650",
+      "name": "TeenNick",
+      "category": "kids",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "660",
+      "name": "TV ONE USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "T"
+    },
+    {
+      "id": "807",
+      "name": "TV2 Bornholm Denmark",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "T"
+    },
+    {
+      "id": "808",
+      "name": "TV2 Sport X Denmark",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "T"
+    },
+    {
+      "id": "809",
+      "name": "TV3 Sport Denmark",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "T"
+    },
+    {
+      "id": "810",
+      "name": "TV2 Sport Denmark",
+      "category": "sports",
+      "country": "germany",
+      "firstLetter": "T"
+    },
+    {
+      "id": "817",
+      "name": "TV2 Denmark",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "T"
+    },
+    {
+      "id": "818",
+      "name": "TV2 Zulu",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "819",
+      "name": "TV3+ Denmark",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "T"
+    },
+    {
+      "id": "842",
+      "name": "TVO CA",
+      "category": "entertainment",
+      "country": "canada",
+      "firstLetter": "T"
+    },
+    {
+      "id": "1005",
+      "name": "TV8 Turkey",
+      "category": "entertainment",
+      "country": "turkey",
+      "firstLetter": "T"
+    },
+    {
+      "id": "700",
+      "name": "TV4 Hockey",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "223",
+      "name": "TV3 Max Denmark",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "T"
+    },
+    {
+      "id": "270",
+      "name": "T Sports BD",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "701",
+      "name": "TV4 Tennis",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "702",
+      "name": "TV4 Motor",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "703",
+      "name": "TV4 Sport Live 1",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "704",
+      "name": "TV4 Sport Live 2",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "705",
+      "name": "TV4 Sport Live 3",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "706",
+      "name": "TV4 Sport Live 4",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "707",
+      "name": "TV4 Sportkanalen",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "747",
+      "name": "TV4 Football Sweden",
+      "category": "entertainment",
+      "country": "sweden",
+      "firstLetter": "T"
+    },
+    {
+      "id": "709",
+      "name": "Tennis+ 10",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "711",
+      "name": "Tennis+ 12",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "889",
+      "name": "TRT Spor TR",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "T"
+    },
+    {
+      "id": "343",
+      "name": "USA Network",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "U"
+    },
+    {
+      "id": "668",
+      "name": "Universal Kids USA",
+      "category": "kids",
+      "country": "usa",
+      "firstLetter": "U"
+    },
+    {
+      "id": "132",
+      "name": "Univision",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "U"
+    },
+    {
+      "id": "133",
+      "name": "Unimas",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "U"
+    },
+    {
+      "id": "451",
+      "name": "Viaplay Sports 1 UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "V"
+    },
+    {
+      "id": "550",
+      "name": "Viaplay Sports 2 UK",
+      "category": "sports",
+      "country": "uk",
+      "firstLetter": "V"
+    },
+    {
+      "id": "521",
+      "name": "#Vamos Spain",
+      "category": "entertainment",
+      "country": "spain",
+      "firstLetter": "#"
+    },
+    {
+      "id": "815",
+      "name": "V Film Premiere",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "V"
+    },
+    {
+      "id": "816",
+      "name": "V Film Family",
+      "category": "movies",
+      "country": "international",
+      "firstLetter": "V"
+    },
+    {
+      "id": "260",
+      "name": "Vodafone Sport",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "V"
+    },
+    {
+      "id": "272",
+      "name": "V Sport Motor Sweden",
+      "category": "sports",
+      "country": "sweden",
+      "firstLetter": "V"
+    },
+    {
+      "id": "344",
+      "name": "VH1 USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "V"
+    },
+    {
+      "id": "378",
+      "name": "Veronica NL Netherland",
+      "category": "entertainment",
+      "country": "netherlands",
+      "firstLetter": "V"
+    },
+    {
+      "id": "391",
+      "name": "VTV+ Uruguay",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "V"
+    },
+    {
+      "id": "659",
+      "name": "VICE TV",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "V"
+    },
+    {
+      "id": "346",
+      "name": "Willow Cricket",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "W"
+    },
+    {
+      "id": "598",
+      "name": "Willow XTRA",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "W"
+    },
+    {
+      "id": "376",
+      "name": "WWE Network",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "W"
+    },
+    {
+      "id": "392",
+      "name": "Win Sports+ Columbia",
+      "category": "sports",
+      "country": "international",
+      "firstLetter": "W"
+    },
+    {
+      "id": "655",
+      "name": "WETV USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "W"
+    },
+    {
+      "id": "734",
+      "name": "WDR DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "W"
+    },
+    {
+      "id": "959",
+      "name": "W9 France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "W"
+    },
+    {
+      "id": "286",
+      "name": "YTV CA",
+      "category": "entertainment",
+      "country": "canada",
+      "firstLetter": "Y"
+    },
+    {
+      "id": "763",
+      "name": "YES Network USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "Y"
+    },
+    {
+      "id": "543",
+      "name": "Yes Movies Action Israel",
+      "category": "movies",
+      "country": "israel",
+      "firstLetter": "Y"
+    },
+    {
+      "id": "544",
+      "name": "Yes Movies Kids Israel",
+      "category": "movies",
+      "country": "israel",
+      "firstLetter": "Y"
+    },
+    {
+      "id": "545",
+      "name": "Yes Movies Comedy Israel",
+      "category": "movies",
+      "country": "israel",
+      "firstLetter": "Y"
+    },
+    {
+      "id": "837",
+      "name": "Yes TV CA",
+      "category": "entertainment",
+      "country": "canada",
+      "firstLetter": "Y"
+    },
+    {
+      "id": "393",
+      "name": "Ziggo Sport NL",
+      "category": "sports",
+      "country": "netherlands",
+      "firstLetter": "Z"
+    },
+    {
+      "id": "398",
+      "name": "Ziggo Sport 2 NL",
+      "category": "sports",
+      "country": "netherlands",
+      "firstLetter": "Z"
+    },
+    {
+      "id": "919",
+      "name": "Ziggo Sport 3 NL",
+      "category": "sports",
+      "country": "netherlands",
+      "firstLetter": "Z"
+    },
+    {
+      "id": "396",
+      "name": "Ziggo Sport 4 NL",
+      "category": "sports",
+      "country": "netherlands",
+      "firstLetter": "Z"
+    },
+    {
+      "id": "383",
+      "name": "Ziggo Sport 5 NL",
+      "category": "sports",
+      "country": "netherlands",
+      "firstLetter": "Z"
+    },
+    {
+      "id": "901",
+      "name": "Ziggo Sport 6 NL",
+      "category": "sports",
+      "country": "netherlands",
+      "firstLetter": "Z"
+    },
+    {
+      "id": "727",
+      "name": "ZDF DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "Z"
+    },
+    {
+      "id": "728",
+      "name": "ZDF Info DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "Z"
+    },
+    {
+      "id": "963",
+      "name": "6ter France",
+      "category": "entertainment",
+      "country": "france",
+      "firstLetter": "6"
+    },
+    {
+      "id": "857",
+      "name": "20 Mediaset Italy",
+      "category": "entertainment",
+      "country": "italy",
+      "firstLetter": "2"
+    },
+    {
+      "id": "800",
+      "name": "6'eren Denmark",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "6"
+    },
+    {
+      "id": "360",
+      "name": "5 USA",
+      "category": "entertainment",
+      "country": "usa",
+      "firstLetter": "5"
+    },
+    {
+      "id": "726",
+      "name": "3sat DE",
+      "category": "entertainment",
+      "country": "germany",
+      "firstLetter": "3"
+    },
+    {
+      "id": "501",
+      "name": "18+ (Player-01)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "502",
+      "name": "18+ (Player-02)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "503",
+      "name": "18+ (Player-03)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "504",
+      "name": "18+ (Player-04)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "505",
+      "name": "18+ (Player-05)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "506",
+      "name": "18+ (Player-06)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "507",
+      "name": "18+ (Player-07)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "508",
+      "name": "18+ (Player-08)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "509",
+      "name": "18+ (Player-09)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "510",
+      "name": "18+ (Player-10)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "511",
+      "name": "18+ (Player-11)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "512",
+      "name": "18+ (Player-12)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "513",
+      "name": "18+ (Player-13)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "514",
+      "name": "18+ (Player-14)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "515",
+      "name": "18+ (Player-15)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "516",
+      "name": "18+ (Player-16)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "517",
+      "name": "18+ (Player-17)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "518",
+      "name": "18+ (Player-18)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "519",
+      "name": "18+ (Player-19)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    },
+    {
+      "id": "520",
+      "name": "18+ (Player-20)",
+      "category": "entertainment",
+      "country": "international",
+      "firstLetter": "1"
+    }
+  ]
+}

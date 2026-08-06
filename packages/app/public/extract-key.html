@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Key Extract</title></head>
+<body>
+  <pre id="out">Loading mkissa.to crypto module...</pre>
+  <script type="module">
+    const out = document.getElementById('out');
+
+    // Dynamically import the mkissa.to crypto chunk
+    try {
+      const mod = await import('https://cdn.mkissa.net/all/mk/_app/immutable/chunks/41eudkNx.js');
+      out.textContent = 'Module loaded. Exports: ' + Object.keys(mod).slice(0, 20).join(', ');
+
+      // Try to find and call the bootstrap function
+      // The module exports include the crypto functions
+      // Look for _w (key derivation), ev (mask), tw (aa-boot), etc.
+
+      // Check the global/window scope for any crypto objects
+      setTimeout(() => {
+        out.textContent += '\n\nWindow keys: ' + Object.keys(window).filter(k => k.length <= 4 && /[A-Z]/.test(k)).join(', ');
+      }, 3000);
+
+    } catch(e) {
+      out.textContent = 'Error: ' + e.message + '\n' + e.stack;
+    }
+  </script>
+</body></html>

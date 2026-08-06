@@ -1,0 +1,83 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "strict": true,
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "incremental": true,
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@flyx/core": [
+        "../core/src/index.ts"
+      ],
+      "@flyx/core/types": [
+        "../core/src/types/index.ts"
+      ],
+      "@flyx/core/errors": [
+        "../core/src/errors/index.ts"
+      ],
+      "@flyx/core/utils": [
+        "../core/src/utils/index.ts"
+      ],
+      "@flyx/config": [
+        "../config/src/index.ts"
+      ],
+      "@flyx/providers": [
+        "../providers/src/index.ts"
+      ],
+      "@flyx/providers/providers": [
+        "../providers/src/providers/index.ts"
+      ],
+      "@flyx/extractors": [
+        "../extractors/src/index.ts"
+      ],
+      "@flyx/extractors/services": [
+        "../extractors/src/services/index.ts"
+      ],
+      "@flyx/player": [
+        "../player/src/index.ts"
+      ],
+      "@flyx/db": [
+        "../db/src/index.ts"
+      ],
+      "@flyx/sync": [
+        "../sync/src/index.ts"
+      ],
+      "@flyx/shared": [
+        "../shared/src/index.ts"
+      ]
+    },
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "allowJs": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "dist"
+  ]
+}

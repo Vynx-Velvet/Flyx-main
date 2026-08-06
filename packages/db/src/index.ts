@@ -1,0 +1,3 @@
+// @flyx/db — stub
+export {}
+

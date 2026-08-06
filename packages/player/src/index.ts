@@ -1,0 +1,3 @@
+// @flyx/player — stub
+export {}
+

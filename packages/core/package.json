@@ -1,0 +1,25 @@
+{
+  "name": "@flyx/core",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Flyx shared types, error hierarchy, unified cache, and utilities",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types/index.ts",
+    "./errors": "./src/errors/index.ts",
+    "./utils": "./src/utils/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^3.1.0"
+  }
+}

@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+.next/
+out/
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Turbo
+.turbo/
+
+# Debug
+*.log
+npm-debug.log*
+
+# Flyx local data
+.flyx/
+.flyx-cache/
+.flyx-standalone/
+
+# Python reference files
+*.py
+
+# Recon / probe scripts
+.mkissa-recon/
+.recon/
+probe*.mjs
+
+# Misc
+*.pem
