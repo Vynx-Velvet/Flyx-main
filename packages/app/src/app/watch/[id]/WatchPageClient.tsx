@@ -14,7 +14,12 @@ function proxySourceUrl(sourceUrl: string, providerName: string, requiresProxy?:
   // Already proxied — don't double-wrap
   if (sourceUrl.includes('/videasy/') ||
       sourceUrl.includes('/api/stream-proxy') ||
-      sourceUrl.includes('/bingebox/') || sourceUrl.includes('/stream?url=')) {
+      sourceUrl.includes('/api/stream/proxy') ||
+      sourceUrl.includes('/bingebox/') ||
+      sourceUrl.includes('/stream?url=') ||
+      // AnimeX HLS proxy URLs — routed through our server
+      sourceUrl.includes('aniwatchtv.site/uwu/') ||
+      sourceUrl.includes('aniwatchtv.site/media/')) {
     return sourceUrl;
   }
 
@@ -23,7 +28,6 @@ function proxySourceUrl(sourceUrl: string, providerName: string, requiresProxy?:
     sourceUrl.includes('wind.');
   if (!needsProxy) return sourceUrl;
 
-  // AnimeX and VOD providers don't need special proxy URLs
   return sourceUrl;
 }
 

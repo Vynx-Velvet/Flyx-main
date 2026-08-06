@@ -122,8 +122,32 @@ export async function GET(request: NextRequest) {
       .split("\n")
       .map((line) => {
         const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#")) return line;
+        if (!trimmed) return line;
 
+        // Rewrite #EXT-X-KEY URI
+        if (trimmed.startsWith("#EXT-X-KEY") && trimmed.includes('URI="')) {
+          return trimmed.replace(/URI="([^"]+)"/, (_m, uri: string) => {
+            const absolute = uri.startsWith("http")
+              ? uri
+              : new URL(uri, pathBase).href;
+            return `URI="${proxyBase}${encodeURIComponent(absolute)}"`;
+          });
+        }
+
+        // Rewrite #EXT-X-MAP URI (fMP4 init segments)
+        if (trimmed.startsWith("#EXT-X-MAP") && trimmed.includes('URI="')) {
+          return trimmed.replace(/URI="([^"]+)"/, (_m, uri: string) => {
+            const absolute = uri.startsWith("http")
+              ? uri
+              : new URL(uri, pathBase).href;
+            return `URI="${proxyBase}${encodeURIComponent(absolute)}"`;
+          });
+        }
+
+        // Skip other tags
+        if (trimmed.startsWith("#")) return line;
+
+        // URL line — rewrite through proxy
         if (trimmed.startsWith("http")) {
           return `${proxyBase}${encodeURIComponent(trimmed)}`;
         }

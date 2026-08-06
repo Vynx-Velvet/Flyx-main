@@ -88,7 +88,7 @@ async function runSetup(options = {}) {
     { label: "Localhost only (127.0.0.1 — this computer only)", value: "localhost" },
     { label: "Local Network (0.0.0.0 — accessible from phones/TVs)", value: "lan" },
   ]));
-  const hostname = network === "lan" ? "0.0.0.0" : "127.0.0.0";
+  const hostname = network === "lan" ? "0.0.0.0" : "127.0.0.1";
 
   if (network === "lan") {
     const urls = getLANURLs();
@@ -165,7 +165,49 @@ async function runSetup(options = {}) {
     HOSTNAME: hostname,
     PORT: String(PORT),
   });
-  console.log("✅  Configuration saved.");
+  console.log("✅  Configuration saved to AppData.");
+
+  // Also write to standalone dir if it exists (so CLI `start` picks it up)
+  const { STANDALONE_DIR } = require("../lib/paths");
+  if (STANDALONE_DIR) {
+    const standaloneEnvPath = require("path").join(STANDALONE_DIR, "packages", "app", ".env");
+    try {
+      // Read existing standalone .env (has TMDB key from build)
+      let existing = "";
+      if (require("fs").existsSync(standaloneEnvPath)) {
+        existing = require("fs").readFileSync(standaloneEnvPath, "utf-8");
+      }
+      // Merge: keep existing TMDB key if setup didn't provide one
+      const mergedLines = [];
+      const existingVars = {};
+      for (const line of existing.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith("#")) {
+          const eq = trimmed.indexOf("=");
+          if (eq > 0) existingVars[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
+        }
+      }
+      // Our vars take priority, but keep existing TMDB key if ours is blank
+      const finalVars = { ...existingVars };
+      const ourVars = { TMDB_API_KEY: tmdbKey, JWT_SECRET: jwtSecret, HOST_KEY: hostKey, ENABLE_LANDING_PAGE: isShared ? "true" : "false", HOSTNAME: hostname, PORT: String(PORT) };
+      for (const [k, v] of Object.entries(ourVars)) {
+        if (k === "TMDB_API_KEY" && (!v || !v.trim())) {
+          // Keep existing TMDB key
+          continue;
+        }
+        finalVars[k] = v;
+      }
+      // Write merged
+      let content = "# Flyx environment — managed by flyx setup\n\n";
+      for (const [k, v] of Object.entries(finalVars)) {
+        content += `${k}=${v}\n`;
+      }
+      require("fs").writeFileSync(standaloneEnvPath, content, "utf-8");
+      console.log("✅  Synced to standalone build.");
+    } catch (err) {
+      // Non-fatal — standalone dir might not exist yet
+    }
+  }
 
   // ── Create admin account ──────────────────────────────────────
   try {

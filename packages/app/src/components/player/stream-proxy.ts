@@ -19,8 +19,12 @@ export function applyStreamProxy(
   if (
     sourceUrl.includes("/videasy/") ||
     sourceUrl.includes("/api/stream-proxy") ||
+    sourceUrl.includes("/api/stream/proxy") ||
     sourceUrl.includes("/bingebox/") ||
-    sourceUrl.includes("/stream?url=")
+    sourceUrl.includes("/stream?url=") ||
+    // AnimeX HLS proxy — routed through our server-side proxy
+    sourceUrl.includes("aniwatchtv.site/uwu/") ||
+    sourceUrl.includes("aniwatchtv.site/media/")
   ) {
     return sourceUrl;
   }
