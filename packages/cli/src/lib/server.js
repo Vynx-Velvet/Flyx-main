@@ -119,12 +119,39 @@ function spawnServer({ port, hostname } = {}) {
 
   ensureLogsDir();
 
+  // Merge AppData .env OVER process.env, but only for keys that have
+  // non-empty values — a blank TMDB key in AppData should not overwrite
+  // the real key from the standalone build.
+  const filteredEnv = {};
+  for (const [k, v] of Object.entries(env)) {
+    if (v && String(v).trim()) {
+      filteredEnv[k] = v;
+    }
+  }
+
+  // Also read the standalone .env (has TMDB key from build step)
+  const standaloneEnvPath = path.join(STANDALONE_DIR, "packages", "app", ".env");
+  let standaloneEnv = {};
+  if (fs.existsSync(standaloneEnvPath)) {
+    const raw = fs.readFileSync(standaloneEnvPath, "utf-8");
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq === -1) continue;
+      const k = trimmed.slice(0, eq);
+      const v = trimmed.slice(eq + 1);
+      if (v && v.trim()) standaloneEnv[k] = v;
+    }
+  }
+
   const serverEnv = {
     ...process.env,
-    ...env,
+    ...standaloneEnv,
+    ...filteredEnv,
     FLYX_DATA_DIR: DATA_DIR,
     FLYX_CLI: "true",
-    HOSTNAME: env.HOSTNAME || h,
+    HOSTNAME: filteredEnv.HOSTNAME || env.HOSTNAME || h,
     PORT: String(p),
     NODE_ENV: "production",
   };

@@ -112,15 +112,18 @@ function xorEncode(text: string, key: string): string {
 }
 
 /**
- * Wrap a source URL through the aniwatchtv.site HLS proxy.
- * Returns self-contained M3U8 that handles referer/CORS internally.
+ * Wrap a source URL through the aniwatchtv.site HLS proxy, then route
+ * through our own /api/stream/proxy so all segments/keys get CORS headers
+ * and relative URLs are resolved correctly.
  */
 function yi(sourceUrl: string, referer: string): string {
   const payload = sourceUrl + "\0" + referer;
   const token = xorEncode(payload, YI_KEY);
   const host = PROXY_HOSTS[proxyHostIdx % PROXY_HOSTS.length]!;
   proxyHostIdx++;
-  return `https://${host}.aniwatchtv.site/uwu/${token}`;
+  const uwuUrl = `https://${host}.aniwatchtv.site/uwu/${token}`;
+  // Route through our stream proxy for CORS + relative URL rewriting
+  return `/api/stream/proxy?url=${encodeURIComponent(uwuUrl)}`;
 }
 
 // ── GraphQL Queries ──────────────────────────────────────────────────────────
