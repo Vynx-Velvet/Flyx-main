@@ -42,6 +42,7 @@
     "deploy:local": "cd packages/app && next build && next start",
     "deploy:cloudflare": "cd packages/app && next build && npx @opennextjs/cloudflare build && npx wrangler deploy",
     "deploy:worker": "cd packages/workers && npx wrangler deploy",
+    "deploy:landing": "npx wrangler pages deploy landing --project-name flyx-landing",
     "deploy:all": "npm run deploy:cloudflare && npm run deploy:worker",
     "cli": "node packages/cli/cli.js",
     "cli:link": "npm link --workspace @flyx/cli",

@@ -17,8 +17,7 @@ function proxySourceUrl(sourceUrl: string, providerName: string, requiresProxy?:
       sourceUrl.includes('/api/stream/proxy') ||
       sourceUrl.includes('/bingebox/') ||
       sourceUrl.includes('/stream?url=') ||
-      // AnimeX HLS proxy URLs — routed through our server
-      sourceUrl.includes('aniwatchtv.site/uwu/') ||
+      // AnimeX HLS proxy URLs — now routed through our server for /uwu/ rewriting
       sourceUrl.includes('aniwatchtv.site/media/')) {
     return sourceUrl;
   }

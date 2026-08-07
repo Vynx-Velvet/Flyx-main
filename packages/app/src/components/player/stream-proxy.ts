@@ -22,8 +22,7 @@ export function applyStreamProxy(
     sourceUrl.includes("/api/stream/proxy") ||
     sourceUrl.includes("/bingebox/") ||
     sourceUrl.includes("/stream?url=") ||
-    // AnimeX HLS proxy — routed through our server-side proxy
-    sourceUrl.includes("aniwatchtv.site/uwu/") ||
+    // AnimeX HLS proxy — now routed through our server-side proxy for /uwu/ path rewriting
     sourceUrl.includes("aniwatchtv.site/media/")
   ) {
     return sourceUrl;

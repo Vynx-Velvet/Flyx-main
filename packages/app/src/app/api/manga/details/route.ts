@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getMangaDetails } from "@flyx/extractors/services";
+import { getMangaDetailsWithChapters } from "@flyx/extractors/services";
 
 const CACHE_TTL_SECONDS = 600; // 10 min
 const mem = new Map<string, { body: unknown; exp: number }>();
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   if (cached) return NextResponse.json(cached);
 
   try {
-    const data = await getMangaDetails(id);
+    const data = await getMangaDetailsWithChapters(id);
     const body = { data };
     setCache(cacheKey, body);
     return NextResponse.json(body);

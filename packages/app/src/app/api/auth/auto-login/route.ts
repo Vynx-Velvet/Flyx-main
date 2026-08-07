@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
   const defaultUser = process.env.DEFAULT_USERNAME;
   const defaultPass = process.env.DEFAULT_PASSWORD;
   const hostKey = process.env.HOST_KEY;
-  const landingEnabled = process.env.ENABLE_LANDING_PAGE;
   const accountCount = getAccountCount();
 
   // Diagnostic mode — return JSON so we can see what's happening
@@ -32,7 +31,6 @@ export async function GET(request: NextRequest) {
       hasDefaultPass: !!defaultPass,
       passLength: defaultPass ? defaultPass.length : 0,
       hasHostKey: !!hostKey,
-      landingEnabled,
       accountCount,
       accounts: listAccounts().map((a) => ({ username: a.username, isAdmin: a.isAdmin, createdAt: a.createdAt })),
     });

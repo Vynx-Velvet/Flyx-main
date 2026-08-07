@@ -23,10 +23,16 @@ export async function GET(request: NextRequest) {
       const source = result.sources[0];
       const rawUrl = source.url!;
       const cdnOrigin = source.origin || source.referer || "";
+      const cookies = result.cookies || "";
 
       // Route through playlist proxy so the browser doesn't hit the CDN directly.
       // The CDN checks Referer and will 403 on browser-originated requests.
-      const proxiedUrl = `/api/livetv/playlist?url=${encodeURIComponent(rawUrl)}&origin=${encodeURIComponent(cdnOrigin)}`;
+      // Pass cookies captured during extraction — the CDN requires session cookies
+      // to validate M3U8 tokens when the Python service is unavailable.
+      let proxiedUrl = `/api/livetv/playlist?url=${encodeURIComponent(rawUrl)}&origin=${encodeURIComponent(cdnOrigin)}`;
+      if (cookies) {
+        proxiedUrl += `&cookie=${encodeURIComponent(cookies)}`;
+      }
 
       return NextResponse.json({
         success: true,

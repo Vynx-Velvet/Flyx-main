@@ -15,7 +15,6 @@ import type { StreamSource } from "@flyx/core";
 import { extractVideasy } from "./videasy";
 import { extractVidSrc } from "./vidsrc";
 import { extractMultiEmbed } from "./multiembed";
-import { extractVidCore } from "./vidcore";
 import { extractDLHD } from "./dlhd";
 
 // Anime extractor (smoke test)
@@ -84,7 +83,7 @@ describe("VidSrc", () => {
   it(
     `extracts sources for "${MOVIE_FIGHT_CLUB.title}"`,
     async () => {
-      const result = await extractVidSrc(MOVIE_FIGHT_CLUB.tmdbId, undefined, undefined, undefined, "movie");
+      const result = await extractVidSrc(MOVIE_FIGHT_CLUB.tmdbId, "movie");
       expect(Array.isArray(result.sources)).toBe(true);
       console.log(summarize("VidSrc movie", result.sources));
       for (const s of result.sources) assertStreamSourceShape(s, "VidSrc");
@@ -95,7 +94,7 @@ describe("VidSrc", () => {
   it(
     `extracts sources for "${TV_BREAKING_BAD.title}"`,
     async () => {
-      const result = await extractVidSrc(TV_BREAKING_BAD.tmdbId, undefined, 1, 1, "tv");
+      const result = await extractVidSrc(TV_BREAKING_BAD.tmdbId, "tv", 1, 1);
       expect(Array.isArray(result.sources)).toBe(true);
       console.log(summarize("VidSrc TV", result.sources));
       for (const s of result.sources) assertStreamSourceShape(s, "VidSrc TV");
@@ -123,19 +122,6 @@ describe("MultiEmbed", () => {
       expect(Array.isArray(result.sources)).toBe(true);
       console.log(summarize("MultiEmbed TV", result.sources));
       for (const s of result.sources) assertStreamSourceShape(s, "MultiEmbed TV");
-    },
-    API_TIMEOUT,
-  );
-});
-
-describe("VidCore", () => {
-  it(
-    `extracts sources for "${MOVIE_FIGHT_CLUB.title}"`,
-    async () => {
-      const result = await extractVidCore(MOVIE_FIGHT_CLUB.tmdbId, undefined, undefined, undefined, "movie");
-      expect(Array.isArray(result.sources)).toBe(true);
-      console.log(summarize("VidCore movie", result.sources));
-      for (const s of result.sources) assertStreamSourceShape(s, "VidCore");
     },
     API_TIMEOUT,
   );
@@ -201,15 +187,11 @@ describe("Provider Matrix", () => {
         },
         {
           name: "VidSrc",
-          extract: () => extractVidSrc(MOVIE_INCEPTION.tmdbId, undefined, undefined, undefined, "movie"),
+          extract: () => extractVidSrc(MOVIE_INCEPTION.tmdbId, "movie"),
         },
         {
           name: "MultiEmbed",
           extract: () => extractMultiEmbed(MOVIE_INCEPTION.tmdbId, undefined, undefined, undefined, "movie"),
-        },
-        {
-          name: "VidCore",
-          extract: () => extractVidCore(MOVIE_INCEPTION.tmdbId, undefined, undefined, undefined, "movie"),
         },
         {
           name: "DLHD",

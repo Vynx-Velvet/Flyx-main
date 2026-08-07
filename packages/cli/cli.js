@@ -173,7 +173,11 @@ program
 
 program
   .command("update")
-  .description("Rebuild the standalone server")
+  .description("Pull latest from GitHub and rebuild the server")
+  .option("--no-git", "Skip git pull, just rebuild")
+  .option("--remote <url>", "Git remote URL to pull from")
+  .option("--branch <name>", "Branch to track (default: current branch)")
+  .option("--force", "Discard local changes without prompting")
   .action(async (options) => {
     const { default: update } = require("./src/commands/update");
     await update(options);
@@ -193,8 +197,26 @@ program
 
 // ── Parse ────────────────────────────────────────────────────────
 
-// If no command given, show help
+// If no command given, auto-detect first run
 if (process.argv.length <= 2) {
+  const { envExists } = require("./src/lib/env-file");
+
+  if (!envExists()) {
+    // First run — walk the user through setup
+    console.log(`
+  ╔══════════════════════════════════════╗
+  ║     Welcome to Flyx 3.0!  🎬        ║
+  ╚══════════════════════════════════════╝
+
+  Looks like this is your first time running Flyx.
+  Let's get everything set up — it only takes a minute.
+`);
+    const { default: setup } = require("./src/commands/setup");
+    setup().then(() => process.exit(0));
+    return;
+  }
+
+  // Already configured — show help
   console.log(`
   ╔══════════════════════════════════════╗
   ║        Flyx 3.0 — Streaming Hub      ║
@@ -202,7 +224,7 @@ if (process.argv.length <= 2) {
 
   Get started:
 
-    flyx setup     Configure your instance
+    flyx setup     Re-run setup
     flyx start     Launch the server
     flyx status    Check what's running
 

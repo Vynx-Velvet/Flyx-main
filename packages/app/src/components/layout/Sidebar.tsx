@@ -336,7 +336,7 @@ function SidebarInner() {
     pathname === "/setup";
 
   // isLanding must be state-based to avoid SSR hydration mismatch.
-  // The LandingPage sets data-landing via useEffect (client-only).
+  // The login page sets data-landing via useEffect (client-only).
   const [isLanding, setIsLanding] = useState(false);
   useEffect(() => {
     if (pathname !== "/") return;

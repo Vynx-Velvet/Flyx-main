@@ -1,0 +1,4 @@
+# Cloudflare Pages config — static landing page for flyx.app
+name = "flyx-landing"
+compatibility_date = "2026-08-07"
+pages_build_output_dir = "."

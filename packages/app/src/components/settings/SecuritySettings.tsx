@@ -500,8 +500,8 @@ export default function SecuritySettings() {
             <span className={styles.settingLabel}>Mode</span>
             <span className={styles.settingDesc}>
               {accounts.length <= 1
-                ? "Single-user mode. To add family/friends: create accounts above, then enable the landing page in your .env file (set ENABLE_LANDING_PAGE=true)."
-                : "Multi-user mode with landing page. New users sign in from the welcome screen on any device."}
+                ? "Single-user mode. To add family/friends: create accounts above, then share the sign-in URL with them."
+                : "Multi-user mode. New users sign in from the sign-in page on any device."}
             </span>
           </div>
         </div>

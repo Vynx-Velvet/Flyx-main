@@ -66,7 +66,6 @@ export async function middleware(request: NextRequest) {
 
   // ── Not authenticated ──────────────────────────────────────
 
-  const landingEnabled = process.env.ENABLE_LANDING_PAGE !== "false";
   const defaultUser = process.env.DEFAULT_USERNAME;
 
   // Auto-login: if default credentials exist, redirect to auto-setup endpoint.
@@ -76,17 +75,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/api/auth/auto-login", request.url));
   }
 
-  // No default credentials configured
-  // Landing page enabled — show it to unauthenticated visitors
-  if (landingEnabled) {
-    if (pathname === "/") {
-      return NextResponse.next();
-    }
-    return NextResponse.redirect(new URL("/", request.url));
-  }
-
-  // Landing page disabled — redirect to login
-  if (pathname !== "/") {
+  // Redirect unauthenticated visitors to the sign-in page
+  if (pathname !== "/login") {
     return NextResponse.redirect(
       new URL(`/login?redirect=${encodeURIComponent(pathname)}`, request.url),
     );

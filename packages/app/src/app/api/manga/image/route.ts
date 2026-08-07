@@ -13,9 +13,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ALLOWED_HOSTS = [
-  "hot.planeptune.us",
+  // WeebCentral CDN hosts (planeptune, lastation, lowee — all known subdomains)
+  "planeptune.us",        // hot, scans-hot, etc.
+  "lastation.us",         // scans.lastation.us
+  "lowee.us",             // official.lowee.us
+  // WeebCentral main site + CDN
   "weebcentral.com",
   "cdn.weebcentral.com",
+  // Cover images
+  "temp.compsci88.com",
 ];
 
 const UA =
