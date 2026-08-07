@@ -11,7 +11,7 @@ export { extractBingeBox } from "./bingebox";
 export { extractMovieBox } from "./moviebox";
 export { extractPrimeSrc } from "./primesrc";
 export { extractUflix } from "./uflix";
-export { extractVidCore } from "./vidcore";
+// VidCore API (vidcore.org) is dead (404) — extractor kept for reference only
 
 // Anime Extractors
 export { extractAnimeX, searchAnime, getEpisodes } from "./animex";
@@ -20,6 +20,7 @@ export { extractAnimeX, searchAnime, getEpisodes } from "./animex";
 export {
   searchManga,
   getMangaDetails,
+  getMangaDetailsWithChapters,
   getChapterPages,
   getPopularManga,
   getLatestManga,

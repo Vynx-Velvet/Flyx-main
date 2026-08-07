@@ -18,40 +18,61 @@ async function ask(question, { defaultValue = "" } = {}) {
   const prompt = defaultValue ? `${question} [${defaultValue}]: ` : `${question}: `;
   const answer = await rl.question(prompt);
   rl.close();
+  // Drain any leftover data from stdin (e.g. multi-line paste residue)
+  // so it doesn't bleed into the next prompt.
+  if (stdin.readableLength > 0) {
+    stdin.read(stdin.readableLength);
+  }
   return answer.trim() || defaultValue;
 }
 
 /** Ask a password question with masked input. */
 async function askPassword(question) {
-  // Use raw mode on stdin to disable echo
-  const rl = createRL();
-  // Write the prompt manually so we can mask
+  // Don't use readline — it conflicts with raw-mode stdin processing.
+  // Instead, handle raw keystrokes directly with a plain accumulator.
+  const wasRaw = stdin.isRaw; // capture before entering raw mode
   return new Promise((resolve) => {
     stdout.write(`${question}: `);
-    const onData = (char) => {
-      const c = char.toString();
-      // Enter
-      if (c === "\r" || c === "\n") {
-        stdin.removeListener("data", onData);
-        stdin.setRawMode(false);
-        rl.close();
-        stdout.write("\n");
-        resolve(rl.line);
-        return;
-      }
-      // Backspace
-      if (c === "\x7f" || c === "\b") {
-        if (rl.line.length > 0) {
-          rl.line = rl.line.slice(0, -1);
-          stdout.write("\b \b");
+
+    let password = "";
+
+    const onData = (buf) => {
+      // Raw mode on Windows delivers one byte per event for ASCII;
+      // on Unix it's also one byte. Process each byte individually.
+      for (const byte of buf) {
+        // Enter / Return
+        if (byte === 0x0d || byte === 0x0a) {
+          stdin.removeListener("data", onData);
+          if (!wasRaw) stdin.setRawMode(false);
+          stdout.write("\n");
+          resolve(password);
+          return;
         }
-        return;
+        // Backspace / Delete
+        if (byte === 0x7f || byte === 0x08) {
+          if (password.length > 0) {
+            password = password.slice(0, -1);
+            stdout.write("\b \b");
+          }
+          continue;
+        }
+        // Ignore other control characters (ESC, TAB, etc.)
+        if (byte < 0x20 && byte !== 0x0d && byte !== 0x0a) continue;
+
+        password += String.fromCharCode(byte);
+        stdout.write("*");
       }
-      rl.line += c;
-      stdout.write("*");
     };
-    stdin.setRawMode(true);
+
     stdin.on("data", onData);
+    stdin.setRawMode(true);
+    stdin.resume();
+  }).finally(() => {
+    // Always restore cooked mode so subsequent readline prompts work.
+    if (!wasRaw && stdin.isRaw) {
+      stdin.setRawMode(false);
+    }
+    stdin.pause();
   });
 }
 
@@ -77,4 +98,9 @@ async function select(question, options) {
   return options[0].value;
 }
 
-module.exports = { ask, askPassword, confirm, select };
+/** Print a consistent step header. */
+function step(number, total, title) {
+  console.log(`\n  ── Step ${number}/${total}: ${title} ──\n`);
+}
+
+module.exports = { ask, askPassword, confirm, select, step };

@@ -47,11 +47,17 @@ async function extractViaService(
 
 // ── HTTP ────────────────────────────────────────────────────────────────────
 
+interface FetchResult {
+  html: string;
+  /** Combined Set-Cookie headers from the response (semicolon-joined). */
+  cookies: string;
+}
+
 async function fetchHTML(
   url: string,
   referer: string,
   timeoutMs = 10000,
-): Promise<string> {
+): Promise<FetchResult> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), timeoutMs + attempt * 3000);
@@ -68,7 +74,16 @@ async function fetchHTML(
         redirect: "follow",
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return await r.text();
+
+      // Capture Set-Cookie headers — the CDN requires these session cookies
+      // to validate M3U8 tokens. Node.js fetch() discards them by default.
+      const setCookieHeaders = r.headers.getSetCookie?.() ?? [];
+      const cookies = setCookieHeaders
+        .map((c) => c.split(";")[0]) // extract just "key=value" from each
+        .join("; ");
+
+      const html = await r.text();
+      return { html, cookies };
     } catch (e) {
       if (attempt === 1) throw e;
       await new Promise((r) => setTimeout(r, 500));
@@ -135,9 +150,16 @@ function extractP2PConfig(html: string): Record<string, string> | null {
 export interface ExtractionResult {
   sources: StreamSource[];
   subtitles: SubtitleTrack[];
+  /** Cookies captured during extraction — needed by the CDN to validate M3U8 tokens. */
+  cookies?: string;
 }
 
-function buildResult(m3u8Url: string, quality: string, chId: string): ExtractionResult {
+function buildResult(
+  m3u8Url: string,
+  quality: string,
+  chId: string,
+  cookies?: string,
+): ExtractionResult {
   return {
     sources: [{
       url: m3u8Url,
@@ -149,6 +171,7 @@ function buildResult(m3u8Url: string, quality: string, chId: string): Extraction
       requiresSegmentProxy: true,
     }],
     subtitles: [],
+    cookies,
   };
 }
 
@@ -161,26 +184,63 @@ export async function extractDLHD(
   const svcResult = await extractViaService(channelId);
   if (svcResult?.m3u8) return buildResult(svcResult.m3u8, svcResult.quality, channelId);
 
-  // Fallback: Node.js direct — skip the 624KB stream page, use predictable iframe URL
+  // Fallback: Node.js direct.
+  // Must visit the main stream page first to get session cookies — the CDN
+  // validates these against the M3U8 token. The Python service maintains a
+  // cookie jar across requests; Node.js fetch() discards cookies by default
+  // so we collect them manually.
   try {
-    const sourceUrl = `https://hamis.romponalis.st/premiumtv/daddy5.php?id=${channelId}`;
-    const sourceHtml = await fetchHTML(sourceUrl, `${DLHD_BASE}/stream/stream-${channelId}.php`, 8000);
-    let m3u8Url = extractM3U8FromSource(sourceHtml);
+    let allCookies = "";
 
-    if (!m3u8Url) {
-      // Predictable URL failed — fall back to full stream page flow
-      const streamUrl = `${DLHD_BASE}/stream/stream-${channelId}.php`;
-      const streamHtml = await fetchHTML(streamUrl, `${DLHD_BASE}/watch.php?id=${channelId}`, 8000);
-      const iframeMatch = streamHtml.match(/iframe\s+src="([^"]+)"/i)
-        ?? streamHtml.match(/iframe\s+src='([^']+)'/i);
-      if (iframeMatch?.[1]) {
-        const altSourceHtml = await fetchHTML(iframeMatch[1], streamUrl, 8000);
-        m3u8Url = extractM3U8FromSource(altSourceHtml)
-          ?? extractM3U8FromSource(streamHtml);
-      }
+    // Step 1: Visit the main DLHD stream page to capture session cookies.
+    // These cookies are required by the CDN to validate the M3U8 token.
+    const streamUrl = `${DLHD_BASE}/stream/stream-${channelId}.php`;
+    const streamResult = await fetchHTML(streamUrl, `${DLHD_BASE}/watch.php?id=${channelId}`, 10000);
+    if (streamResult.cookies) {
+      allCookies = streamResult.cookies;
+      console.log(`[DLHD] Got cookies from stream page: ${allCookies.substring(0, 60)}...`);
     }
 
-    if (m3u8Url) return buildResult(m3u8Url, "Auto", channelId);
+    // Step 2: Extract iframe URL from stream page, then fetch it for the M3U8 URL
+    const iframeMatch = streamResult.html.match(/iframe\s+src="([^"]+)"/i)
+      ?? streamResult.html.match(/iframe\s+src='([^']+)'/i);
+
+    let m3u8Url: string | null = null;
+
+    if (iframeMatch?.[1]) {
+      // Fetch the iframe source page (Clappr player)
+      const iframeResult = await fetchHTML(iframeMatch[1], streamUrl, 10000);
+      if (iframeResult.cookies) {
+        // Merge cookies: the iframe page may set additional session cookies
+        allCookies = allCookies
+          ? `${allCookies}; ${iframeResult.cookies}`
+          : iframeResult.cookies;
+      }
+      m3u8Url = extractM3U8FromSource(iframeResult.html);
+    }
+
+    // Also try extracting from the stream page itself (backup)
+    if (!m3u8Url) {
+      m3u8Url = extractM3U8FromSource(streamResult.html);
+    }
+
+    // Step 3: If both failed, try the direct daddy5.php shortcut
+    if (!m3u8Url) {
+      const daddyUrl = `https://hamis.romponalis.st/premiumtv/daddy5.php?id=${channelId}`;
+      const daddyResult = await fetchHTML(daddyUrl, streamUrl, 8000);
+      if (daddyResult.cookies) {
+        allCookies = allCookies
+          ? `${allCookies}; ${daddyResult.cookies}`
+          : daddyResult.cookies;
+      }
+      m3u8Url = extractM3U8FromSource(daddyResult.html);
+    }
+
+    if (m3u8Url) {
+      console.log(`[DLHD] Extracted M3U8 URL (cookies: ${allCookies ? allCookies.substring(0, 50) + "..." : "none"})`);
+      return buildResult(m3u8Url, "Auto", channelId, allCookies || undefined);
+    }
+    console.warn(`[DLHD] Could not extract M3U8 URL from any source`);
     return { sources: [], subtitles: [] };
   } catch (e) {
     throw new Error(`DLHD extract failed: ${(e as Error).message}`);

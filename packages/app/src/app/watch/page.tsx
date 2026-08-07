@@ -60,6 +60,8 @@ interface StreamSource {
   referer?: string;
   /** Origin header required by the CDN. */
   origin?: string;
+  /** If true, always route through /api/stream/proxy (e.g. for /uwu/ M3U8 rewriting). */
+  requiresSegmentProxy?: boolean;
 }
 
 interface Episode {
@@ -85,10 +87,9 @@ interface CatalogProvider {
  */
 const VOD_PROVIDERS: CatalogProvider[] = [
   // Order: most reliable first for UX (not necessarily pipeline priority)
-  { id: "vidsrc", label: "VidSrc", blurb: "VSEmbed · RCP · JWT", kind: "vod" },
+  { id: "vidsrc", label: "VidSrc", blurb: "VSEmbed · API · ChaCha20", kind: "vod" },
   { id: "multiembed", label: "2Embed", blurb: "XPS · multi-CDN", kind: "vod" },
   { id: "videasy", label: "Videasy", blurb: "Speedrace · multi-CDN", kind: "vod" },
-  { id: "vidcore", label: "VidCore", blurb: "API · multi-server", kind: "vod" },
 ];
 
 /** Anime RE extractors */
@@ -379,6 +380,8 @@ function WatchInner() {
   const resumeAfterSwitchRef = useRef<number | null>(null);
   const loadStartRef = useRef(0);
   const probeGenRef = useRef(0);
+  const consecutiveFailuresRef = useRef(0);
+  const MAX_CONSECUTIVE_FAILURES = 5;
   const audioModeRef = useRef(audioMode);
   audioModeRef.current = audioMode;
   /** Latest provider cache/state for media-error recovery without re-binding HLS. */
@@ -608,7 +611,7 @@ function WatchInner() {
           : malId
             ? `EP ${episode || "1"}`
             : undefined,
-      contentType: activeUrl.includes(".m3u8")
+      contentType: currentSource?.type === "hls" || activeUrl.includes(".m3u8")
         ? "application/x-mpegURL"
         : "video/mp4",
       startTime: videoRef.current?.currentTime || 0,
@@ -1272,10 +1275,27 @@ function WatchInner() {
         hlsRef.current = null;
       }
 
+      // Find the current source metadata (referer, origin, type) by
+      // searching ALL provider caches. Must come BEFORE isHls/playbackUrl
+      // so currentSource is initialized when referenced below.
+      const currentSource = (() => {
+        const caches = [
+          playbackCtxRef.current.sourcesCache,
+          sourcesCache,
+        ];
+        for (const cache of caches) {
+          for (const list of Object.values(cache)) {
+            const found = list.find((s) => s.url === url);
+            if (found) return found;
+          }
+        }
+        return undefined;
+      })();
+
       const isHls =
+        currentSource?.type === "hls" ||
         url.includes(".m3u8") ||
-        url.includes("application/vnd.apple.mpegurl") ||
-        url.includes("m3u8");
+        url.includes("application/vnd.apple.mpegurl");
 
       loadStartRef.current = performance.now();
       const len = (s: string) => s.length;
@@ -1304,8 +1324,20 @@ function WatchInner() {
 
       /** On hard media failure: try next source in same audio mode,
        * then try the OTHER audio mode, then other providers.
-       * If ALL options are exhausted, show an error. */
+       * Bail early if too many consecutive failures (don't spam every source). */
       const recoverPlayback = () => {
+        consecutiveFailuresRef.current++;
+        const fails = consecutiveFailuresRef.current;
+        console.log(`[Watch] ⏱️ Playback failure #${fails}/${MAX_CONSECUTIVE_FAILURES}`);
+
+        // Stop cycling after N consecutive failures — the streams are likely all dead
+        if (fails >= MAX_CONSECUTIVE_FAILURES) {
+          console.warn(`[Watch] Too many consecutive failures (${fails}) — giving up`);
+          setStatus("error");
+          setErrorMsg(`${fails} sources failed. The streams may be down — try again later.`);
+          return;
+        }
+
         const ctx = playbackCtxRef.current;
         const pid = ctx.playbackProvider;
         const raw = pid ? ctx.sourcesCache[pid] ?? [] : [];
@@ -1363,31 +1395,23 @@ function WatchInner() {
         setErrorMsg("All streams failed to load. Try a different episode or check back later.");
       };
 
-      // Find the current source metadata (referer, origin, type) by
-      // searching ALL provider caches. Prefer the live ref so we don't
-      // race a stale render closure right after first-success play.
-      const currentSource = (() => {
-        const caches = [
-          playbackCtxRef.current.sourcesCache,
-          sourcesCache,
-        ];
-        for (const cache of caches) {
-          for (const list of Object.values(cache)) {
-            const found = list.find((s) => s.url === url);
-            if (found) return found;
-          }
-        }
-        return undefined;
-      })();
-      const sourceReferer = currentSource?.referer;
+const sourceReferer = currentSource?.referer;
       const sourceOrigin = currentSource?.origin;
 
       // Browser <video>/XHR cannot set Referer (forbidden header). Any CDN
       // that needs it MUST go through /api/stream/proxy. Previously this
       // variable was never defined → HLS path threw ReferenceError every time
       // and fell through to a broken native <video src=m3u8> attempt.
+      //
+      // requiresSegmentProxy modes:
+      //   true  = always proxy (e.g. uwu M3U8 needs /uwu/ path rewriting)
+      //   false = never proxy (CDN serves directly with CORS)
+      //   undefined = proxy only when referer/origin headers are needed
+      const wantsProxy = currentSource?.requiresSegmentProxy === true
+        || (currentSource?.requiresSegmentProxy !== false
+            && (!!sourceReferer || !!sourceOrigin));
       const playbackUrl =
-        sourceReferer || sourceOrigin
+        wantsProxy
           ? (() => {
               const params = new URLSearchParams();
               params.set("url", url);
@@ -1407,6 +1431,7 @@ function WatchInner() {
       if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = playbackUrl;
         video.addEventListener("loadedmetadata", () => {
+          consecutiveFailuresRef.current = 0;
           console.log(`[Watch] ⏱️ Native HLS metadata in ${(performance.now() - loadStartRef.current).toFixed(0)}ms`);
           applyResumeAndPlay();
         }, { once: true });
@@ -1445,6 +1470,7 @@ function WatchInner() {
             hls.loadSource(playbackUrl);
             hls.attachMedia(video as unknown as HTMLMediaElement);
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
+              consecutiveFailuresRef.current = 0;
               console.log(`[Watch] ⏱️ HLS manifest parsed in ${(performance.now() - loadStartRef.current).toFixed(0)}ms`);
               applyResumeAndPlay();
             });
@@ -1469,8 +1495,12 @@ function WatchInner() {
       const mp4Src = needsProxy
         ? `/api/stream/proxy?url=${encodeURIComponent(url)}&referer=${encodeURIComponent(sourceReferer!)}${sourceOrigin ? `&origin=${encodeURIComponent(sourceOrigin)}` : ""}`
         : url;
-      // Fail over faster — 60s made a dead 1080p feel like "playback never starts"
-      const mp4TimeoutMs = needsProxy ? 15000 : 8000;
+      // Fail over faster — 60s made a dead 1080p feel like "playback never starts".
+      // Scale down after consecutive failures: the first couple get patience,
+      // later ones fail fast since the CDNs are likely all unreachable.
+      const mp4TimeoutMs = needsProxy
+        ? (consecutiveFailuresRef.current >= 4 ? 5000 : consecutiveFailuresRef.current >= 2 ? 8000 : 15000)
+        : 8000;
       console.log(`[Watch] ⏱️ MP4 loading via ${needsProxy ? 'proxy' : 'direct'}, timeout=${mp4TimeoutMs}ms`);
 
       // Use a ref-backed flag so Fast Refresh doesn't kill the load
@@ -1499,6 +1529,7 @@ function WatchInner() {
       const onMeta = () => {
         if (doneRef.current) return;
         cleanup();
+        consecutiveFailuresRef.current = 0; // reset failure counter on success
         console.log(`[Watch] ⏱️ MP4 metadata in ${(performance.now() - loadStartRef.current).toFixed(0)}ms`);
         applyResumeAndPlay();
       };

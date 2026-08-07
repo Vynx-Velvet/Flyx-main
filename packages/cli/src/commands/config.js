@@ -13,7 +13,6 @@ const EDITABLE_KEYS = [
   "HOST_KEY",
   "HOSTNAME",
   "PORT",
-  "ENABLE_LANDING_PAGE",
   "FLYX_NO_BROWSER",
 ];
 
@@ -83,10 +82,6 @@ async function setConfig(key, value, options = {}) {
       console.error("❌ PORT must be a number between 1 and 65535.");
       process.exit(1);
     }
-  }
-
-  if (key === "ENABLE_LANDING_PAGE") {
-    value = value === "true" || value === "1" ? "true" : "false";
   }
 
   const env = readEnv();

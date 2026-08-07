@@ -71,8 +71,12 @@ function isGenericTitle(title?: string): boolean {
 }
 
 export async function GET(request: NextRequest) {
-  // Build a dedup key from the request URL
-  const dedupKey = request.nextUrl.searchParams.toString();
+  // Build a dedup key that normalizes away `provider` and `title` —
+  // the core extraction (malId + episode) is the same regardless of
+  // which provider label is passed. Without this, the watch page's
+  // parallel "animex" + "auto" probes race and double every API call.
+  const rawParams = request.nextUrl.searchParams;
+  const dedupKey = `malId=${rawParams.get('malId')}|ep=${rawParams.get('episode')}|type=${rawParams.get('type')}`;
 
   // Check if an identical request is already in-flight
   const existing = inFlight.get(dedupKey);

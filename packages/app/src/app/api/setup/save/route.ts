@@ -26,7 +26,6 @@ export async function POST(request: NextRequest) {
     // Build .env content
     const lines: string[] = [];
     lines.push(`TMDB_API_KEY=${tmdbKey.trim()}`);
-    lines.push("ENABLE_LANDING_PAGE=false");
     lines.push("FLYX_DESKTOP=true");
 
     if (username?.trim()) {

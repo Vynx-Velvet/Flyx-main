@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flyx — Privacy-first streaming</title>
+  <meta name="description" content="Flyx aggregates movies, TV, anime, manga, live TV, and sports from free sources. No ads. No tracking. Open source." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="aurora aurora-1"></div>
+    <div class="aurora aurora-2"></div>
+    <div class="aurora aurora-3"></div>
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="logo-wrap">
+        <div class="logo-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="#030307" aria-hidden="true">
+            <path d="M8 5.5v13l11-6.5L8 5.5z" />
+          </svg>
+        </div>
+        <div class="logo-text">Flyx</div>
+        <span class="version-badge">
+          <span class="version-dot"></span>
+          v3.0
+        </span>
+      </div>
+
+      <p class="tagline">
+        <strong>Privacy-first streaming.</strong> No ads. No tracking. No bullshit.<br />
+        Movies, TV, anime, manga, live TV, sports, and PPV events — all from free sources.
+      </p>
+
+      <div class="cta-row">
+        <a href="https://github.com/Vynx-Velvet/Flyx-main" target="_blank" rel="noopener noreferrer" class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+          </svg>
+          GitHub
+        </a>
+        <a href="https://discord.gg/flyx" target="_blank" rel="noopener noreferrer" class="btn-secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.82 19.82 0 005.993 3.03.078.078 0 00.084-.028 14.2 14.2 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.82 19.82 0 006.002-3.03.077.077 0 00.032-.057c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z" />
+          </svg>
+          Discord
+        </a>
+      </div>
+
+      <div class="social-row">
+        <a href="https://github.com/Vynx-Velvet/Flyx-main" target="_blank" rel="noopener noreferrer" class="social-link">
+          <svg class="social-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+          </svg>
+          Vynx-Velvet/Flyx-main
+        </a>
+      </div>
+    </section>
+
+    <!-- About -->
+    <section class="section">
+      <div class="section-inner">
+        <span class="section-label">About</span>
+        <h2 class="section-title">What is Flyx 3.0?</h2>
+
+        <p class="section-text">
+          The pirate streaming ecosystem has optimized for extraction. Sites scrape freely
+          available content, then layer it with advertisements, tracking scripts, malware-laden
+          popups, and background cryptocurrency miners. They do not host the media. They do not
+          license it. They insert themselves between the user and material that was already free,
+          converting attention and device resources into revenue. The prevailing assumption is
+          that this exploitation is the unavoidable price of free access.
+        </p>
+
+        <p class="section-text strong">Flyx rejects that assumption.</p>
+
+        <p class="section-text">
+          Flyx aggregates movies, TV shows, anime, manga, live TV (850+ channels), live sports,
+          and PPV events exclusively from the same free, unlicensed sources used by those sites.
+          It never draws from legitimate platforms. It never touches services that pay for
+          distribution rights. The sources are the free streams already circulating on the open
+          internet. The difference is that every layer of monetization and surveillance is stripped
+          away before the content reaches the user.
+        </p>
+
+        <p class="section-text">
+          No advertisements. No tracking. No data sold to brokers. No miners. No personal
+          information collected.
+        </p>
+
+        <p class="section-text">
+          Flyx hosts nothing. It locates streams that already exist and delivers them cleanly
+          through the user's own infrastructure — local machine, Docker host, or Cloudflare
+          account. The operator controls the instance, the data, and access. No third party
+          observes viewing history or even that the application is running.
+        </p>
+
+        <p class="section-text">
+          Version 3.0 is a complete architectural rebuild. The previous single Next.js application
+          has been replaced by a Turborepo monorepo of eleven packages with strict dependency
+          boundaries. Types, error handling, caching, provider logic, extraction, and the video
+          player each live in their own package — independently testable, versioned, and deployable.
+          A new provider requires roughly fifteen lines. The player is composed of React hooks rather
+          than a multi-thousand-line monolith. Errors carry machine-readable codes. Caching is a
+          single unified layer.
+        </p>
+
+        <p class="section-text">
+          The project is fully self-hosted and open source. It asks for no payment, no personal
+          data, and no attention. Its purpose is to demonstrate that free streaming does not require
+          exploiting the people who use it.
+        </p>
+
+        <p class="section-text strong">The sources remain the same. The extraction of value from the user does not.</p>
+
+        <div class="link-cards">
+          <a href="https://github.com/Vynx-Velvet/Flyx-main" target="_blank" rel="noopener noreferrer" class="link-card">
+            <div class="link-card-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="color:#f0f0f5" aria-hidden="true">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+              </svg>
+            </div>
+            <div>
+              <h4>GitHub Repository</h4>
+              <p>Source code, issues, and contributions</p>
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" class="arrow-icon">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </a>
+
+          <a href="https://discord.gg/flyx" target="_blank" rel="noopener noreferrer" class="link-card">
+            <div class="link-card-icon" style="color:#8b7cf0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.82 19.82 0 005.993 3.03.078.078 0 00.084-.028 14.2 14.2 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.82 19.82 0 006.002-3.03.077.077 0 00.032-.057c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z" />
+              </svg>
+            </div>
+            <div>
+              <h4>Discord Community</h4>
+              <p>Get help, share ideas, and connect</p>
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" class="arrow-icon">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- How It Works -->
+    <section class="section">
+      <div class="section-inner">
+        <span class="section-label">Under the Hood</span>
+        <h2 class="section-title">How It Works</h2>
+
+        <p class="section-text">
+          Pirate sites make money by inserting themselves between you and content that was never
+          theirs to sell. Flyx does the opposite: it <strong>removes every middleman</strong> between
+          you and the stream. Nothing is hosted. Nothing is paywalled. Nothing is tracked. Here's
+          how the pipeline cuts out the parasites.
+        </p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h4>Provider Registry — No Single Point of Failure</h4>
+              <p>
+                The <strong>@flyx/providers</strong> package maintains a registry of 12+ sources in
+                priority order, each as a lightweight class extending BaseProvider. When you search for
+                content, the registry iterates through matching providers automatically — if a pirate
+                site goes down or gets taken over, the next provider picks up without you noticing. Error
+                isolation means one broken source never crashes your instance. Unlike the sprawling sites
+                that embed 15 ad networks into every page, each provider is typically 15–30 lines
+                of focused, auditable code.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h4>Extraction Pipeline — One Path, No Snooping</h4>
+              <p>
+                All providers feed into a <strong>single ExtractionPipeline</strong> in
+                <strong>@flyx/extractors.</strong> This is the only fetch path in the entire app —
+                API routes, player hooks, and admin tools all use it. Results hit the
+                <strong>UnifiedCache</strong> (TTL with stale-while-revalidate) in
+                <strong>@flyx/core,</strong> so repeated requests return instantly. In 2.0, this
+                logic was copy-pasted across 5 different files — a nightmare to audit. In 3.0, it's
+                one path, one cache, and you can read every line of it.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h4>Stream Proxy — You Are Invisible</h4>
+              <p>
+                This is where Flyx earns the "privacy-first" claim. A dedicated proxy (Bun server on
+                :8787 for local/Docker, Cloudflare Worker for production) sits between your browser and
+                every upstream CDN. It <strong>injects Referer and Origin headers</strong> so streams
+                play correctly, <strong>rewrites M3U8 manifests</strong> for CORS, and — this is the
+                important part — <strong>completely shields your real IP address</strong> from every
+                content source. The upstream CDNs see the proxy, not you. Pirate sites want to know
+                who you are so they can sell that information. Flyx makes that impossible.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h4>Decomposed Player — No Bloat, No Malware</h4>
+              <p>
+                The <strong>@flyx/player</strong> package provides composable React hooks for HLS.js
+                playback — quality switching, subtitle tracks, keyboard shortcuts, Chromecast, AirPlay,
+                stream URL copying. Each is its own hook, not a 5,000-line monolith like 2.0. The
+                <strong>custom FetchLoader</strong> routes every segment request through the proxy
+                layer. Your browser never talks directly to a CDN. No hidden iframes. No drive-by
+                crypto miners. Just a video player that plays video.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h4>Run It Anywhere — Not Their Server, Yours</h4>
+              <p>
+                The <strong>@flyx/config</strong> package detects your deployment target — local dev,
+                Docker, Cloudflare, or Vercel — and selects the right database adapter (SQLite, D1, or
+                Postgres), proxy backend, and environment automatically. One command to start. Zero code
+                changes between platforms. Unlike the pirate ecosystem where you're at the mercy of
+                whatever server some operator in a jurisdiction you'll never visit decides to keep
+                online today, this is <strong>your infrastructure, your rules.</strong>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- History -->
+    <section class="section">
+      <div class="section-inner">
+        <span class="section-label">History</span>
+        <h2 class="section-title">From Flyx 2.0</h2>
+        <p class="section-text">
+          Flyx 2.0 was the original streaming platform — a single Next.js app with 20+
+          providers, a working video player, live TV, and a growing community. It proved
+          the concept: free, private streaming was possible. But as the codebase grew
+          past 30,000 lines with no architectural boundaries, every new feature became
+          harder to ship. Provider logic leaked into the UI. Cache invalidation was
+          guesswork. Errors were thrown as raw strings with no stack context.
+        </p>
+        <p class="section-text">
+          Rather than keep patching the cracks, we chose to rebuild — not to add
+          features, but to create a foundation that makes adding features <strong>easy.</strong>
+          Everything that worked in 2.0 (streaming, providers, live TV, the player) was
+          carried forward. Everything that held us back (the monolith, the error handling,
+          the cache sprawl) was redesigned from scratch.
+        </p>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Why This Was Done -->
+    <section class="section">
+      <div class="section-inner">
+        <span class="section-label">Motivation</span>
+        <h2 class="section-title">Why This Was Done</h2>
+        <p class="section-text">
+          Flyx 2.0 was a working streaming platform, but it was held together by
+          duct tape and hope. As the project grew, the cracks started showing.
+          Flyx 3.0 was born out of the need to fix these architectural problems at the root.
+        </p>
+
+        <div class="changelog-grid">
+          <div class="change-card">
+            <div class="change-icon" style="background:rgba(244,80,80,0.08);border-color:rgba(244,80,80,0.15)">🔀</div>
+            <h3>Tangled Codebase</h3>
+            <p>Flyx 2.0 spread provider logic across 6 directories in a mix of JS and TS. Adding a single provider meant touching 5+ files. 3.0 isolates each provider to a single 15–30 line class.</p>
+          </div>
+          <div class="change-card">
+            <div class="change-icon" style="background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.15)">💥</div>
+            <h3>Brittle Error Handling</h3>
+            <p>2.0 threw raw strings and had 5+ different error handling systems. Debugging production issues meant grepping for string literals. 3.0 has one typed error hierarchy with machine-readable codes.</p>
+          </div>
+          <div class="change-card">
+            <div class="change-icon" style="background:rgba(139,124,240,0.08);border-color:rgba(139,124,240,0.15)">🐌</div>
+            <h3>Performance Bottlenecks</h3>
+            <p>Four separate cache systems with no coordination meant stale data, cache stampedes, and wasted memory. 3.0's UnifiedCache deduplicates and coordinates all caching through a single layer.</p>
+          </div>
+          <div class="change-card">
+            <div class="change-icon" style="background:rgba(0,229,191,0.08);border-color:rgba(0,229,191,0.15)">🔧</div>
+            <h3>Untestable Design</h3>
+            <p>Components were 5,000+ lines with no separation of concerns. You couldn't test a provider without booting the entire app. 3.0's package boundaries make every module independently testable.</p>
+          </div>
+          <div class="change-card">
+            <div class="change-icon" style="background:rgba(240,98,160,0.08);border-color:rgba(240,98,160,0.15)">🧩</div>
+            <h3>Missing Pieces</h3>
+            <p>2.0 had no manga support, no proper database, and no admin dashboard. Each feature was bolted on as an afterthought. 3.0 was designed from the ground up to accommodate manga, live TV, sync, and more.</p>
+          </div>
+          <div class="change-card">
+            <div class="change-icon" style="background:rgba(45,212,168,0.08);border-color:rgba(45,212,168,0.15)">🏠</div>
+            <h3>Self-Host First</h3>
+            <p>Flyx 2.0 was hard to self-host — fragile config, no Docker support, and Cloudflare lock-in. 3.0 runs anywhere: local dev with SQLite, Docker with persistent volumes, or Cloudflare with D1 and Workers.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- What's New -->
+    <section class="section">
+      <div class="section-inner">
+        <span class="section-label">What's New</span>
+        <h2 class="section-title">Flyx 2.0 → 3.0</h2>
+        <p class="section-text">
+          Flyx 3.0 is a <strong>ground-up architectural refactor</strong> of the 2.0 codebase.
+          Every system was redesigned for reliability, maintainability, and performance.
+        </p>
+
+        <div class="changelog-grid">
+          <div class="change-card">
+            <div class="change-icon" style="background:rgba(0,229,191,0.08);border-color:rgba(0,229,191,0.15)">🏗️</div>
+            <h3>Monorepo Architecture</h3>
+            <p>11 packages with clear dependency boundaries. No more tangled 6-directory codebase — each concern is isolated, testable, and independently versioned.</p>
+          </div>
+          <div class="change-card">
+            <div class="change-icon" style="background:rgba(139,124,240,0.08);border-color:rgba(139,124,240,0.15)">⚡</div>
+            <h3>Unified Extraction Pipeline</h3>
+            <p>Single fetch path for all providers with built-in caching. Flyx 2.0 duplicated extraction logic across 5 locations — 3.0 has one ExtractionPipeline used everywhere.</p>
+          </div>
+          <div class="change-card">
+            <div class="change-icon" style="background:rgba(240,98,160,0.08);border-color:rgba(240,98,160,0.15)">🛡️</div>
+            <h3>Type-Safe Error Hierarchy</h3>
+            <p>One FlyxError base class with typed subclasses. Every error carries machine-readable codes, HTTP status, and retry flags. No more string-throwing.</p>
+          </div>
+          <div class="change-card">
+            <div class="change-icon" style="background:rgba(0,229,191,0.08);border-color:rgba(0,229,191,0.15)">🗄️</div>
+            <h3>Proper DB Migrations</h3>
+            <p>Tracked schema versions with transactional rollback. Flyx 2.0 ran CREATE TABLE IF NOT EXISTS on every request — a D1 anti-pattern that's been eliminated.</p>
+          </div>
+          <div class="change-card">
+            <div class="change-icon" style="background:rgba(139,124,240,0.08);border-color:rgba(139,124,240,0.15)">🎯</div>
+            <h3>Decorator-Free Providers</h3>
+            <p>No experimental decorators. Providers register via a simple safeRegister() call with built-in error isolation. Each provider is just 15–30 lines.</p>
+          </div>
+          <div class="change-card">
+            <div class="change-icon" style="background:rgba(240,98,160,0.08);border-color:rgba(240,98,160,0.15)">💾</div>
+            <h3>Single Cache System</h3>
+            <p>One UnifiedCache with TTL, stale-while-revalidate, namespaces, and LRU eviction. Replaced 4 separate caching systems from 2.0.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Setup Guide -->
+    <section class="section">
+      <div class="section-inner">
+        <span class="section-label">Get Started</span>
+        <h2 class="section-title">Set Up Your Own Instance</h2>
+        <p class="section-text">
+          You don't need to be a developer. If you can open a terminal and copy-paste,
+          you can run Flyx. Takes about 5 minutes. Requires Node.js 20+ and npm
+          (both free, one install). After the one-time setup, every command is just <code>flyx</code>.
+        </p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div>
+              <h4>Install Node.js</h4>
+              <p>
+                Go to <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer" style="color:#00e5bf">nodejs.org</a>,
+                download the <strong>LTS</strong> version, and run the installer. This gives you
+                both <strong>Node.js</strong> and <strong>npm</strong> — everything Flyx needs.
+                Already have it? Skip this step.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div>
+              <h4>Open a terminal</h4>
+              <p>
+                <strong>Windows:</strong> Press <kbd>Win</kbd> + <kbd>R</kbd>, type
+                <code>cmd</code>, hit Enter.<br />
+                <strong>Mac:</strong> Press <kbd>Cmd</kbd> + <kbd>Space</kbd>, type
+                <code>terminal</code>, hit Enter.<br />
+                <strong>Linux:</strong> You already know.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div>
+              <h4>Clone and enter the repo</h4>
+              <p>Copy this line, paste it into the terminal, press Enter:</p>
+              <pre class="code-block"><code>git clone https://github.com/Vynx-Velvet/Flyx-main.git && cd Flyx-main</code></pre>
+              <p style="margin-top:0.75rem;font-size:0.8125rem;color:rgba(255,255,255,0.35)">
+                Don't have git? <a href="https://git-scm.com/downloads" target="_blank" rel="noopener noreferrer" style="color:#00e5bf">Install it here</a>
+                or <a href="https://github.com/Vynx-Velvet/Flyx-main/archive/refs/heads/main.zip" target="_blank" rel="noopener noreferrer" style="color:#00e5bf">download the zip</a> instead.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <div>
+              <h4>Install dependencies</h4>
+              <p>Still in the Flyx-main folder, run:</p>
+              <pre class="code-block"><code>npm install</code></pre>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <div>
+              <h4>Make the CLI global</h4>
+              <p>This registers <code>flyx</code> as a system command so you can run it from anywhere:</p>
+              <pre class="code-block"><code>npm run cli:link</code></pre>
+              <p style="margin-top:0.75rem;font-size:0.8125rem;color:rgba(255,255,255,0.35)">
+                Now you can use <code>flyx</code> just like <code>git</code> or <code>npm</code> —
+                from any folder, any terminal. One word, no paths, no <code>npm run</code> prefix.
+                All steps below assume you've done this.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">6</div>
+            <div>
+              <h4>Run the setup wizard</h4>
+              <p>Asks a few questions, writes your config. No manual file editing.</p>
+              <pre class="code-block"><code>flyx setup</code></pre>
+              <p style="margin-top:0.75rem;font-size:0.8125rem;color:rgba(255,255,255,0.35)">
+                It'll ask: your TMDB API key
+                (<a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer" style="color:#00e5bf">get one free here</a>),
+                a host key (make one up — it's your instance password for creating accounts),
+                and whether this is a shared or personal server. That's it.
+              </p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">7</div>
+            <div>
+              <h4>Start Flyx</h4>
+              <pre class="code-block"><code>flyx start</code></pre>
+              <p style="margin-top:0.75rem">
+                Opens your browser to the sign-in page. The setup wizard already created
+                your first account — just sign in and start watching. Your instance. Your rules.
+                No ads. No tracking.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="cli-reference">
+          <h3>CLI Cheat Sheet</h3>
+          <p>
+            After linking the CLI in step 5, the <code>flyx</code> command works from
+            <strong>any terminal, any folder.</strong> No need to be in the Flyx directory.
+            Just open a terminal and type:
+          </p>
+
+          <table class="cli-table">
+            <thead>
+              <tr><th>Command</th><th>What it does</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>flyx setup</code></td><td>Guided first-time setup wizard</td></tr>
+              <tr><td><code>flyx start</code></td><td>Start Flyx and open your browser</td></tr>
+              <tr><td><code>flyx stop</code></td><td>Stop the Flyx server</td></tr>
+              <tr><td><code>flyx status</code></td><td>Check if Flyx is running and on what port</td></tr>
+              <tr><td><code>flyx config</code></td><td>View all current settings</td></tr>
+              <tr><td><code>flyx config set &lt;key&gt; &lt;value&gt;</code></td><td>Change a setting (e.g. <code>flyx config set PORT 3000</code>)</td></tr>
+              <tr><td><code>flyx logs</code></td><td>Show recent server logs</td></tr>
+              <tr><td><code>flyx update</code></td><td>Pull the latest code and rebuild</td></tr>
+              <tr><td><code>flyx accounts list</code></td><td>List all user accounts on your instance</td></tr>
+              <tr><td><code>flyx accounts create &lt;user&gt; &lt;pass&gt;</code></td><td>Add a user from the terminal</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <div class="footer-logo">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="#030307" aria-hidden="true">
+              <path d="M8 5.5v13l11-6.5L8 5.5z" />
+            </svg>
+          </div>
+          <div>
+            <div class="footer-name">Flyx 3.0</div>
+            <div class="footer-tag">Privacy-first streaming</div>
+          </div>
+        </div>
+
+        <nav class="footer-links">
+          <a href="https://github.com/Vynx-Velvet/Flyx-main" target="_blank" rel="noopener noreferrer" class="footer-link">GitHub</a>
+          <a href="https://discord.gg/flyx" target="_blank" rel="noopener noreferrer" class="footer-link">Discord</a>
+        </nav>
+
+        <span class="footer-badge">MIT License</span>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

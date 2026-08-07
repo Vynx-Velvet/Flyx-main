@@ -49,11 +49,6 @@ export const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v !== "false"),
-  ENABLE_LANDING_PAGE: z
-    .string()
-    .optional()
-    .transform((v) => v !== "false"), // Enabled by default
-
   // Host-only account creation key
   HOST_KEY: z.string().optional(),
 

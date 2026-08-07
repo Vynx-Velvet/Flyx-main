@@ -54,8 +54,8 @@ const PROVIDER_REWRITES: Record<string, { from: string; to: string }> = {
   mochi: { from: "tools.fast4speed.rsvp", to: "https://mp4.24stream.xyz/storage" },
 };
 
-// Passthrough providers (no proxy wrapping needed)
-const PASSTHROUGH_PROVIDERS = new Set(["vee", "neko"]);
+// Providers that go through yi() → aniwatchtv.site/uwu proxy
+const YI_PROVIDERS = new Set(Object.keys(PROVIDER_REFERERS));
 
 export interface ExtractionResult {
   sources: StreamSource[];
@@ -112,21 +112,23 @@ function xorEncode(text: string, key: string): string {
 }
 
 /**
- * Wrap a source URL through the aniwatchtv.site HLS proxy, then route
- * through our own /api/stream/proxy so all segments/keys get CORS headers
- * and relative URLs are resolved correctly.
+ * Wrap a source URL through the aniwatchtv.site HLS proxy.
+ *
+ * Returns the full uwu URL containing the host so our stream proxy can
+ * dynamically extract the host when rewriting relative /uwu/ segment paths.
+ *
+ * The uwu proxy at {host}.aniwatchtv.site XOR-decodes the token to get the
+ * original CDN URL + referer, fetches the content, and returns an M3U8.
+ * Segment references in that M3U8 are relative paths like /uwu/{hash}
+ * which must be resolved against the same {host}.aniwatchtv.site origin.
  */
 function yi(sourceUrl: string, referer: string): string {
   const payload = sourceUrl + "\0" + referer;
   const token = xorEncode(payload, YI_KEY);
   const host = PROXY_HOSTS[proxyHostIdx % PROXY_HOSTS.length]!;
   proxyHostIdx++;
-  const uwuUrl = `https://${host}.aniwatchtv.site/uwu/${token}`;
-  // Route through our stream proxy for CORS + relative URL rewriting
-  return `/api/stream/proxy?url=${encodeURIComponent(uwuUrl)}`;
+  return `https://${host}.aniwatchtv.site/uwu/${token}`;
 }
-
-// ── GraphQL Queries ──────────────────────────────────────────────────────────
 
 interface AnimeXSearchResult {
   id: string;         // internal id: "slug-abcde"
@@ -316,7 +318,7 @@ async function getSources(
  * Apply provider-specific URL transformation to a raw source URL.
  * Replicates the client-side `dg()` function from animex.one's bundle.
  */
-function transformSourceUrl(rawUrl: string, providerId: string, headers?: { Referer?: string; Origin?: string }): string {
+function transformSourceUrl(rawUrl: string, providerId: string, _headers?: { Referer?: string; Origin?: string }): string {
   // Providers that go through yi() proxy
   if (providerId in PROVIDER_REFERERS) {
     const referer = PROVIDER_REFERERS[providerId]!;
@@ -412,7 +414,10 @@ export async function extractAnimeX(
       return { sources: [], subtitles: [] };
     }
 
-    // Step 3: Try providers in order (sub first, then dub)
+    // Step 3: Collect sources from BOTH sub and dub providers.
+    // Previously we only tried dub if ALL sub providers failed (early break),
+    // which made dub sources unreachable. Now we collect from both so the
+    // Sub/Dub toggle in the player has sources to filter from each category.
     const allSources: StreamSource[] = [];
     const allTracks: SubtitleTrack[] = [];
     const seenUrls = new Set<string>();
@@ -422,7 +427,17 @@ export async function extractAnimeX(
 
     for (const audioType of (["sub", "dub"] as const)) {
       const providerList = audioType === "sub" ? servers.subProviders : servers.dubProviders;
-      if (!providerList.length) continue;
+      if (!providerList.length) {
+        console.log(`${PREFIX} No ${audioType} providers available`);
+        continue;
+      }
+
+      // Small stagger between sub→dub loops to avoid rate-limit bursts
+      if (audioType === "dub" && allSources.length > 0) {
+        await new Promise((r) => setTimeout(r, 300));
+      }
+
+      console.log(`${PREFIX} Trying ${audioType} providers: ${providerList.map((p) => p.id).join(", ")}`);
 
       // Sort: priority providers first, then rest
       const sorted = [...providerList].sort((a, b) => {
@@ -434,8 +449,9 @@ export async function extractAnimeX(
         return ai - bi;
       });
 
-      for (const provider of sorted.slice(0, 3)) {
-        // Only fetch from first 3 providers per audio type
+      for (const provider of sorted.slice(0, 2)) {
+        // Only fetch from first 2 providers per audio type
+        // (kept low to avoid AnimeX API rate limits — 429/403)
         try {
           const result = await getSources(internalId, epNum, audioType, provider.id);
           if (!result?.sources?.length) continue;
@@ -447,14 +463,24 @@ export async function extractAnimeX(
             if (seenUrls.has(finalUrl)) continue;
             seenUrls.add(finalUrl);
 
+            const isYiProvider = YI_PROVIDERS.has(provider.id);
             const langLabel = audioType === "dub" ? "Dub" : "Sub";
+            // Use API's type field ("video/mpegurl" = HLS), fall back to URL check.
+            // yi()-wrapped URLs don't contain .m3u8, so we must check src.type.
+            const isHls = src.type === "video/mpegurl" || finalUrl.includes(".m3u8");
+
+            // yi() providers (uwu, kiwi, yuki, sora, miku) return HLS URLs
+            // whose M3U8 contains relative /uwu/{hash} segment paths.
+            // These MUST go through our /api/stream/proxy so the proxy can
+            // rewrite the relative paths to https://{host}.aniwatchtv.site/uwu/{hash}
+            // using the host extracted from the source URL.
             allSources.push({
               url: finalUrl,
               quality: src.quality || "Auto",
-              type: finalUrl.includes(".m3u8") ? "hls" : "mp4",
+              type: isHls ? "hls" : "mp4",
               title: `AnimeX ${provider.id} ${src.quality || "Auto"} · ${langLabel}`,
               language: audioType,
-              referer: result.headers?.Referer || result.headers?.Origin || "",
+              requiresSegmentProxy: isYiProvider,
             });
           }
 
@@ -473,9 +499,6 @@ export async function extractAnimeX(
           console.warn(`${PREFIX} Provider ${provider.id}/${audioType}: ${(err as Error).message}`);
         }
       }
-
-      // If we got sources from sub, skip dub (unless no sources at all)
-      if (allSources.length > 0) break;
     }
 
     console.log(`${PREFIX} Got ${allSources.length} sources for ep ${epNum}`);
