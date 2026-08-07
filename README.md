@@ -1,28 +1,80 @@
 # Flyx 3.0
 
-**Privacy-first streaming platform.** No ads. No tracking. No bullshit.
+**Privacy-first streaming.** No ads. No tracking. No bullshit.
 
-Flyx aggregates movies, TV shows, anime, live TV (850+ channels), live sports, and PPV events from multiple free streaming providers. It runs on Cloudflare Workers with a Next.js frontend.
+Flyx aggregates movies, TV shows, anime, manga, live TV (850+ channels), live sports, and PPV events from free streaming sources. You host it. You own it. No third party sees what you watch — or even that the app is running.
 
-> **Flyx 3.0** is a ground-up architectural refactor of the Flyx 2.0 codebase. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the design rationale and [docs/DECISIONS/](./docs/DECISIONS/) for architecture decision records.
+> **Flyx 3.0** is a ground-up architectural rebuild of Flyx 2.0 into a Turborepo monorepo. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the design rationale and [docs/DECISIONS/](./docs/DECISIONS/) for architecture decision records.
 
 ## Quick Start
 
+You don't need to be a developer. If you can copy-paste into a terminal, you can run Flyx. Takes 5 minutes.
+
+**Requirements:** Node.js 20+ and npm ([download here](https://nodejs.org))
+
 ```bash
-# Install dependencies
+# 1. Clone the repo
+git clone https://github.com/Vynx-Velvet/Flyx-main.git && cd Flyx-main
+
+# 2. Install dependencies
 npm install
 
-# Start development (Turborepo)
-npm run dev
+# 3. Make "flyx" a global command (one-time)
+npm run cli:link
 
-# Run tests
-npm test
+# 4. Guided setup — asks 3 questions, writes your config
+flyx setup
 
-# Type check all packages
-npm run type-check
+# 5. Start and open your browser
+flyx start
+```
 
-# Build for production
-npm run build
+That's it. Sign in and start watching. Your instance. Your rules.
+
+> **Need a TMDB API key?** [Get one free here](https://www.themoviedb.org/settings/api) — takes 30 seconds.
+
+## CLI Commands
+
+After running `npm run cli:link` (step 3 above), `flyx` works from any terminal, any folder:
+
+| Command | What it does |
+|---|---|
+| `flyx setup` | Guided first-time setup wizard |
+| `flyx start` | Start Flyx and open your browser |
+| `flyx stop` | Stop the Flyx server |
+| `flyx status` | Check if Flyx is running and on what port |
+| `flyx config` | View all current settings |
+| `flyx config set <key> <value>` | Change a setting |
+| `flyx logs` | Show recent server logs |
+| `flyx update` | Pull latest code and rebuild |
+| `flyx accounts list` | List all user accounts |
+| `flyx accounts create <user> <pass>` | Add a user from the terminal |
+| `flyx accounts delete <user>` | Remove a user |
+
+## Environment Variables
+
+The setup wizard writes your `.env` for you. If you want to do it manually, copy `.env.example` to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Required | Description |
+|---|---|---|
+| `TMDB_API_KEY` | Yes | TMDB API key for metadata, posters, and search |
+| `JWT_SECRET` | Yes | Secret for signing auth tokens (min 32 characters) |
+| `HOST_KEY` | Optional | Secret key for creating accounts. Required to enable registration. |
+| `DATABASE_URL` | Optional | Database connection string. Defaults to local SQLite. |
+| `CLOUDFLARE_ACCOUNT_ID` | Optional | Cloudflare account ID for Workers/D1 deployment |
+| `CLOUDFLARE_API_TOKEN` | Optional | Cloudflare API token for Workers and D1 |
+| `HOSTNAME` | Optional | Hostname to bind to. Default: `127.0.0.1`. Use `0.0.0.0` for network access. |
+| `PORT` | Optional | Port to listen on. Default: `3891`. |
+
+## Deploy to Cloudflare (optional)
+
+```bash
+npm run deploy:cloudflare   # Deploy the Next.js app to Cloudflare Workers
+npm run deploy:landing      # Deploy the static landing page to Cloudflare Pages
 ```
 
 ## Project Structure
@@ -33,31 +85,44 @@ Flyx 3.0 is a **Turborepo monorepo** with 11 packages:
 packages/
 ├── core/          @flyx/core        Shared types, error hierarchy, unified cache
 ├── config/        @flyx/config      Provider priorities, env validation, constants
-├── providers/     @flyx/providers   Abstract BaseProvider, registry, 20+ providers
+├── providers/     @flyx/providers   Abstract BaseProvider, registry, 12+ providers
 ├── extractors/    @flyx/extractors  Unified extraction pipeline
 ├── player/        @flyx/player      Decomposed video player hooks + components
 ├── app/           @flyx/app         Next.js application
 ├── db/            @flyx/db          Database adapter (D1 + SQLite), migrations
 ├── sync/          @flyx/sync        Cross-device sync client
 ├── workers/       @flyx/workers     Cloudflare Workers (proxy, sync, extractors)
-├── shared/        @flyx/shared      Shared UI components (ErrorBoundary)
+├── shared/        @flyx/shared      Shared UI components
+├── cli/           @flyx/cli         Command-line management tool
 └── admin/         @flyx/admin       Admin dashboard
+```
+
+## Development
+
+```bash
+npm install           # Install all workspace dependencies
+npm run dev           # Start Next.js dev server with hot reload
+npm test              # Run all tests
+npm run type-check    # Type check all packages
+npm run build         # Build for production
+npm run lint          # Lint all packages
 ```
 
 ## Key Features
 
-- **20+ streaming providers** with automatic priority-based fallback
-- **Unified extraction pipeline** — single fetch path, built-in caching
-- **Decomposed video player** — composable hooks, no 5,000-line components
+- **12+ streaming providers** with automatic priority-based fallback
+- **Single extraction pipeline** — one fetch path, built-in unified cache
+- **Decomposed video player** — composable React hooks (quality switching, subtitles, Chromecast, AirPlay)
+- **Stream proxy** — shields your IP from upstream CDNs, handles CORS and M3U8 rewriting
 - **Cross-device sync** — watchlist, progress, and preferences
 - **Admin dashboard** — analytics, provider management, user monitoring
+- **Run anywhere** — local (SQLite), Docker, or Cloudflare (D1 + Workers)
 - **Privacy-first** — no ads, no tracking, no PII collection
-- **Self-hostable** — Docker support, local SQLite database option
 
 ## Documentation
 
 | Document | Description |
-|----------|-------------|
+|---|---|
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | System design and data flow |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | Setup, coding standards, adding providers |
 | [docs/api/](./docs/api/) | API reference |
@@ -67,22 +132,12 @@ packages/
 ## Tech Stack
 
 - **Frontend:** Next.js 16, React 19, TypeScript
-- **Styling:** Tailwind CSS 4, CSS Modules
+- **Styling:** CSS Modules, custom design system (teal/purple/pink on deep void)
 - **State:** Zustand, React Context
-- **Video:** HLS.js, FFmpeg.wasm (HEVC transcoding)
+- **Video:** HLS.js
 - **Infra:** Turborepo, Cloudflare Workers, Cloudflare D1
 - **Testing:** Vitest, Playwright (E2E)
 - **DB:** D1 (production), SQLite (development)
-
-## Environment Variables
-
-Copy `.env.example` to `.env` and fill in values:
-
-```bash
-cp .env.example .env
-```
-
-See [`.env.example`](./.env.example) for all required and optional variables.
 
 ## License
 
