@@ -195,8 +195,12 @@ async function runUpdate(options = {}) {
 
   console.log("\n🔧 Building standalone server...\n");
   try {
+    // Pass stored env vars — the build needs TMDB_API_KEY etc.
+    const { readEnv } = require("../lib/env-file");
+    const envVars = readEnv();
     execSync(`node "${buildScript}"`, {
       cwd: rootDir,
+      env: { ...process.env, ...envVars },
       stdio: "inherit",
     });
   } catch (err) {

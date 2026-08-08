@@ -15,18 +15,46 @@ import { execSync } from "child_process";
 import { cpSync, existsSync, mkdirSync, rmSync, readdirSync, lstatSync, realpathSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { homedir } from "os";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const APP_DIR = join(ROOT, "packages", "app");
 const STANDALONE_DIR = join(ROOT, ".flyx-standalone");
 
+// Load env from the Flyx data dir so the build has TMDB_API_KEY etc.
+function getDataDir() {
+  if (process.env.FLYX_DATA_DIR) return process.env.FLYX_DATA_DIR;
+  if (process.platform === "win32") {
+    const localAppData = process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local");
+    return join(localAppData, "flyx");
+  }
+  if (process.platform === "darwin") {
+    return join(homedir(), "Library", "Application Support", "flyx");
+  }
+  return join(homedir(), ".local", "share", "flyx");
+}
+
+function loadEnvFile(filePath) {
+  const vars = {};
+  if (!existsSync(filePath)) return vars;
+  const raw = readFileSync(filePath, "utf-8");
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq > 0) vars[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
+  }
+  return vars;
+}
+
 console.log("[standalone] Building Next.js standalone...");
 
-// Step 1: Build
+// Step 1: Build — inject Flyx env vars so Next.js has TMDB_API_KEY etc.
+const dataDirEnv = loadEnvFile(join(getDataDir(), ".env"));
 execSync("npx next build", {
   cwd: APP_DIR,
-  env: { ...process.env, FLYX_STANDALONE: "1" },
+  env: { ...process.env, ...dataDirEnv, FLYX_STANDALONE: "1" },
   stdio: "inherit",
 });
 
