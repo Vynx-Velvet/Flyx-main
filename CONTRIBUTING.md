@@ -38,7 +38,7 @@ npm run lint
 - `@flyx/player` — Video player
 - `@flyx/db` — Database layer
 - `@flyx/sync` — Cross-device sync
-- `@flyx/workers` — Cloudflare Workers
+
 - `@flyx/shared` — Shared UI
 - `@flyx/admin` — Admin dashboard
 - `@flyx/app` — Next.js app

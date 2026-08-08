@@ -12,10 +12,6 @@
 
 import type { StreamSource, SubtitleTrack } from "@flyx/core";
 import { relaxedFetch } from "@flyx/core/utils";
-import { execFile } from "child_process";
-import { promisify } from "util";
-
-const execFileAsync = promisify(execFile);
 
 const DLHD_BASE = "https://dlhd.st";
 const UA =
@@ -127,23 +123,6 @@ function extractM3U8FromSource(html: string): string | null {
   }
 
   return null;
-}
-
-/**
- * Extract P2P configuration from the source page (optional).
- */
-function extractP2PConfig(html: string): Record<string, string> | null {
-  const match = html.match(/const\s+p2pConfig\s*=\s*(\{[^}]+\})\s*;/s);
-  if (!match?.[1]) return null;
-  try {
-    const cfg: Record<string, string> = {};
-    for (const [, k, v] of match[1].matchAll(/(\w+)\s*:\s*"([^"]+)"/g)) {
-      if (k && v) cfg[k] = v;
-    }
-    return cfg;
-  } catch {
-    return null;
-  }
 }
 
 // ── Public API ──────────────────────────────────────────────────────────────

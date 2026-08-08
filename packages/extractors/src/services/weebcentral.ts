@@ -280,7 +280,6 @@ function parseSeriesPage(html: string, ulid: string, slug: string): MangaData {
 
   const authors = li("Author\\(s\\):");
   const tagsStr = li("Tags?\\(s\\):"); // server typo: "Tags(s)"
-  const typeStr = li("Type:");
   const statusStr = li("Status:");
   const released = li("Released:");
   const descriptionStr = li("Description");
@@ -443,7 +442,7 @@ export async function getChapterPages(
 
     // Step 3: Fetch chapter page images
     const chapterUlid = chapter.id;
-    const html = await wcFetch(`/chapters/${chapterUlid}`);
+    await wcFetch(`/chapters/${chapterUlid}`);
     const frag = await wcFetch(`/chapters/${chapterUlid}/images?is_prev=False&current_page=1`);
 
     // Parse all img URLs from the fragment

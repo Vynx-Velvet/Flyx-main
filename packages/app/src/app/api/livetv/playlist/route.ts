@@ -162,9 +162,8 @@ async function fetchPlaylist(
   cookies?: string,
 ): Promise<{ text: string; strategy: string } | null> {
   const cdnOrigin = origin || new URL(url).origin;
-  const baseHeaders = cookies
-    ? { "User-Agent": UA, Referer: cdnOrigin, Origin: cdnOrigin, Accept: "*/*", Cookie: cookies }
-    : { "User-Agent": UA, Referer: cdnOrigin, Origin: cdnOrigin, Accept: "*/*" };
+  const baseHeaders: Record<string, string> = { "User-Agent": UA, Referer: cdnOrigin, Origin: cdnOrigin, Accept: "*/*" };
+  if (cookies) baseHeaders["Cookie"] = cookies;
 
   // Strategy 1: Python curl_cffi service (Chrome TLS, best chance)
   console.log(`[Playlist] Strategy 1: Python service for ${url.substring(0, 60)}...`);

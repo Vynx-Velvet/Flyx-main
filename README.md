@@ -100,7 +100,6 @@ packages/
 ├── app/           @flyx/app         Next.js application
 ├── db/            @flyx/db          Database adapter (D1 + SQLite), migrations
 ├── sync/          @flyx/sync        Cross-device sync client
-├── workers/       @flyx/workers     Cloudflare Workers (proxy, sync, extractors)
 ├── shared/        @flyx/shared      Shared UI components
 ├── cli/           @flyx/cli         Command-line management tool
 └── admin/         @flyx/admin       Admin dashboard

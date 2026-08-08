@@ -162,7 +162,7 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
       });
 
       hls.loadSource(url);
-      hls.attachMedia(video);
+      hls.attachMedia(video as unknown as HTMLMediaElement);
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
         const levels = data.levels.map((level, index) => ({
@@ -380,10 +380,11 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
       console.error('[VideoPlayer] Decoder unhandled rejection:', e.reason);
     });
     const origLoc = {} as Record<string, unknown>;
+    const loc = window.location as unknown as Record<string, unknown>;
     for (const k of ['href','hostname','host','origin','protocol','port','pathname']) {
       try {
-        origLoc[k] = (window.location as Record<string,unknown>)[k];
-        Object.defineProperty(window.location, k, { value: (window.location as Record<string,unknown>)[k], writable: true, configurable: true });
+        origLoc[k] = loc[k];
+        Object.defineProperty(window.location, k, { value: loc[k], writable: true, configurable: true });
       } catch {}
     }
 

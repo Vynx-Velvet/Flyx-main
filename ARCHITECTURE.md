@@ -16,7 +16,6 @@ Flyx 3.0 is a **Turborepo monorepo** that separates concerns into 11 packages wi
 @flyx/sync          ← depends on: core, db
 @flyx/shared        ← depends on: core
 @flyx/admin         ← depends on: core, db
-@flyx/workers       ← depends on: core, db, sync
 @flyx/app           ← depends on: all of the above
 ```
 
