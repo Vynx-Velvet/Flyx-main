@@ -36,3 +36,6 @@ export { extractDLHD } from "./dlhd";
 // Subtitle Extractors
 export { extractOpenSubtitles } from "./opensubtitles";
 export type { OpenSubtitlesResult } from "./opensubtitles";
+
+// VidSrc Token Registry (shared with stream proxy)
+export { registerTokenUrls, getTokenUrl, clearTokenRegistry } from "./vidsrc-token-registry";
