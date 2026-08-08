@@ -94,7 +94,7 @@ fi
 echo ""
 echo -e "  [3/4] Installing dependencies (this may take a minute)..."
 
-npm install --allow-scripts
+npm install
 echo -e "  ${GREEN}✓${NC}  Dependencies installed"
 
 # ── Link CLI ───────────────────────────────────────────────────────

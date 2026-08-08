@@ -95,11 +95,11 @@ REM ── Install dependencies ────────────────
 echo.
 echo   [3/4] Installing dependencies (this may take a minute^)...
 
-call npm install --allow-scripts
+call npm install
 if %errorlevel% neq 0 (
     echo.
     echo   X  npm install failed.
-    echo      Try running manually: npm install --allow-scripts
+    echo      Try running manually: npm install
     pause
     exit /b 1
 )
