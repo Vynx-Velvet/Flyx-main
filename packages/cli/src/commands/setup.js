@@ -256,8 +256,11 @@ async function runSetup(options = {}) {
     console.log("  Building the server (this may take a minute)...\n");
     const { execSync } = require("child_process");
     try {
+      // Pass the env vars we just wrote — the build needs TMDB_API_KEY etc.
+      const envVars = readEnv();
       execSync("node scripts/build-standalone.mjs", {
         cwd: path.resolve(__dirname, "..", "..", "..", ".."),
+        env: { ...process.env, ...envVars },
         stdio: "inherit",
       });
       console.log("");
