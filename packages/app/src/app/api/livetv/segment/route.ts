@@ -12,6 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { relaxedFetch } from "@flyx/core/utils";
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -117,10 +118,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Strategy 3: Direct fetch with browser headers + cookies
+    // Strategy 3: Relaxed-TLS fetch with browser headers + cookies
     if (!arrayBuffer) {
       try {
-        const response = await fetch(decodedUrl, { headers: fetchHeaders });
+        const response = await relaxedFetch(decodedUrl, { headers: fetchHeaders });
 
         if (!response.ok) {
           console.error(

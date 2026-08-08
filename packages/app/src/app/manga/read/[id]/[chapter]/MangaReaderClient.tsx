@@ -39,6 +39,9 @@ function Reader({ mangaId, chapterNumber }: { mangaId: string; chapterNumber: nu
   const goToChapterRef = useRef<(ch: number, startPage?: number) => void>(() => {});
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialLoad = useRef(true);
+  /** True when page change came from a nav button/keyboard/slider — prevents
+   *  the scroll-detection handler from fighting with scrollIntoView. */
+  const userNavigated = useRef(false);
   const bookmarked = isInWatchlist(mangaId, "manga");
 
   useEffect(() => { pageRef.current = page; }, [page]);
@@ -51,6 +54,7 @@ function Reader({ mangaId, chapterNumber }: { mangaId: string; chapterNumber: nu
       const target = parseInt(p);
       if (target > 1) {
         resumePageRef.current = true;
+        userNavigated.current = true;
         setPage(target);
       }
     }
@@ -102,7 +106,7 @@ function Reader({ mangaId, chapterNumber }: { mangaId: string; chapterNumber: nu
       if (nch) { goToChapterRef.current(nch.number); return; }
       return;
     }
-    if (total > 0 && c < total) setPage(c + 1);
+    if (total > 0 && c < total) { userNavigated.current = true; setPage(c + 1); }
   }, []);
   const prev = useCallback(() => {
     const c = pageRef.current;
@@ -110,9 +114,9 @@ function Reader({ mangaId, chapterNumber }: { mangaId: string; chapterNumber: nu
       const pch = prevChapterRef.current;
       if (pch) { goToChapterRef.current(pch.number, 99999); } return;
     }
-    if (c > 1) setPage(c - 1);
+    if (c > 1) { userNavigated.current = true; setPage(c - 1); }
   }, []);
-  const jump = useCallback((n: number) => { setPage(clamp(n)); }, []);
+  const jump = useCallback((n: number) => { userNavigated.current = true; setPage(clamp(n)); }, []);
   const goToChapter = useCallback((ch: number, startPage?: number) => {
     const pageParam = startPage && startPage > 1 ? `?page=${startPage}` : "";
     router.push(`/manga/read/${mangaId}/${ch}${pageParam}`);
@@ -170,12 +174,25 @@ function Reader({ mangaId, chapterNumber }: { mangaId: string; chapterNumber: nu
   }, [next, prev, jump]);
 
   // ── Scroll tracking ────────────────────────────────────────────────────
+  //
+  // Two effects work together to keep the page counter in sync with the viewport:
+  //
+  //   1. Scroll handler (below) — listens for scroll events and updates `page`
+  //      to match whichever page is closest to 30% from the top of the viewport.
+  //      Skips programmatic scrolls triggered by scrollIntoView (nav buttons etc.)
+  //      to avoid fighting with the auto-scroll effect.
+  //
+  //   2. Auto-scroll effect — when `page` changes via a nav action (next/prev/jump/
+  //      keyboard/slider), scrolls the target page into view. Does NOT scroll
+  //      when the page change came from the scroll handler itself (user scrolling).
 
   useEffect(() => {
     if (pages.length === 0) return;
     const el = scrollRef.current; if (!el) return;
     let ticking = false;
     const onScroll = () => {
+      // Skip scroll events caused by our own scrollIntoView calls
+      if (userNavigated.current) return;
       if (initialLoad.current || ticking || loading) return;
       ticking = true;
       requestAnimationFrame(() => {
@@ -184,12 +201,11 @@ function Reader({ mangaId, chapterNumber }: { mangaId: string; chapterNumber: nu
         if (els.length === 0) { ticking = false; return; }
         let best = pageRef.current, bestD = Infinity;
         const t = el.scrollTop + el.clientHeight * 0.3;
-        els.forEach(el => {
-          const rect = el.getBoundingClientRect();
-          const containerRect = el.parentElement?.parentElement?.getBoundingClientRect();
-          const top = rect.top - (containerRect?.top || 0) + el.parentElement!.offsetTop;
+        els.forEach(pageEl => {
+          const rect = pageEl.getBoundingClientRect();
+          const top = rect.top - el.getBoundingClientRect().top + el.scrollTop;
           const d = Math.abs(top - t);
-          if (d < bestD) { const n = parseInt((el as HTMLElement).dataset.page || "0", 10); if (n > 0) { best = n; bestD = d; } }
+          if (d < bestD) { const n = parseInt((pageEl as HTMLElement).dataset.page || "0", 10); if (n > 0) { best = n; bestD = d; } }
         });
         if (best !== pageRef.current && bestD < el.clientHeight * 0.8) setPage(best);
         ticking = false;
@@ -201,6 +217,11 @@ function Reader({ mangaId, chapterNumber }: { mangaId: string; chapterNumber: nu
 
   useEffect(() => {
     if (initialLoad.current || loading || pages.length === 0 || !scrollRef.current) return;
+    // Only auto-scroll when the page change came from a nav action, not from
+    // the scroll-detection handler. This prevents the view from jumping while
+    // the user is manually scrolling.
+    if (!userNavigated.current) return;
+    userNavigated.current = false;
     const el = scrollRef.current.querySelector(`[data-page="${page}"]`);
     if (el) el.scrollIntoView({ behavior: "instant", block: "start" });
   }, [page, loading, pages.length]);
