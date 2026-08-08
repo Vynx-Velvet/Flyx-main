@@ -6,7 +6,7 @@
  */
 
 const { ask, askPassword, confirm, select, step } = require("../lib/prompts");
-const { writeEnv, envExists, ensureDataDir } = require("../lib/env-file");
+const { writeEnv, readEnv, envExists, ensureDataDir } = require("../lib/env-file");
 const { hashPassword } = require("../lib/password");
 const { createAccount } = require("../lib/store");
 const { randomString, randomPassword } = require("../lib/random");
