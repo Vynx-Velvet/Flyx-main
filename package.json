@@ -62,6 +62,12 @@
     "node": ">=20.0.0"
   },
   "packageManager": "npm@10.9.0",
+  "allowScripts": {
+    "esbuild": true,
+    "sharp": true,
+    "workerd": true,
+    "fsevents": true
+  },
   "dependencies": {
     "jose": "^6.2.4",
     "lucide-react": "^1.25.0"

@@ -27,8 +27,8 @@ The script installs everything, links the CLI, and drops you at `flyx setup`.
 # 1. Clone the repo
 git clone https://github.com/Vynx-Velvet/Flyx-main.git && cd Flyx-main
 
-# 2. Install dependencies (npm 12+ needs --allow-scripts for platform binaries)
-npm install --allow-scripts
+# 2. Install dependencies
+npm install
 
 # 3. Make "flyx" a global command (one-time)
 npm run cli:link
