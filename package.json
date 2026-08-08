@@ -64,7 +64,6 @@
   "packageManager": "npm@10.9.0",
   "dependencies": {
     "jose": "^6.2.4",
-    "lucide-react": "^1.25.0",
-    "tls-client": "^0.0.5"
+    "lucide-react": "^1.25.0"
   }
 }
