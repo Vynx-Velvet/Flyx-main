@@ -611,7 +611,7 @@ function WatchInner() {
           : malId
             ? `EP ${episode || "1"}`
             : undefined,
-      contentType: currentSource?.type === "hls" || activeUrl.includes(".m3u8")
+      contentType: activeUrl.includes(".m3u8")
         ? "application/x-mpegURL"
         : "video/mp4",
       startTime: videoRef.current?.currentTime || 0,

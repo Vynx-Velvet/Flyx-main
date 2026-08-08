@@ -70,7 +70,7 @@ function xmlRpcCall(method: string, params: unknown[]): string {
 function parseXmlRpcResponse(xml: string): unknown {
   // Extract the first <param><value>...</value></param> content
   const valueMatch = xml.match(/<param>\s*<value>(.*?)<\/value>\s*<\/param>/s);
-  if (!valueMatch) return null;
+  if (!valueMatch?.[1]) return null;
   return parseValue(valueMatch[1]);
 }
 
@@ -81,13 +81,13 @@ function parseValue(raw: string): unknown {
   if (strMatch) return strMatch[1];
   // Int
   const intMatch = trimmed.match(/^<int>(\d+)<\/int>$/);
-  if (intMatch) return parseInt(intMatch[1], 10);
+  if (intMatch?.[1]) return parseInt(intMatch[1], 10);
   // Boolean
   const boolMatch = trimmed.match(/^<boolean>(\d)<\/boolean>$/);
   if (boolMatch) return boolMatch[1] === "1";
   // Array
   const arrMatch = trimmed.match(/^<array><data>(.*?)<\/data><\/array>$/s);
-  if (arrMatch) {
+  if (arrMatch?.[1]) {
     const items = arrMatch[1].match(/<value>(.*?)<\/value>/gs);
     return items ? items.map((v) => parseValue(v.replace(/<\/?value>/g, ""))) : [];
   }
