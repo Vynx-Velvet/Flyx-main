@@ -8,6 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { relaxedFetch } from '@flyx/core/utils';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -311,12 +312,13 @@ async function fetchScheduleHTML(
       15000,
     );
 
-    const res = await fetch(url, {
+    const res = await relaxedFetch(url, {
       headers: {
         'User-Agent': USER_AGENT,
         Accept: 'text/html,application/json',
       },
       signal: controller.signal,
+      timeout: 15000,
     });
     clearTimeout(timeoutId);
 
@@ -366,7 +368,7 @@ async function fetchScheduleHTML(
         : `https://${SCHEDULE_DOMAIN}/`;
       const proxyUrl = `${rpiUrl}/dlhd/stream?url=${encodeURIComponent(targetUrl)}&key=${rpiKey}`;
       console.log('[Schedule] Trying RPI proxy fallback...');
-      const res = await fetch(proxyUrl, {
+      const res = await relaxedFetch(proxyUrl, {
         signal: AbortSignal.timeout(15000),
       });
       if (res.ok) {

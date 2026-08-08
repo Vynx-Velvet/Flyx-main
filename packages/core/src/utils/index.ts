@@ -16,3 +16,5 @@ export { rewriteM3U8, proxySegmentUrl } from "./m3u8";
 export type { M3U8RewriteConfig } from "./m3u8";
 
 export { debounce, throttle } from "./debounce";
+
+export { relaxedFetch, needsRelaxedTLS } from "./relaxed-fetch";

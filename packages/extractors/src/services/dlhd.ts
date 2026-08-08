@@ -11,6 +11,7 @@
  */
 
 import type { StreamSource, SubtitleTrack } from "@flyx/core";
+import { relaxedFetch } from "@flyx/core/utils";
 import { execFile } from "child_process";
 import { promisify } from "util";
 
@@ -62,7 +63,7 @@ async function fetchHTML(
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), timeoutMs + attempt * 3000);
     try {
-      const r = await fetch(url, {
+      const r = await relaxedFetch(url, {
         headers: {
           "User-Agent": UA,
           Accept:
