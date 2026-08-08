@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { get as httpsGet } from "https";
 import { get as httpGet } from "http";
+import { relaxedFetch, needsRelaxedTLS } from "@flyx/core/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,9 +84,10 @@ function nativeGet(url: string, referer: string, cookies?: string, timeoutMs = 1
     const MAX_REDIRECTS = 5;
 
     function doRequest(target: string | URL) {
+      const relaxed = needsRelaxedTLS(typeof target === "string" ? target : target.href);
       const opts = {
         headers,
-        rejectUnauthorized: true,
+        rejectUnauthorized: !relaxed,
       };
 
       const req = get(target, opts, (res) => {
@@ -178,14 +180,16 @@ async function fetchPlaylist(
     console.warn(`[Playlist] ✗ Python service unavailable`);
   }
 
-  // Strategy 2: Direct fetch with Referer/Origin + Cookies (if available)
-  console.log(`[Playlist] Strategy 2: Direct fetch with ${cookies ? "cookies + " : ""}Referer/Origin`);
+  // Strategy 2: Relaxed-TLS fetch with Referer/Origin + Cookies (if available)
+  // relaxedFetch uses undici Agent with rejectUnauthorized:false to bypass
+  // TLS fingerprint blocking on Cloudflare-backed pirate CDNs.
+  console.log(`[Playlist] Strategy 2: Relaxed-TLS fetch with ${cookies ? "cookies + " : ""}Referer/Origin`);
   for (let attempt = 0; attempt < 2; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
     try {
       const c = new AbortController();
       const t = setTimeout(() => c.abort(), 12000);
-      const r = await fetch(url, {
+      const r = await relaxedFetch(url, {
         headers: baseHeaders,
         signal: c.signal,
       });
@@ -194,29 +198,29 @@ async function fetchPlaylist(
       if (r.ok) {
         const text = await r.text();
         if (text.trim().startsWith("#EXTM3U")) {
-          console.log(`[Playlist] ✓ Direct fetch succeeded (attempt ${attempt + 1})`);
-          return { text, strategy: `direct-fetch${cookies ? "+cookies" : ""}` };
+          console.log(`[Playlist] ✓ Relaxed-TLS fetch succeeded (attempt ${attempt + 1})`);
+          return { text, strategy: `relaxed-fetch${cookies ? "+cookies" : ""}` };
         }
         const preview = text.trim().substring(0, 80);
-        console.warn(`[Playlist] ✗ Direct fetch returned non-M3U8: "${preview}"`);
+        console.warn(`[Playlist] ✗ Relaxed-TLS fetch returned non-M3U8: "${preview}"`);
         // Don't retry if CDN returned HTML — it'll just block again
         if (preview.includes("<html") || preview.includes("<!DOCTYPE")) break;
       } else {
-        console.warn(`[Playlist] ✗ Direct fetch HTTP ${r.status} (attempt ${attempt + 1})`);
+        console.warn(`[Playlist] ✗ Relaxed-TLS fetch HTTP ${r.status} (attempt ${attempt + 1})`);
       }
     } catch (err) {
-      console.warn(`[Playlist] ✗ Direct fetch error (attempt ${attempt + 1}): ${(err as Error).message}`);
+      console.warn(`[Playlist] ✗ Relaxed-TLS fetch error (attempt ${attempt + 1}): ${(err as Error).message}`);
     }
   }
 
   // Strategy 3: No Referer/Origin (some CDNs prefer anonymous requests)
-  console.log(`[Playlist] Strategy 3: Direct fetch without Referer`);
+  console.log(`[Playlist] Strategy 3: Relaxed-TLS fetch without Referer`);
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 12000);
     const noRefHeaders: Record<string, string> = { "User-Agent": UA, Accept: "*/*" };
     if (cookies) noRefHeaders["Cookie"] = cookies;
-    const r = await fetch(url, {
+    const r = await relaxedFetch(url, {
       headers: noRefHeaders,
       signal: c.signal,
     });
@@ -225,24 +229,24 @@ async function fetchPlaylist(
     if (r.ok) {
       const text = await r.text();
       if (text.trim().startsWith("#EXTM3U")) {
-        console.log(`[Playlist] ✓ No-referer fetch succeeded`);
+        console.log(`[Playlist] ✓ No-referer relaxed fetch succeeded`);
         return { text, strategy: "no-referer" };
       }
     }
   } catch (err) {
-    console.warn(`[Playlist] ✗ No-referer fetch error: ${(err as Error).message}`);
+    console.warn(`[Playlist] ✗ No-referer relaxed fetch error: ${(err as Error).message}`);
   }
 
   // Strategy 4: Try with base URL origin (not the DLHD referer)
   try {
     const baseOrigin = new URL(url).origin;
     if (baseOrigin !== cdnOrigin) {
-      console.log(`[Playlist] Strategy 4: Fetch with CDN origin "${baseOrigin}"`);
+      console.log(`[Playlist] Strategy 4: Relaxed-TLS fetch with CDN origin "${baseOrigin}"`);
       const c = new AbortController();
       const t = setTimeout(() => c.abort(), 12000);
       const cdnHeaders: Record<string, string> = { "User-Agent": UA, Referer: baseOrigin, Origin: baseOrigin, Accept: "*/*" };
       if (cookies) cdnHeaders["Cookie"] = cookies;
-      const r = await fetch(url, {
+      const r = await relaxedFetch(url, {
         headers: cdnHeaders,
         signal: c.signal,
       });
@@ -251,13 +255,13 @@ async function fetchPlaylist(
       if (r.ok) {
         const text = await r.text();
         if (text.trim().startsWith("#EXTM3U")) {
-          console.log(`[Playlist] ✓ CDN-origin fetch succeeded`);
+          console.log(`[Playlist] ✓ CDN-origin relaxed fetch succeeded`);
           return { text, strategy: "cdn-origin" };
         }
       }
     }
   } catch (err) {
-    console.warn(`[Playlist] ✗ CDN-origin fetch error: ${(err as Error).message}`);
+    console.warn(`[Playlist] ✗ CDN-origin relaxed fetch error: ${(err as Error).message}`);
   }
 
   // Strategy 5: Native https.get (different TLS stack than undici/fetch)

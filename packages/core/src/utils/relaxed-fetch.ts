@@ -11,13 +11,19 @@
 
 import { Agent } from "undici";
 
-/** Domains known to reject Node.js TLS fingerprints. */
+/** Domains known to reject Node.js TLS fingerprints or have broken TLS. */
 const RELAXED_HOSTS = new Set([
+  // DLHD / DaddyLive — Cloudflare blocks Node.js TLS
   "dlhd.st",
   "dlhd.pk",
   "dlhd.sx",
   "daddylive.mp",
   "hamis.romponalis.st",
+  // Video CDNs used by DLHD — may block Node.js TLS or have self-signed certs
+  "phantemlis.top",
+  "epaly.fun",
+  "xameleon.xyz",
+  "xameleoncdn.xyz",
 ]);
 
 /** Shared agent with relaxed TLS — reused across all relaxed fetches. */
