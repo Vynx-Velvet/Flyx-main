@@ -17,6 +17,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { getTokenUrl } from "@flyx/extractors/services";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -63,46 +64,57 @@ async function getVidSrcToken(origin: string): Promise<string> {
   const cached = tokenCache.get(origin);
   if (cached && Date.now() < cached.expiresAt) return cached.token;
 
-  try {
-    const c = new AbortController();
-    const t = setTimeout(() => c.abort(), 6000);
-    const r = await fetch(`${origin}/generate.php`, {
-      headers: {
-        "User-Agent": UA,
-        Referer: "https://cloudorchestranova.com/",
-        Origin: "https://cloudorchestranova.com",
-      },
-      signal: c.signal,
-    });
-    clearTimeout(t);
+  // Build list of token endpoints to try, best first:
+  //   1. Registered token URL from VidSrc API (gen_token_url) — most reliable
+  //   2. CDN origin /generate.php (legacy — often TLS-blocked)
+  const registeredUrl = getTokenUrl(origin);
+  const endpoints = new Set<string>();
+  if (registeredUrl) endpoints.add(registeredUrl);
+  endpoints.add(`${origin}/generate.php`);
 
-    if (!r.ok) {
-      console.warn(`[proxy] VidSrc token fetch failed: HTTP ${r.status} from ${origin}/generate.php`);
-      return "";
+  for (const endpoint of endpoints) {
+    try {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), 6000);
+      const r = await fetch(endpoint, {
+        headers: {
+          "User-Agent": UA,
+          Referer: "https://cloudorchestranova.com/",
+          Origin: "https://cloudorchestranova.com",
+        },
+        signal: c.signal,
+      });
+      clearTimeout(t);
+
+      if (!r.ok) {
+        console.warn(`[proxy] VidSrc token fetch failed: HTTP ${r.status} from ${endpoint}`);
+        continue; // try next endpoint
+      }
+
+      const text = await r.text();
+      const token = parseToken(text);
+
+      if (token) {
+        // Try to extract expiration from JWT
+        let ttl = 55 * 60 * 1000; // default 55 min
+        try {
+          if (token.startsWith("eyJ")) {
+            const payload = JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString());
+            if (payload.exp) ttl = Math.min(ttl, (payload.exp * 1000) - Date.now() - 30000);
+          }
+        } catch { /* not JWT or can't parse */ }
+
+        tokenCache.set(origin, { token, expiresAt: Date.now() + ttl });
+        console.log(`[proxy] VidSrc token cached for ${origin} via ${new URL(endpoint).hostname} (TTL: ${Math.round(ttl / 1000)}s)`);
+        return token;
+      }
+    } catch {
+      // endpoint failed — try next one
     }
-
-    const text = await r.text();
-    const token = parseToken(text);
-
-    if (token) {
-      // Try to extract expiration from JWT
-      let ttl = 55 * 60 * 1000; // default 55 min
-      try {
-        if (token.startsWith("eyJ")) {
-          const payload = JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString());
-          if (payload.exp) ttl = Math.min(ttl, (payload.exp * 1000) - Date.now() - 30000);
-        }
-      } catch { /* not JWT or can't parse */ }
-
-      tokenCache.set(origin, { token, expiresAt: Date.now() + ttl });
-      console.log(`[proxy] VidSrc token cached for ${origin} (TTL: ${Math.round(ttl / 1000)}s)`);
-    }
-
-    return token;
-  } catch {
-    console.warn(`[proxy] VidSrc token fetch error from ${origin}`);
-    return "";
   }
+
+  console.warn(`[proxy] All VidSrc token endpoints failed for ${origin}`);
+  return "";
 }
 
 export async function GET(request: NextRequest) {

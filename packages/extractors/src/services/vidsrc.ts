@@ -15,6 +15,7 @@
  */
 
 import type { StreamSource, SubtitleTrack } from "@flyx/core";
+import { registerTokenUrls } from "./vidsrc-token-registry";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -214,11 +215,23 @@ export async function extractVidSrc(
     }
 
     // 4. Build stream sources.
-    //    Stream URLs are raw (no token). Tokens are IP-bound — the browser
-    //    player calls {origin}/generate.php client-side. Our server MUST NOT
-    //    pre-fetch tokens because the IP wouldn't match the browser's.
-    //    Instead we set requiresSegmentProxy:true so all CDN traffic flows
-    //    through /api/stream/proxy, which fetches tokens server-side.
+    //    The API returns gen_token_url — the endpoint to fetch IP-bound tokens.
+    //    Pass it through so /api/stream/proxy uses the correct token endpoint
+    //    instead of guessing ${cdn_origin}/generate.php (which fails on TLS).
+    const tokenUrl = json.data.gen_token_url || undefined;
+
+    // Register CDN origins → token URL so the stream proxy can find them
+    if (tokenUrl) {
+      const origins = new Set<string>();
+      for (const url of streamUrls) {
+        try { origins.add(new URL(url.trim()).origin); } catch { /* skip malformed */ }
+      }
+      if (origins.size > 0) {
+        registerTokenUrls([...origins], tokenUrl);
+        console.log(`[VidSrc] Registered token URL for ${origins.size} CDN origin(s)`);
+      }
+    }
+
     const resolution = json.data.file_name?.match(/\[(\d+p)\]/)?.[1];
     const sources: StreamSource[] = streamUrls.map((url, i) => {
       const trimmed = url.trim();
@@ -231,8 +244,8 @@ export async function extractVidSrc(
         title: streamUrls.length > 1 ? `VidSrc ${i + 1}` : "VidSrc",
         referer: "https://cloudorchestranova.com/",
         origin: "https://cloudorchestranova.com",
-        // Force proxy routing — the proxy will fetch IP-bound tokens
         requiresSegmentProxy: true,
+        tokenUrl,
       };
     });
 

@@ -10,26 +10,35 @@ Flyx aggregates movies, TV shows, anime, manga, live TV (850+ channels), live sp
 
 You don't need to be a developer. If you can copy-paste into a terminal, you can run Flyx. Takes 5 minutes.
 
-**Requirements:** Node.js 20+ and npm ([download here](https://nodejs.org))
+**Requirements:** Node.js 20+ and npm ([download here](https://nodejs.org)), git ([download here](https://git-scm.com))
+
+### One-click setup (recommended)
+
+| Platform | Command |
+|---|---|
+| **Windows** | Download [`scripts\setup-windows.bat`](scripts/setup-windows.bat) → double-click it |
+| **macOS / Linux** | `curl -fsSL https://raw.githubusercontent.com/Vynx-Velvet/Flyx-main/master/scripts/setup.sh \| bash` |
+
+The script installs everything, links the CLI, and drops you at `flyx setup`.
+
+### Manual setup
 
 ```bash
 # 1. Clone the repo
 git clone https://github.com/Vynx-Velvet/Flyx-main.git && cd Flyx-main
 
-# 2. Install dependencies
-npm install
+# 2. Install dependencies (npm 12+ needs --allow-scripts for platform binaries)
+npm install --allow-scripts
 
 # 3. Make "flyx" a global command (one-time)
 npm run cli:link
 
-# 4. Guided setup — asks 3 questions, writes your config
+# 4. Guided setup — asks a few questions, writes your config
 flyx setup
 
 # 5. Start and open your browser
 flyx start
 ```
-
-That's it. Sign in and start watching. Your instance. Your rules.
 
 > **Need a TMDB API key?** [Get one free here](https://www.themoviedb.org/settings/api) — takes 30 seconds.
 

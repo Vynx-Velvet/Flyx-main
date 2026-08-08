@@ -37,6 +37,8 @@ export interface StreamSource {
   language?: string;
   /** Whether segments need proxying through the stream proxy. */
   requiresSegmentProxy?: boolean;
+  /** URL to fetch IP-bound tokens from (e.g. VidSrc gen_token_url). */
+  tokenUrl?: string;
   /** Referer header required by the CDN. */
   referer?: string;
   /** Origin header required by the CDN. */
