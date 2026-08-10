@@ -5,8 +5,8 @@
   "description": "Flyx Next.js application — flat provider tree, SSR admin",
   "scripts": {
     "dev": "next dev",
-    "build": "node ../../node_modules/next/dist/bin/next build",
-    "start": "node ../../node_modules/next/dist/bin/next start",
+    "build": "next build",
+    "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
     "type-check": "tsc --noEmit",
