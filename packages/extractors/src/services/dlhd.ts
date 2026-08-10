@@ -223,6 +223,11 @@ export async function extractDLHD(
     console.warn(`[DLHD] Could not extract M3U8 URL from any source`);
     return { sources: [], subtitles: [] };
   } catch (e) {
-    throw new Error(`DLHD extract failed: ${(e as Error).message}`);
+    // DLHD backend may be geo-blocked, temporarily down, or blocking
+    // this IP. Return empty sources rather than crashing — the UI
+    // can handle "no sources available" gracefully.
+    const msg = (e as Error).message;
+    console.warn(`[DLHD] Extraction failed: ${msg}`);
+    return { sources: [], subtitles: [] };
   }
 }
