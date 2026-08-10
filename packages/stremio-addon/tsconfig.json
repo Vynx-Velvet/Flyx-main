@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@flyx/core": ["../core/src/index.ts"],
+      "@flyx/extractors": ["../extractors/src/index.ts"],
+      "@flyx/extractors/services": ["../extractors/src/services/index.ts"],
+      "@flyx/providers": ["../providers/src/index.ts"],
+      "@flyx/providers/providers": ["../providers/src/providers/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

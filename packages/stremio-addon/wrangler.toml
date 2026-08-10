@@ -1,0 +1,9 @@
+name = "flyx-stremio-private"
+main = "src/index.ts"
+compatibility_date = "2026-08-10"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+minify = true
+
+[observability]
+enabled = false

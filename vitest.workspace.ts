@@ -5,5 +5,6 @@ export default defineWorkspace([
   "packages/config",
   "packages/providers",
   "packages/extractors",
+  "packages/stremio-addon",
   "packages/app",
 ]);

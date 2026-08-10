@@ -13,6 +13,7 @@
     "packages/extractors",
     "packages/player",
     "packages/providers",
+    "packages/stremio-addon",
     "packages/shared",
     "packages/sync",
     "tools/*"
@@ -40,6 +41,10 @@
     "validate:priorities": "tsx tools/scripts/validate-priorities.ts",
     "deploy:local": "cd packages/app && next build && next start",
     "deploy:cloudflare": "cd packages/app && next build && npx @opennextjs/cloudflare build && npx wrangler deploy",
+    "deploy:stremio": "npm run deploy --workspace @flyx/stremio-addon",
+    "dev:stremio": "npm run dev --workspace @flyx/stremio-addon",
+    "test:stremio": "npm run test --workspace @flyx/stremio-addon",
+    "type-check:stremio": "npm run type-check --workspace @flyx/stremio-addon",
     "deploy:landing": "npx wrangler pages deploy landing --project-name flyx-landing",
     "deploy:all": "npm run deploy:cloudflare",
     "cli": "node packages/cli/cli.js",

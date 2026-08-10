@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./base": "./src/base/index.ts",
-    "./registry": "./src/registry/index.ts"
+    "./registry": "./src/registry/index.ts",
+    "./providers": "./src/providers/index.ts"
   },
   "scripts": {
     "build": "tsc",

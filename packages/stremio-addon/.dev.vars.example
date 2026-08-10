@@ -1,0 +1,4 @@
+# Copy this file to .dev.vars for local testing only.
+# Never commit the real .dev.vars file.
+TMDB_API_KEY="your-tmdb-v3-api-key"
+ADDON_TOKEN="replace-with-at-least-32-random-url-safe-characters"
