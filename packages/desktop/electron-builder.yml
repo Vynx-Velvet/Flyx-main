@@ -6,6 +6,9 @@
 
 appId: com.flyx.desktop
 productName: Flyx
+# Linux AppImage rejects the default executable name electron-builder
+# derives from the workspace package name "@flyx/desktop" -> "@flyxdesktop".
+executableName: flyx
 
 directories:
   output: dist
