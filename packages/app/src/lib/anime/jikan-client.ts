@@ -182,7 +182,7 @@ function mapCard(raw: any): AnimeCard | null {
   if (!mal_id || Number.isNaN(mal_id)) return null;
   // Relation entries use `name`; list/full entries use `title`
   const title =
-    raw.title ?? raw.name ?? raw.title_english ?? raw.title_romaji ?? "Unknown";
+    raw.title ?? raw.name ?? raw.title_english ?? raw.title_romaji ?? "Untitled";
   return {
     mal_id,
     title,
@@ -296,6 +296,11 @@ async function jikanFetch(
       if (typeof window === "undefined") {
         if (process.env.NEXT_PUBLIC_APP_URL) {
           origin = process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+        } else if (process.env.FLYX_DESKTOP === "true" && process.env.PORT) {
+          // Desktop standalone server: self-fetch on its own loopback port.
+          // The localhost:3000 fallback below is wrong there (server binds PORT)
+          // and made every SSR metadata fetch fail in the Electron app.
+          origin = `http://127.0.0.1:${process.env.PORT}`;
         } else if (process.env.VERCEL_URL) {
           origin = `https://${process.env.VERCEL_URL.replace(/\/$/, "")}`;
         } else {

@@ -50,10 +50,22 @@ export async function POST(request: NextRequest) {
 
     response.cookies.set("flyx_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      // Derive from the request protocol, not NODE_ENV: the desktop server
+      // runs NODE_ENV=production over plain http on the LAN, and browsers
+      // reject Secure cookies over http.
+      secure: request.nextUrl.protocol === "https:",
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 30,
+    });
+
+    // A manual login re-arms master auto-login (see /api/auth/logout).
+    response.cookies.set("flyx_master_logout", "", {
+      httpOnly: false,
+      secure: request.nextUrl.protocol === "https:",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
     });
 
     return response;

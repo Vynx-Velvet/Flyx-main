@@ -26,7 +26,13 @@ export default function SetupPage() {
   const [error, setError] = useState("");
 
   const idx = STEPS.indexOf(step);
-  const isLast = idx === STEPS.length - 1;
+  // "finish" is the post-save confirmation screen, NOT a step Continue can
+  // advance into. The last *input* step ("tmdb") is where the save must
+  // happen — if Continue can advance past it, the wizard shows "Setup
+  // Complete!" without ever calling the save route, and "Launch Flyx"
+  // bounces straight back to /setup (the exact "setup keeps resetting"
+  // report). The save button therefore lives on the tmdb step.
+  const isLastInput = idx === STEPS.length - 2;
   const isFirst = idx === 0;
 
   function update(fields: Partial<SetupData>) {
@@ -35,37 +41,89 @@ export default function SetupPage() {
   }
 
   function next() {
+    // The username/password become the default account's credentials — a
+    // setup saved without them can never auto-login and the wizard would
+    // loop (the server rejects it too, but catch it before the POST).
+    if (step === "accounts") {
+      if (!data.username.trim()) {
+        setError("Please choose a username");
+        return;
+      }
+      if (data.password.length < 4) {
+        setError("Password must be at least 4 characters");
+        return;
+      }
+    }
     const i = STEPS.indexOf(step);
-    if (i < STEPS.length - 1) setStep(STEPS[i + 1]);
+    // Never let Continue advance past the last input step — the save
+    // button owns that transition (see isLastInput above).
+    if (i < STEPS.length - 2) {
+      // The desktop main process tees renderer console messages into
+      // flyx-server.log — these lines make the wizard's progress visible
+      // there, so a silent failure can never look like "setup resets".
+      console.log(`[Setup UI] step: ${step} → ${STEPS[i + 1]}`);
+      setStep(STEPS[i + 1]);
+    }
   }
   function back() {
     const i = STEPS.indexOf(step);
-    if (i > 0) setStep(STEPS[i - 1]);
+    if (i > 0) {
+      console.log(`[Setup UI] step: ${step} → ${STEPS[i - 1]}`);
+      setStep(STEPS[i - 1]);
+    }
   }
 
   async function handleSave() {
     setSaving(true);
     setError("");
+    console.log(
+      "[Setup UI] save clicked —",
+      JSON.stringify({
+        networkMode: data.networkMode,
+        username: data.username,
+        password: data.password ? "(set)" : "(empty)",
+        displayName: data.displayName,
+        tmdbKey: data.tmdbKey ? "(set)" : "(empty)",
+      })
+    );
     try {
-      const res = await fetch("/api/setup/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      const result = await res.json();
-      if (result.ok) {
-        setStep("finish");
-      } else {
-        setError(result.error || "Failed to save settings");
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      try {
+        const res = await fetch("/api/setup/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        console.log(`[Setup UI] save response: HTTP ${res.status}`);
+        const result = await res.json();
+        if (result.ok) {
+          console.log("[Setup UI] save ok — showing finish step");
+          setStep("finish");
+        } else {
+          console.warn(`[Setup UI] save rejected: ${result.error}`);
+          setError(result.error || "Failed to save settings");
+        }
+      } finally {
+        clearTimeout(timer);
       }
     } catch (e) {
-      setError((e as Error).message);
+      console.error(`[Setup UI] save failed: ${(e as Error).message}`);
+      // A hung request must be visible, never a stuck "Saving…" button.
+      setError(
+        (e as Error).name === "AbortError"
+          ? "The server did not respond within 15 seconds."
+          : (e as Error).message
+      );
     } finally {
       setSaving(false);
     }
   }
 
   function handleLaunch() {
+    console.log("[Setup UI] Launch Flyx clicked → /");
     window.location.href = "/";
   }
 
@@ -123,7 +181,7 @@ export default function SetupPage() {
               </button>
             )}
             <div style={{ flex: 1 }} />
-            {!isLast ? (
+            {!isLastInput ? (
               <button onClick={next} style={styles.btnPrimary}>
                 Continue →
               </button>

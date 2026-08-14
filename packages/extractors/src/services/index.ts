@@ -36,6 +36,20 @@ export { extractDLHD } from "./dlhd";
 // Subtitle Extractors
 export { extractOpenSubtitles } from "./opensubtitles";
 export type { OpenSubtitlesResult } from "./opensubtitles";
+// OpenSubtitles site scraper (shared with the app's subtitle download route)
+export {
+  searchOpenSubtitles,
+  fetchOpenSubtitlesZip,
+  fetchWithSession,
+  AnubisBlockedError,
+  OSDownloadError,
+} from "./opensubtitles-html";
+export type {
+  OSSubRow,
+  OSSearchParams,
+  OSSearchResult,
+  OSFetchError,
+} from "./opensubtitles-html";
 
 // VidSrc Token Registry (shared with stream proxy)
 export { registerTokenUrls, getTokenUrl, clearTokenRegistry } from "./vidsrc-token-registry";

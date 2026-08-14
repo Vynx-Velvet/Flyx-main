@@ -11,14 +11,17 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { malId: malIdStr } = await params;
   const malId = parseInt(malIdStr);
-  if (isNaN(malId)) return { title: 'Anime | Flyx' };
+  if (isNaN(malId)) return { title: 'Anime' };
 
   try {
     const a = await jikanFull(malId, AbortSignal.timeout(8000));
     if (a) {
-      const title = a.title_english || a.title || 'Unknown';
+      // Never leak placeholder strings into the window title — fall back to
+      // "Anime" (the root layout template already appends "| Flyx").
+      const rawTitle = a.title_english || a.title || '';
+      const title = rawTitle && rawTitle !== 'Untitled' ? rawTitle : 'Anime';
       return {
-        title: `${title} | Flyx`,
+        title,
         description: a.synopsis || `Watch ${title} on Flyx`,
         openGraph: {
           title,
@@ -29,7 +32,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     }
   } catch {}
 
-  return { title: 'Anime | Flyx' };
+  return { title: 'Anime' };
 }
 
 export default async function AnimeDetailsPage({ params }: Props) {

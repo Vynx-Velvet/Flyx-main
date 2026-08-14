@@ -1,0 +1,61 @@
+# Flyx desktop packaging config (electron-builder).
+# Invoked from packages/desktop (npm run dist) — paths are relative to this file.
+# The embedded Next.js standalone server (.flyx-standalone) ships in
+# extraResources so native binaries (sharp, @next/swc) run from real disk,
+# never from inside the asar.
+
+appId: com.flyx.desktop
+productName: Flyx
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - main.js
+  - preload.js
+  - src/**/*.js
+  - package.json
+
+extraResources:
+  - from: ../../.flyx-standalone
+    to: server
+
+asar: true
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: build/icon.png
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: Flyx-Setup-${version}.${ext}
+
+portable:
+  artifactName: Flyx-Portable-${version}.${ext}
+
+mac:
+  target: [dmg]
+  icon: build/icon.png
+  category: public.app-category.entertainment
+
+dmg:
+  artifactName: Flyx-${version}.${ext}
+
+linux:
+  target: [AppImage, deb]
+  icon: build/icon.png
+  category: AudioVideo
+  maintainer: Vynx-Velvet
+  synopsis: Flyx — privacy-first streaming server
+  artifactName: Flyx-${version}.${ext}
+
+publish:
+  provider: github
+  releaseType: release

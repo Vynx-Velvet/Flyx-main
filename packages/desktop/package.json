@@ -1,0 +1,31 @@
+{
+  "name": "@flyx/desktop",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Flyx Electron desktop shell — embedded server + LAN sharing",
+  "author": {
+    "name": "Vynx",
+    "email": "108192909+Vynx-Velvet@users.noreply.github.com"
+  },
+  "type": "commonjs",
+  "main": "main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Vynx-Velvet/Flyx-main"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:publish": "electron-builder --publish always",
+    "dist:local": "node eb-node.cjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "43.4.0",
+    "electron-builder": "^26.15.3",
+    "vitest": "^3.1.0"
+  }
+}

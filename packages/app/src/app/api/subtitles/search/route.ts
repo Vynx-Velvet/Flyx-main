@@ -15,6 +15,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractOpenSubtitles } from "@flyx/extractors/services";
 
+export const runtime = "nodejs";
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const tmdbId = searchParams.get("tmdbId")
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await extractOpenSubtitles(tmdbId, type, season, episode, langs);
-    return NextResponse.json({ subtitles: result.subtitles });
+    return NextResponse.json({ subtitles: result.subtitles, error: result.error ?? null });
   } catch (err) {
     console.error("[subtitles/search]", err);
     return NextResponse.json({ error: "Failed to fetch subtitles" }, { status: 500 });

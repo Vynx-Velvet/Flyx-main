@@ -30,6 +30,8 @@ import {
   getProviderSettings,
   saveProviderSettings,
 } from "@/lib/sync";
+import { getSubtitlePreferences } from "@/lib/utils/subtitle-preferences";
+import type { SubtitleTrack } from "@flyx/core";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p";
 
@@ -111,7 +113,12 @@ function proxySourceUrl(source: StreamSource): string {
   // MP4 plays natively — no proxy overhead needed
   if (source.type === "mp4") return source.url;
   // HLS needs proxy for segment requests with custom headers
-  if (!source.referer && !source.origin) return source.url;
+  if (
+    !source.referer &&
+    !source.origin &&
+    source.requiresSegmentProxy !== true
+  )
+    return source.url;
   const params = new URLSearchParams();
   params.set("url", source.url);
   if (source.referer) params.set("referer", source.referer);
@@ -183,6 +190,7 @@ function normalizeSource(s: any, fallbackProvider?: string): StreamSource | null
     language,
     referer: s.referer || undefined,
     origin: s.origin || undefined,
+    requiresSegmentProxy: s.requiresSegmentProxy,
   };
 }
 
@@ -382,6 +390,11 @@ function WatchInner() {
   const probeGenRef = useRef(0);
   const consecutiveFailuresRef = useRef(0);
   const MAX_CONSECUTIVE_FAILURES = 5;
+  /** Bump to force the HLS effect to reload the current source (tray restore). */
+  const [reloadKey, setReloadKey] = useState(0);
+  /** True while the Electron window is hidden to the tray — blocks source
+   *  switching in the background (recoverPlayback no-ops). */
+  const trayHiddenRef = useRef(false);
   const audioModeRef = useRef(audioMode);
   audioModeRef.current = audioMode;
   /** Latest provider cache/state for media-error recovery without re-binding HLS. */
@@ -433,6 +446,14 @@ function WatchInner() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
 
+  // Subtitles (OpenSubtitles scrape — movies/TV only, anime has baked-in subs)
+  const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrack[]>([]);
+  const [activeSubtitle, setActiveSubtitle] = useState(-1); // -1 = off
+  const [showSubMenu, setShowSubMenu] = useState(false);
+  const [subtitleStatus, setSubtitleStatus] = useState<
+    "idle" | "ok" | "blocked" | "failed"
+  >("idle");
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -442,6 +463,70 @@ function WatchInner() {
   const volumeHudTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTapRef = useRef<{ t: number; side: string }>({ t: 0, side: "" });
+
+  // Fetch subtitles from the OpenSubtitles scraper (movies/TV only — anime
+  // streams come with subs baked in). Best-effort: failures just disable CC.
+  useEffect(() => {
+    if (!tmdbId || isAnime) {
+      setSubtitleTracks([]);
+      setActiveSubtitle(-1);
+      setSubtitleStatus("idle");
+      return;
+    }
+    let cancelled = false;
+    setSubtitleTracks([]);
+    setActiveSubtitle(-1);
+    setSubtitleStatus("idle");
+
+    (async () => {
+      try {
+        const params = new URLSearchParams({ tmdbId, type: mediaType });
+        if (mediaType === "tv") {
+          params.set("season", season);
+          params.set("episode", episode);
+        }
+        const res = await fetch(`/api/subtitles/search?${params.toString()}`);
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+
+        const tracks: SubtitleTrack[] = Array.isArray(data.subtitles)
+          ? data.subtitles
+          : [];
+        if (tracks.length > 0) {
+          setSubtitleTracks(tracks);
+          setSubtitleStatus("ok");
+          // Auto-select the language the user picked in Settings.
+          const prefs = getSubtitlePreferences();
+          if (prefs.enabled) {
+            const idx = tracks.findIndex(
+              (t) => t.language === prefs.languageCode,
+            );
+            if (idx >= 0) setActiveSubtitle(idx);
+          }
+        } else if (data.error === "blocked") {
+          setSubtitleStatus("blocked");
+        } else {
+          setSubtitleStatus("failed");
+        }
+      } catch {
+        if (!cancelled) setSubtitleStatus("failed");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tmdbId, mediaType, season, episode, isAnime]);
+
+  // Force textTracks modes — the `default` attribute alone doesn't switch
+  // tracks reliably, and a source swap resets modes back to disabled.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    for (let i = 0; i < v.textTracks.length; i++) {
+      v.textTracks[i]!.mode = i === activeSubtitle ? "showing" : "disabled";
+    }
+  }, [activeSubtitle, subtitleTracks, activeUrl]);
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -466,9 +551,9 @@ function WatchInner() {
     setChromeVisible(true);
     if (hideTimer.current) clearTimeout(hideTimer.current);
     // Keep chrome pinned while sheets / menus are open
-    if (showSources || showEpisodes || showHelp || showSpeedMenu) return;
+    if (showSources || showEpisodes || showHelp || showSpeedMenu || showSubMenu) return;
     hideTimer.current = setTimeout(() => setChromeVisible(false), 2800);
-  }, [showSources, showEpisodes, showHelp, showSpeedMenu]);
+  }, [showSources, showEpisodes, showHelp, showSpeedMenu, showSubMenu]);
 
   const showToast = useCallback((msg: string) => {
     setActionToast(msg);
@@ -540,6 +625,7 @@ function WatchInner() {
       if (v) v.playbackRate = s;
       setPlaybackSpeed(s);
       setShowSpeedMenu(false);
+      setShowSubMenu(false);
       showToast(s === 1 ? "Normal speed" : `${s}× speed`);
       bumpChrome();
     },
@@ -945,7 +1031,7 @@ function WatchInner() {
         const animeCtx = Boolean(malId);
         const best =
           pickBestSource(list, audioModeRef.current, animeCtx) || list[0]!;
-        console.log("[Watch] ✅ READY (first success):", {
+        console.log("[Watch] ✅ READY (first success):", JSON.stringify({
           pid,
           url: best.url?.substring(0, 80),
           quality: best.quality,
@@ -954,8 +1040,9 @@ function WatchInner() {
           audioMode: audioModeRef.current,
           totalSources: list.length,
           referer: best.referer?.substring(0, 40),
+          requiresSegmentProxy: best.requiresSegmentProxy,
           fastStart: fastStartRank(best),
-        });
+        }));
         setPlaybackProvider(pid);
         setSheetProvider(pid);
         setActiveUrl(best.url);
@@ -987,10 +1074,10 @@ function WatchInner() {
       if (!playbackStarted) {
         // Nothing succeeded — surface the best error we got
         const failed = allOutcomes.map((o) => o.r).find((r) => !r.ok);
-        console.log("[Watch] ❌ ERROR state:", {
+        console.log("[Watch] ❌ ERROR state:", JSON.stringify({
           error: failed?.error,
           outcomes: allOutcomes.length,
-        });
+        }));
         setStatus("error");
         setErrorMsg(failed?.error || "No playable sources found.");
       }
@@ -1049,6 +1136,7 @@ function WatchInner() {
 
       setSheetProvider(providerId);
       setShowSpeedMenu(false);
+      setShowSubMenu(false);
 
       const cached = sourcesCache[providerId];
       if (!force && cached?.length) {
@@ -1259,11 +1347,20 @@ function WatchInner() {
   useEffect(() => {
     const video = videoRef.current;
     const url = activeUrl;
-    console.log("[Watch] 🎬 HLS effect:", { hasVideo: !!video, hasUrl: !!url, status, urlPreview: url?.substring(0, 80) });
+    console.log("[Watch] 🎬 HLS effect:", JSON.stringify({ hasVideo: !!video, hasUrl: !!url, status, urlPreview: url?.substring(0, 80) }));
     if (!video || !url || status !== "ready") {
-      console.log("[Watch] ⏭️ HLS effect SKIPPED:", { missing: !video ? "video" : !url ? "url" : "status_not_ready" });
+      console.log("[Watch] ⏭️ HLS effect SKIPPED:", JSON.stringify({ missing: !video ? "video" : !url ? "url" : "status_not_ready" }));
       return;
     }
+
+    // Teardown hook registered by whichever playback branch runs (native
+    // HLS watchdog or MP4 timeouts). It MUST be called on source switch —
+    // otherwise a stale stall timer fires against the next source while it
+    // is playing fine.
+    let teardownSource: (() => void) | null = null;
+    // Pending timeline listeners from applyResumeAndPlay — also disarmed on
+    // source switch (the next source re-registers its own).
+    let resumeCleanup: (() => void) | null = null;
 
     (async () => {
       if (hlsRef.current) {
@@ -1292,33 +1389,84 @@ function WatchInner() {
         return undefined;
       })();
 
+      // aniwatchtv /uwu/ token URLs carry no .m3u8 and can only play through
+      // the proxy (relative /uwu/ segment paths + XOR-token referer). Treat
+      // them as HLS and force-proxy them regardless of the cache lookup below
+      // — a miss used to route them to the MP4 branch as direct CDN loads,
+      // which fail instantly (no Referer) and burn the failure budget.
+      const isUwu =
+        url.includes("aniwatchtv.site/uwu/") || /\/uwu\//i.test(url);
       const isHls =
         currentSource?.type === "hls" ||
+        isUwu ||
         url.includes(".m3u8") ||
         url.includes("application/vnd.apple.mpegurl");
 
       loadStartRef.current = performance.now();
       const len = (s: string) => s.length;
-      console.log("[Watch] ⏱️ Loading source:", { isHls, type: isHls ? "hls" : "mp4", urlLen: url.length, urlFull: url });
+      console.log("[Watch] ⏱️ Loading source:", JSON.stringify({ isHls, isUwu, type: isHls ? "hls" : "mp4", urlLen: url.length, urlFull: url }));
 
       const applyResumeAndPlay = () => {
-        const resume = resumeAfterSwitchRef.current;
+        if (resumeCleanup) {
+          resumeCleanup();
+          resumeCleanup = null;
+        }
         const play = () => {
           void video.play().catch(() => undefined);
         };
-        if (resume != null && resume > 2) {
-          const seek = () => {
-            if (Number.isFinite(video.duration) && video.duration > resume) {
-              video.currentTime = resume;
-              setCurrentTime(resume);
-            }
-            resumeAfterSwitchRef.current = null;
-            play();
-          };
-          if (Number.isFinite(video.duration) && video.duration > 0) seek();
-          else video.addEventListener("loadedmetadata", seek, { once: true });
+        const resume = resumeAfterSwitchRef.current;
+        if (resume == null || resume <= 2) {
+          play();
           return;
         }
+
+        // Chromium HLS: duration AND seekable are NaN/empty at
+        // loadedmetadata and fill in on durationchange. Waiting on a
+        // loadedmetadata once-listener is a trap here — applyResumeAndPlay
+        // is usually called from INSIDE that handler (native HLS onMeta), so
+        // the listener never fires again, the seek never happens, and play()
+        // never runs → the stall watchdog kills the stream and a sub/dub
+        // switch ends in the error screen ("impossible to get playing
+        // again"). Playback must never be gated on the resume seek: keep
+        // playing and seek the moment the timeline is known.
+        const trySeek = (): boolean => {
+          const r = resumeAfterSwitchRef.current;
+          if (r == null || r <= 2) return true; // consumed elsewhere — done
+          let known = Number.isFinite(video.duration) ? video.duration : 0;
+          if (known <= 0) {
+            try {
+              if (video.seekable.length)
+                known = video.seekable.end(video.seekable.length - 1);
+            } catch {
+              known = 0;
+            }
+          }
+          if (known > r) {
+            video.currentTime = r;
+            setCurrentTime(r);
+            resumeAfterSwitchRef.current = null;
+            return true;
+          }
+          return false;
+        };
+
+        if (trySeek()) {
+          play();
+          return;
+        }
+
+        const onTimeline = () => {
+          if (trySeek() && resumeCleanup) {
+            resumeCleanup();
+            resumeCleanup = null;
+          }
+        };
+        video.addEventListener("durationchange", onTimeline);
+        video.addEventListener("loadedmetadata", onTimeline, { once: true });
+        resumeCleanup = () => {
+          video.removeEventListener("durationchange", onTimeline);
+          video.removeEventListener("loadedmetadata", onTimeline);
+        };
         play();
       };
 
@@ -1326,6 +1474,9 @@ function WatchInner() {
        * then try the OTHER audio mode, then other providers.
        * Bail early if too many consecutive failures (don't spam every source). */
       const recoverPlayback = () => {
+        // Window hidden to tray: the source is torn down on hide and
+        // restored on show — never churn through sources in the background.
+        if (trayHiddenRef.current) return;
         consecutiveFailuresRef.current++;
         const fails = consecutiveFailuresRef.current;
         console.log(`[Watch] ⏱️ Playback failure #${fails}/${MAX_CONSECUTIVE_FAILURES}`);
@@ -1407,7 +1558,8 @@ const sourceReferer = currentSource?.referer;
       //   true  = always proxy (e.g. uwu M3U8 needs /uwu/ path rewriting)
       //   false = never proxy (CDN serves directly with CORS)
       //   undefined = proxy only when referer/origin headers are needed
-      const wantsProxy = currentSource?.requiresSegmentProxy === true
+      const wantsProxy = isUwu
+        || currentSource?.requiresSegmentProxy === true
         || (currentSource?.requiresSegmentProxy !== false
             && (!!sourceReferer || !!sourceOrigin));
       const playbackUrl =
@@ -1421,26 +1573,118 @@ const sourceReferer = currentSource?.referer;
             })()
           : url;
 
-      console.log("[Watch] ⏱️ playbackUrl ready:", {
+      console.log("[Watch] ⏱️ playbackUrl ready:", JSON.stringify({
         proxied: playbackUrl !== url,
         isHls,
+        isUwu,
+        sourceFound: !!currentSource,
+        requiresSegmentProxy: currentSource?.requiresSegmentProxy,
         type: currentSource?.type,
         quality: currentSource?.quality,
-      });
+      }));
 
       if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = playbackUrl;
-        video.addEventListener("loadedmetadata", () => {
+        // Native HLS fires NO events for a slow/dead manifest or a stream
+        // that stops progressing mid-play — the player used to sit on
+        // "Buffering stream…" forever. Same watchdog pattern as the MP4
+        // branch: metadata timeout + stall detection (no timeupdate while
+        // not paused = frozen). A paused video with playback history is
+        // user intent, not a stall.
+        const doneRef = { current: false };
+        let hasPlayed = false;
+        let metaTimeout: ReturnType<typeof setTimeout>;
+        let stallTimeout: ReturnType<typeof setTimeout>;
+
+        const cleanup = () => {
+          doneRef.current = true;
+          clearTimeout(metaTimeout);
+          clearTimeout(stallTimeout);
+          video.removeEventListener("loadedmetadata", onMeta);
+          video.removeEventListener("error", onErr);
+          video.removeEventListener("playing", onPlaying);
+          video.removeEventListener("timeupdate", onTime);
+        };
+        teardownSource = cleanup;
+
+        const fail = (reason: string) => {
+          if (doneRef.current) return;
+          cleanup();
+          video.src = "";
+          console.log(`[Watch] ⏱️ Native HLS ${reason} — trying next source`);
+          recoverPlayback();
+        };
+
+        const armStall = () => {
+          clearTimeout(stallTimeout);
+          stallTimeout = setTimeout(() => {
+            if (doneRef.current) return;
+            if (video.paused && hasPlayed) {
+              armStall(); // user paused mid-playback — keep waiting
+              return;
+            }
+            fail(
+              hasPlayed
+                ? "stalled (no progress for 15s)"
+                : "no first frame within 15s of metadata",
+            );
+          }, 15000);
+        };
+
+        const onMeta = () => {
+          if (doneRef.current) return;
+          clearTimeout(metaTimeout);
           consecutiveFailuresRef.current = 0;
           console.log(`[Watch] ⏱️ Native HLS metadata in ${(performance.now() - loadStartRef.current).toFixed(0)}ms`);
           applyResumeAndPlay();
-        }, { once: true });
-        video.addEventListener(
-          "error",
-          () => {
-            recoverPlayback();
-          },
-          { once: true },
+          armStall(); // metadata without playback is a stall too
+        };
+        let retried = false;
+        const onErr = () => {
+          if (doneRef.current) return;
+          const code = video.error ? video.error.code : null;
+          const msg = video.error ? (video.error.message || "") : "";
+          if (retried) {
+            console.log(`[Watch] ⏱️ Native HLS error again (code=${code} ${msg}) — trying next source`);
+            fail("error");
+            return;
+          }
+          retried = true;
+          // Transient CDN throttling: aniwatchtv's hosts rate-limit bursty
+          // segment pulls (~2 fresh segments per window, then stall the
+          // next request until the browser's loader times out into a fatal
+          // error). Retrying the SAME source once after the window passes
+          // is far cheaper than a full source switch — and the proxy's
+          // segment cache makes the retry mostly local. Keep the position
+          // so the retry resumes where the stream died.
+          const now = video.currentTime;
+          if (now > 2 && Number.isFinite(video.duration) && video.duration > now) {
+            resumeAfterSwitchRef.current = now;
+          }
+          console.log(`[Watch] ⏱️ Native HLS error (code=${code} ${msg}) — retrying same source in 1.5s`);
+          clearTimeout(stallTimeout);
+          clearTimeout(metaTimeout);
+          setTimeout(() => {
+            if (doneRef.current) return;
+            video.load();
+            metaTimeout = setTimeout(() => fail("metadata timeout (15s)"), 15000);
+          }, 1500);
+        };
+        const onPlaying = () => {
+          hasPlayed = true;
+          armStall();
+        };
+        const onTime = () => {
+          if (!video.paused) armStall();
+        };
+
+        video.addEventListener("loadedmetadata", onMeta);
+        video.addEventListener("error", onErr);
+        video.addEventListener("playing", onPlaying);
+        video.addEventListener("timeupdate", onTime);
+        metaTimeout = setTimeout(
+          () => fail("metadata timeout (15s)"),
+          15000,
         );
         return;
       }
@@ -1515,6 +1759,7 @@ const sourceReferer = currentSource?.referer;
         video.removeEventListener("error", onErr);
         video.removeEventListener("progress", onProg);
       };
+      teardownSource = cleanup;
 
       const onProg = () => {
         const now = performance.now();
@@ -1537,7 +1782,9 @@ const sourceReferer = currentSource?.referer;
         if (doneRef.current) return;
         cleanup();
         video.src = "";
-        console.log("[Watch] ⏱️ MP4 failed, trying next source...");
+        const code = video.error ? video.error.code : null;
+        const msg = video.error ? (video.error.message || "") : "";
+        console.log(`[Watch] ⏱️ MP4 failed (code=${code} ${msg}), trying next source...`);
         recoverPlayback();
       };
       const onTimeout = () => {
@@ -1562,7 +1809,19 @@ const sourceReferer = currentSource?.referer;
     })();
 
     return () => {
-      // Don't abort MP4 loads — they survive re-renders via refs.
+      // Disarm the previous source's watchdog timers/listeners. In-flight
+      // loads still survive re-renders via refs — only the stale callbacks
+      // are removed.
+      if (teardownSource) {
+        teardownSource();
+        teardownSource = null;
+      }
+      // Remove any pending resume-seek listeners; the next source registers
+      // its own inside applyResumeAndPlay.
+      if (resumeCleanup) {
+        resumeCleanup();
+        resumeCleanup = null;
+      }
       // Only destroy HLS.js instances.
       if (hlsRef.current) {
         try { hlsRef.current.destroy(); } catch { /* */ }
@@ -1571,7 +1830,7 @@ const sourceReferer = currentSource?.referer;
     };
     // browseProvider/showToast are stable enough; recovery uses refs for cache
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeUrl, status]);
+  }, [activeUrl, status, reloadKey]);
 
   // Keep playback rate when source switches
   useEffect(() => {
@@ -1584,6 +1843,61 @@ const sourceReferer = currentSource?.referer;
     setHasStarted(false);
     setPlaying(false);
   }, [activeUrl]);
+
+  // Desktop tray: closing the window hides it but keeps the renderer alive —
+  // media keeps playing (and keeps buffering) unless we stop it. On hide:
+  // save the position, pause, and tear the stream down so buffering stops.
+  // On show: reload the same source and resume where we left off.
+  useEffect(() => {
+    const api = (window as any).flyxDesktop;
+    if (!api || typeof api.onWindowHidden !== "function") return;
+
+    const onHidden = () => {
+      const video = videoRef.current;
+      trayHiddenRef.current = true;
+      const now = video?.currentTime ?? 0;
+      if (
+        video &&
+        now > 2 &&
+        Number.isFinite(video.duration) &&
+        video.duration > now
+      ) {
+        resumeAfterSwitchRef.current = now;
+      }
+      if (hlsRef.current) {
+        try {
+          hlsRef.current.destroy();
+        } catch {
+          /* */
+        }
+        hlsRef.current = null;
+      }
+      if (video) {
+        video.pause();
+        // Drop the stream entirely so no segments keep buffering while in
+        // the tray (empty src → NETWORK_EMPTY, no error event). Restored on
+        // show via reloadKey → applyResumeAndPlay seeks back.
+        video.removeAttribute("src");
+        video.load();
+      }
+      setPlaying(false);
+      console.log(`[Watch] 🪟 Window hidden — playback paused at ${Math.round(now)}s`);
+    };
+    const onShown = () => {
+      trayHiddenRef.current = false;
+      // Reload the source; applyResumeAndPlay reads the saved resume ref.
+      if (activeUrl && status === "ready") {
+        setReloadKey((k) => k + 1);
+      }
+      console.log("[Watch] 🪟 Window shown — resuming playback");
+    };
+    const offHidden = api.onWindowHidden(onHidden);
+    const offShown = api.onWindowShown(onShown);
+    return () => {
+      if (typeof offHidden === "function") offHidden();
+      if (typeof offShown === "function") offShown();
+    };
+  }, [activeUrl, status]);
 
   // Video events
   useEffect(() => {
@@ -1766,6 +2080,7 @@ const sourceReferer = currentSource?.referer;
       }
       if (code === "Escape") {
         if (showSpeedMenu) setShowSpeedMenu(false);
+        else if (showSubMenu) setShowSubMenu(false);
         else if (showSources) setShowSources(false);
         else if (showEpisodes) setShowEpisodes(false);
         return;
@@ -1787,6 +2102,7 @@ const sourceReferer = currentSource?.referer;
     showSources,
     showEpisodes,
     showSpeedMenu,
+    showSubMenu,
     togglePlay,
     toggleFullscreen,
     toggleMute,
@@ -1982,7 +2298,7 @@ const sourceReferer = currentSource?.referer;
   return (
     <main
       ref={stageRef}
-      className={`cinema${chromeVisible || !playing || status !== "ready" || showHelp || castOverlay || showSpeedMenu || showSources ? " cinema-chrome-on" : " cinema-chrome-off"}`}
+      className={`cinema${chromeVisible || !playing || status !== "ready" || showHelp || castOverlay || showSpeedMenu || showSubMenu || showSources ? " cinema-chrome-on" : " cinema-chrome-off"}`}
       onMouseMove={bumpChrome}
       onTouchStart={bumpChrome}
       onClick={onStagePointer}
@@ -2003,7 +2319,18 @@ const sourceReferer = currentSource?.referer;
             pointerEvents:
               status === "ready" && (playing || hasStarted) ? "auto" : "none",
           }}
-        />
+        >
+          {subtitleTracks.map((track, i) => (
+            <track
+              key={`${track.language}-${i}`}
+              kind="subtitles"
+              label={track.label}
+              srcLang={track.language}
+              src={track.url}
+              default={i === activeSubtitle}
+            />
+          ))}
+        </video>
 
         {status === "loading" && (
           <div className="cinema-state">
@@ -2198,6 +2525,7 @@ const sourceReferer = currentSource?.referer;
                   return next;
                 });
                 setShowSources(false);
+                setShowSubMenu(false);
                 setChromeVisible(true);
               }}
               aria-label="Episodes"
@@ -2221,6 +2549,7 @@ const sourceReferer = currentSource?.referer;
                 });
                 setShowEpisodes(false);
                 setShowSpeedMenu(false);
+                setShowSubMenu(false);
                 setChromeVisible(true);
               }}
               aria-label="Servers and sources"
@@ -2368,6 +2697,7 @@ const sourceReferer = currentSource?.referer;
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowSpeedMenu((v) => !v);
+                    setShowSubMenu(false);
                     setShowSources(false);
                     setShowEpisodes(false);
                     bumpChrome();
@@ -2396,6 +2726,70 @@ const sourceReferer = currentSource?.referer;
                   </div>
                 )}
               </div>
+              {(subtitleTracks.length > 0 ||
+                subtitleStatus === "blocked" ||
+                subtitleStatus === "failed") && (
+                <div className="cinema-sub-wrap">
+                  <button
+                    type="button"
+                    className={`cinema-icon-btn${showSubMenu ? " is-on" : ""}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowSubMenu((v) => !v);
+                      setShowSpeedMenu(false);
+                      setShowSources(false);
+                      setShowEpisodes(false);
+                      bumpChrome();
+                    }}
+                    aria-label="Subtitles"
+                    title={
+                      subtitleTracks.length === 0
+                        ? "Subtitles unavailable"
+                        : "Subtitles"
+                    }
+                    disabled={subtitleTracks.length === 0}
+                  >
+                    {activeSubtitle >= 0 && subtitleTracks[activeSubtitle] ? (
+                      subtitleTracks[activeSubtitle].label.slice(0, 3)
+                    ) : (
+                      <SubtitleIcon />
+                    )}
+                  </button>
+                  {showSubMenu && subtitleTracks.length > 0 && (
+                    <div
+                      className="cinema-sub-menu"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <p className="cinema-sub-menu-label">Subtitles</p>
+                      <button
+                        type="button"
+                        className={`cinema-sub-option${activeSubtitle === -1 ? " is-active" : ""}`}
+                        onClick={() => {
+                          setActiveSubtitle(-1);
+                          setShowSubMenu(false);
+                          bumpChrome();
+                        }}
+                      >
+                        Off
+                      </button>
+                      {subtitleTracks.map((track, i) => (
+                        <button
+                          key={`${track.language}-${i}`}
+                          type="button"
+                          className={`cinema-sub-option${i === activeSubtitle ? " is-active" : ""}`}
+                          onClick={() => {
+                            setActiveSubtitle(i);
+                            setShowSubMenu(false);
+                            bumpChrome();
+                          }}
+                        >
+                          {track.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 className="cinema-icon-btn"
@@ -2960,6 +3354,14 @@ function AlertIcon() {
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 8v4M12 16h.01" />
+    </svg>
+  );
+}
+function SubtitleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden>
+      <rect x="2" y="4" width="20" height="16" rx="3" />
+      <path d="M6.5 11h4M13.5 11h4M6.5 15h4M13.5 15h4" />
     </svg>
   );
 }

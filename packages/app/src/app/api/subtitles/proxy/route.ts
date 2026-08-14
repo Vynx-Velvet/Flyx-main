@@ -10,28 +10,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { convertSRTtoVTT } from "@/lib/subtitles/srt";
 
 const UA = "Flyx/3.0 (https://github.com/Vynx-Velvet/Flyx-main)";
 
 /** Cache proxied subtitles for 1 hour (in-memory). */
 const cache = new Map<string, { data: string; contentType: string; ts: number }>();
 const CACHE_TTL = 60 * 60 * 1000;
-
-function convertSRTtoVTT(srt: string): string {
-  let vtt = "WEBVTT\n\n";
-  const normalized = srt.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const blocks = normalized.split(/\n\n+/);
-  for (const block of blocks) {
-    const lines = block.trim().split("\n");
-    if (lines.length < 2) continue;
-    const tsIdx = lines.findIndex((l) => l.includes("-->"));
-    if (tsIdx === -1) continue;
-    const timestamp = lines[tsIdx].replace(/,(\d{3})/g, ".$1");
-    const text = lines.slice(tsIdx + 1).join("\n");
-    vtt += `${timestamp}\n${text}\n\n`;
-  }
-  return vtt;
-}
 
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get("url");

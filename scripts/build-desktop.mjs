@@ -79,6 +79,49 @@ if (existsSync(publicSrc)) {
   console.log("[desktop:build] Public assets copied to app public/");
 }
 
+// Step 5a: Strip dev/test-only junk Next's standalone copy picks up (it
+// copies the whole app package dir in a monorepo, including e2e tests and
+// playwright test-results). Never ship those in the desktop payload.
+for (const junk of ["e2e", "test-results"]) {
+  const junkPath = join(STANDALONE_DIR, "packages", "app", junk);
+  if (existsSync(junkPath)) {
+    rmSync(junkPath, { recursive: true });
+    console.log(`[desktop:build] Removed standalone junk: ${junk}`);
+  }
+}
+
+// Step 5a2: Merge the standalone ROOT node_modules into packages/app/node_modules.
+// electron-builder's extraResources copy filter silently drops a TOP-LEVEL
+// node_modules dir (app-builder-lib util/filter.js: `relative === "node_modules"
+// → false`) — only *nested* node_modules survive packaging. The standalone
+// root node_modules holds react, react-dom, styled-jsx and the copied @flyx
+// workspace packages, all required at runtime. (Dev mode masks this because
+// .flyx-standalone sits inside the repo and Node walks up into the root
+// node_modules; a packaged tree has no parent to fall back on.)
+const rootNm = join(STANDALONE_DIR, "node_modules");
+const appNm = join(STANDALONE_DIR, "packages", "app", "node_modules");
+if (existsSync(rootNm)) {
+  for (const entry of readdirSync(rootNm)) {
+    cpSync(join(rootNm, entry), join(appNm, entry), { recursive: true, force: true, errorOnExist: false });
+  }
+  rmSync(rootNm, { recursive: true });
+  console.log("[desktop:build] Merged standalone root node_modules into packages/app/node_modules");
+}
+
+// Step 5a3: Patch Next's runtime deps that outputFileTracing misses.
+// @next/env is required lazily via Next's require-hook, so the tracer skips
+// it — the packaged server crashes with MODULE_NOT_FOUND at startup. (Dev
+// mode masks this because .flyx-standalone sits inside the repo and Node
+// walks up into the root node_modules; a packaged tree has no parent.)
+// The @next/swc-* native binding is loaded dynamically the same way.
+for (const name of readdirSync(join(ROOT, "node_modules", "@next"))) {
+  const src = join(ROOT, "node_modules", "@next", name);
+  const destDir = join(STANDALONE_DIR, "packages", "app", "node_modules", "@next");
+  mkdirSync(destDir, { recursive: true });
+  cpSync(src, join(destDir, name), { recursive: true });
+  console.log(`[desktop:build] Copied missing Next runtime dep: @next/${name}`);
+}
+
 // Step 5b: Minimal desktop .env (Electron injects real config at runtime:
 // TMDB key, credentials, JWT secret, etc. via the setup wizard)
 const envPath = join(STANDALONE_DIR, "packages", "app", ".env");
@@ -92,12 +135,15 @@ if (!envContent.includes("FLYX_DESKTOP")) {
 }
 console.log("[desktop:build] Standalone .env ready (Electron injects runtime config)");
 
-// Step 6: Copy workspace packages (@flyx/*) into standalone node_modules.
+// Step 6: Copy workspace packages (@flyx/*) into the app-level node_modules.
 // Next.js standalone output does not automatically include monorepo workspace
 // symlinks. Without them, API routes that import from @flyx/extractors,
 // @flyx/providers, @flyx/core, etc. crash with MODULE_NOT_FOUND at runtime.
+// Destination must be the app-level node_modules (NOT the standalone root):
+// electron-builder drops top-level node_modules dirs in extraResources, and
+// the root one was merged away in step 5a2.
 const flyxSrc = join(ROOT, "node_modules", "@flyx");
-const flyxDest = join(STANDALONE_DIR, "node_modules", "@flyx");
+const flyxDest = join(STANDALONE_DIR, "packages", "app", "node_modules", "@flyx");
 if (existsSync(flyxSrc)) {
   mkdirSync(flyxDest, { recursive: true });
 

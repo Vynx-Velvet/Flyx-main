@@ -72,7 +72,7 @@ function mapMedia(m: any) {
 
   return {
     mal_id: malId,
-    title: m.title?.romaji || m.title?.english || m.title?.native || "Unknown",
+    title: m.title?.romaji || m.title?.english || m.title?.native || "Untitled",
     title_english: m.title?.english || null,
     title_japanese: m.title?.native || null,
     synopsis,
@@ -185,7 +185,7 @@ function mapRelations(relations: any): Array<{
         node.title?.english ||
         node.title?.romaji ||
         node.title?.native ||
-        "Unknown",
+        "Untitled",
       images: {
         jpg: {
           image_url: node.coverImage?.large || node.coverImage?.medium || "",

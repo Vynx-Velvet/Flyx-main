@@ -133,6 +133,9 @@ export default function VideoPlayer({
   const [subtitleTracks, setSubtitleTracks] = useState<SubtitleTrack[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState(-1); // -1 = off
   const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
+  const [subtitleStatus, setSubtitleStatus] = useState<
+    'idle' | 'ok' | 'blocked' | 'failed'
+  >('idle');
   const [showNext, setShowNext] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [dismissedNext, setDismissedNext] = useState(false);
@@ -347,11 +350,17 @@ export default function VideoPlayer({
         if (!res.ok || cancelled) return;
 
         const data = await res.json();
-        if (data.subtitles?.length > 0 && !cancelled) {
+        if (cancelled) return;
+        if (data.subtitles?.length > 0) {
           setSubtitleTracks(data.subtitles);
+          setSubtitleStatus('ok');
+        } else {
+          // No tracks: remember why so the CC button can show unavailable state
+          setSubtitleStatus(data.error === 'blocked' ? 'blocked' : 'failed');
         }
       } catch {
         // Subtitle fetch is best-effort — don't bother the user
+        if (!cancelled) setSubtitleStatus('failed');
       }
     }
 
@@ -1198,12 +1207,15 @@ export default function VideoPlayer({
             {cast.isCasting || cast.isConnected ? 'Casting' : 'Cast'}
           </button>
           {/* Subtitles selector */}
-          {subtitleTracks.length > 0 && (
+          {(subtitleTracks.length > 0 ||
+            subtitleStatus === 'blocked' ||
+            subtitleStatus === 'failed') && (
             <div className={styles.menuAnchor}>
               <button
                 type="button"
                 className={`${styles.pill} ${activeSubtitle >= 0 ? styles.active : ''} ${showSubtitleMenu ? styles.active : ''}`}
                 onClick={(e) => {
+                  if (subtitleTracks.length === 0) return;
                   e.stopPropagation();
                   setShowSubtitleMenu((s) => !s);
                   setShowServers(false);
@@ -1211,6 +1223,12 @@ export default function VideoPlayer({
                   bumpChrome();
                 }}
                 aria-label="Subtitles"
+                title={
+                  subtitleTracks.length === 0
+                    ? 'Subtitles unavailable'
+                    : 'Subtitles'
+                }
+                disabled={subtitleTracks.length === 0}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
                   <rect x="2" y="4" width="20" height="16" rx="2" />

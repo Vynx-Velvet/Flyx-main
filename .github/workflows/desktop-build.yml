@@ -1,0 +1,66 @@
+name: Desktop Build
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    # Tag builds publish the GitHub release via GITHUB_TOKEN — needs write.
+    # (Repo default token permissions are often read-only.)
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # latest 22.x (>= 22.12 required — Electron's install script uses require(ESM))
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build standalone server
+        run: node scripts/build-desktop.mjs
+        env:
+          # Insurance for build-time env access — real config is injected at runtime
+          TMDB_API_KEY: dummy-key-for-build
+          JWT_SECRET: dummy-secret-for-build-0123456789abcdef
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Package (publish on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: npm run dist:publish --workspace=@flyx/desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Package (branch push — artifacts only)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: npm run dist --workspace=@flyx/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flyx-desktop-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            packages/desktop/dist/*.exe
+            packages/desktop/dist/*.dmg
+            packages/desktop/dist/*.AppImage
+            packages/desktop/dist/*.deb
+            packages/desktop/dist/*.yml
+            packages/desktop/dist/*.blockmap

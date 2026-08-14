@@ -118,7 +118,13 @@ function AnimePageClientInner() {
   }, []);
 
   useEffect(() => {
-    const candidates = featured.popular || featured.airing || [];
+    // First category that actually returned items — the hero must render
+    // even when "Most Popular" / "Currently Airing" come back empty
+    // (e.g. upstream rate limits). Empty arrays are truthy, so || chains
+    // would pick an empty list and strand the title bar on a spinner.
+    const candidates = FEATURED_DEFS.map((def) => featured[def.id] || []).find(
+      (items) => items.length > 0,
+    ) || [];
     if (candidates.length === 0) return;
     const top = candidates.slice(0, 8);
     setHero({ item: top[0], idx: 0 });
@@ -132,7 +138,7 @@ function AnimePageClientInner() {
     return () => {
       if (heroTimer.current) clearInterval(heroTimer.current);
     };
-  }, [featured.popular, featured.airing]);
+  }, [featured]);
 
   useEffect(() => {
     if (activeTab === ALL_TAB) return;
@@ -303,13 +309,18 @@ function HeroSection({
   onPlay: (item: Anime) => void;
   loading: boolean;
 }) {
-  const candidates = (featured.popular || featured.airing || []).slice(0, 8);
+  // Same first-non-empty pick as the hero effect — an empty popular list
+  // must not strand the title bar (empty arrays are truthy).
+  const candidates = (FEATURED_DEFS.map((def) => featured[def.id] || []).find(
+    (items) => items.length > 0,
+  ) || []).slice(0, 8);
   const current = hero?.item;
 
-  if (loading || !current) {
+  if (!current) {
     return (
       <section className="relative flex h-[42vh] min-h-[280px] max-h-[420px] items-center justify-center">
-        <div className="loading" />
+        <div className="hero-vignette" />
+        {loading ? <div className="loading" /> : null}
       </section>
     );
   }
@@ -326,12 +337,17 @@ function HeroSection({
         className="absolute inset-0"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={current.image}
-          alt=""
-          aria-hidden
-          className="h-full w-full scale-110 object-cover"
-        />
+        {current.image ? (
+          <img
+            src={current.image}
+            alt=""
+            aria-hidden
+            className="h-full w-full scale-110 object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+        ) : null}
         <div className="hero-vignette" />
       </motion.div>
 

@@ -10,6 +10,7 @@
     "packages/core",
     "packages/db",
     "packages/cli",
+    "packages/desktop",
     "packages/extractors",
     "packages/player",
     "packages/providers",
@@ -44,7 +45,12 @@
     "deploy:all": "npm run deploy:cloudflare",
     "cli": "node packages/cli/cli.js",
     "cli:link": "npm link --workspace @flyx/cli",
-    "build:standalone": "node scripts/build-standalone.mjs"
+    "build:standalone": "node scripts/build-standalone.mjs",
+    "desktop:build": "node scripts/build-desktop.mjs",
+    "desktop:dev": "node scripts/build-desktop.mjs && npm run start --workspace=@flyx/desktop",
+    "desktop:package": "npm run desktop:build && npm run dist --workspace=@flyx/desktop",
+    "desktop:publish": "npm run desktop:build && npm run dist:publish --workspace=@flyx/desktop",
+    "desktop:icons": "node scripts/gen-desktop-icon.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
@@ -64,7 +70,8 @@
     "esbuild": true,
     "sharp": true,
     "workerd": true,
-    "fsevents": true
+    "fsevents": true,
+    "electron": true
   },
   "dependencies": {
     "jose": "^6.2.4",

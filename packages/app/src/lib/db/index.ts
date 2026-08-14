@@ -65,7 +65,27 @@ function readStore(): StoreData {
 
   try {
     const raw = fs.readFileSync(DB_PATH, "utf-8");
-    _store = JSON.parse(raw) as StoreData;
+    const parsed = JSON.parse(raw) as Partial<StoreData>;
+
+    // Shape validation: a file that parses but isn't a store (partial write
+    // during a crash, schema from an older build) would make every account
+    // helper throw TypeError — which used to 500 the setup save forever.
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      !Array.isArray(parsed.accounts)
+    ) {
+      throw new Error("store.json has an unexpected shape");
+    }
+
+    _store = {
+      version: typeof parsed.version === "number" ? parsed.version : 1,
+      accounts: parsed.accounts,
+      settings:
+        parsed.settings && typeof parsed.settings === "object"
+          ? parsed.settings
+          : {},
+    };
     _lastRead = Date.now();
     return _store;
   } catch {
@@ -79,7 +99,12 @@ function readStore(): StoreData {
 
 function writeStore(): void {
   ensureDir();
-  fs.writeFileSync(DB_PATH, JSON.stringify(_store, null, 2), "utf-8");
+  // Atomic write (tmp + rename): a crash mid-write must never leave a
+  // truncated store.json behind — readStore would reset it and the user's
+  // accounts with it.
+  const tmp = DB_PATH + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(_store, null, 2), "utf-8");
+  fs.renameSync(tmp, DB_PATH);
 }
 
 // ─── Accounts ────────────────────────────────────────────────
@@ -150,7 +175,8 @@ export function deleteAccount(id: string): boolean {
 }
 
 export function getAccountCount(): number {
-  return readStore().accounts.length;
+  const store = readStore();
+  return Array.isArray(store.accounts) ? store.accounts.length : 0;
 }
 
 // ─── Settings ────────────────────────────────────────────────

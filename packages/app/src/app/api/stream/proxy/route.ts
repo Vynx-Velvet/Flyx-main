@@ -25,6 +25,44 @@ export const maxDuration = 30;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
+// ── Segment cache ────────────────────────────────────────────────
+
+/**
+ * aniwatchtv's /uwu/ CDNs throttle bursty segment pulls (a couple of fresh
+ * segments per window, then the next request stalls until the browser's
+ * loader times out into a fatal media error). Caching served segments in
+ * memory means retries and reloads hit cache instead of the CDN — and LAN
+ * viewers share the same bytes. MP4 (Range) responses are never cached.
+ */
+const SEGMENT_CACHE_MAX_ENTRIES = 300;
+const SEGMENT_CACHE_MAX_AGE_MS = 20 * 60 * 1000;
+const segmentCache = new Map<
+  string,
+  { buf: Buffer; ct: string; status: number; at: number }
+>();
+
+function cacheGet(key: string) {
+  const hit = segmentCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > SEGMENT_CACHE_MAX_AGE_MS) {
+    segmentCache.delete(key);
+    return null;
+  }
+  // Refresh recency (LRU-ish eviction)
+  segmentCache.delete(key);
+  segmentCache.set(key, hit);
+  return hit;
+}
+
+function cacheSet(key: string, buf: Buffer, ct: string, status: number) {
+  segmentCache.set(key, { buf, ct, status, at: Date.now() });
+  while (segmentCache.size > SEGMENT_CACHE_MAX_ENTRIES) {
+    const oldest = segmentCache.keys().next().value;
+    if (oldest === undefined) break;
+    segmentCache.delete(oldest);
+  }
+}
+
 // ── VidSrc token cache ───────────────────────────────────────
 
 /** Cache of IP-bound tokens keyed by CDN origin (e.g. "https://comityofcognomen.site"). */
@@ -160,9 +198,50 @@ export async function GET(request: NextRequest) {
       upstreamHeaders["Range"] = "bytes=0-2097152"; // first 2MB
     }
 
-    const upstream = await fetch(decodedUrl, {
-      headers: upstreamHeaders,
-    });
+    // Serve cached segments WITHOUT touching the upstream CDN at all —
+    // throttled hosts punish every bursty request, so a hit here is the
+    // cheapest possible response. Only plain-200 non-M3U8 bodies are ever
+    // cached, so a hit is always a segment.
+    if (!clientRange) {
+      const cached = cacheGet(decodedUrl);
+      if (cached) {
+        console.log(
+          `[proxy] CACHE ${Math.round(cached.buf.byteLength / 1024)}KB ${decodedUrl.substring(0, 110)}`,
+        );
+        return new NextResponse(new Uint8Array(cached.buf), {
+          status: cached.status,
+          headers: {
+            "Content-Type": cached.ct,
+            "Content-Length": String(cached.buf.byteLength),
+            "Access-Control-Allow-Origin": "*",
+            "Accept-Ranges": "bytes",
+          },
+        });
+      }
+    }
+
+    // Upstream has no timeout of its own — a throttled CDN accepts the
+    // connection and then goes silent, which would otherwise hang the
+    // request until the browser's own loader timeout (~10s) fatal-errors
+    // the stream. Aborting early turns the hang into a retryable failure.
+    const startedAt = Date.now();
+    const ctrl = new AbortController();
+    const fetchTimeout = setTimeout(() => ctrl.abort(), 15000);
+    let upstream: Response;
+    try {
+      upstream = await fetch(decodedUrl, {
+        headers: upstreamHeaders,
+        signal: ctrl.signal,
+      });
+    } finally {
+      clearTimeout(fetchTimeout);
+    }
+
+    // Per-request trace (status/duration/url) — lands in the desktop
+    // server log so CDN throttling is visible instead of silent.
+    console.log(
+      `[proxy] ${upstream.status} ${Date.now() - startedAt}ms ${decodedUrl.substring(0, 110)}`,
+    );
 
     if (!upstream.ok) {
       // If upstream returns an error status, pass it through
@@ -235,6 +314,20 @@ export async function GET(request: NextRequest) {
         return new NextResponse(upstream.body, {
           status: 206,
           headers: responseHeaders,
+        });
+      }
+
+      // Plain 200 body (HLS segments): buffer it so retries/reloads can be
+      // served from memory instead of hitting the throttled CDN again.
+      if (!clientRange && bodyText === null && upstream.status === 200) {
+        const buf = Buffer.from(await upstream.arrayBuffer());
+        cacheSet(decodedUrl, buf, ct, upstream.status);
+        return new NextResponse(new Uint8Array(buf), {
+          status: upstream.status,
+          headers: {
+            ...responseHeaders,
+            "Content-Length": String(buf.byteLength),
+          },
         });
       }
 

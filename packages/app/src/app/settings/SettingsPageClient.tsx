@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import SyncSettings from '@/components/settings/SyncSettings';
 import ProviderSettings from '@/components/settings/ProviderSettings';
+import NetworkSettings from '@/components/settings/NetworkSettings';
 import SecuritySettings from '@/components/settings/SecuritySettings';
 import {
   getPlayerPreferences,
@@ -17,7 +18,7 @@ import {
 } from '@/lib/utils/subtitle-preferences';
 import styles from './SettingsPage.module.css';
 
-type SettingsTab = 'sync' | 'providers' | 'playback' | 'subtitles' | 'security';
+type SettingsTab = 'sync' | 'providers' | 'playback' | 'subtitles' | 'network' | 'security';
 
 export default function SettingsPageClient() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('sync');
@@ -63,6 +64,16 @@ export default function SettingsPageClient() {
       ),
     },
     {
+      id: 'network',
+      label: 'Network',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0" />
+          <line x1="12" y1="20" x2="12.01" y2="20" />
+        </svg>
+      ),
+    },
+    {
       id: 'security',
       label: 'Security',
       icon: (
@@ -104,6 +115,7 @@ export default function SettingsPageClient() {
           {activeTab === 'providers' && <ProviderSettings />}
           {activeTab === 'playback' && <PlaybackSettings />}
           {activeTab === 'subtitles' && <SubtitleSettingsPanel />}
+          {activeTab === 'network' && <NetworkSettings />}
           {activeTab === 'security' && <SecuritySettings />}
         </div>
       </div>

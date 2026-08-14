@@ -92,7 +92,14 @@ function MangaPageClientInner() {
   const showCategory = activeCategory !== "all" && !showSearch;
   const showFeatured = activeCategory === "all" && !showSearch;
 
-  const candidates = popular.slice(0, 6);
+  // Hero candidates: first category that actually returned items. If
+  // "Most Popular" comes back empty (upstream hiccup), fall through to
+  // the other lists so the title bar still renders.
+  const candidates = (
+    [popular, latest, action, romance, fantasy].find(
+      (list) => list.length > 0,
+    ) || []
+  ).slice(0, 6);
 
   return (
     <div className="min-h-screen text-white">

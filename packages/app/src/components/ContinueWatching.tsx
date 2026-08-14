@@ -65,7 +65,7 @@ export default function ContinueWatching() {
         const data = await res.json();
         const metadata: ContentMetadata = {
           id: contentId,
-          title: data.title || data.name || "Unknown",
+          title: data.title || data.name || "Untitled",
           posterPath: data.poster_path || "",
           backdropPath: data.backdrop_path || "",
           mediaType: contentType,

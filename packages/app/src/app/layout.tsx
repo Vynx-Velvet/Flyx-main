@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Outfit } from "next/font/google";
 import Sidebar from "@/components/layout/Sidebar";
 import BottomTabs from "@/components/layout/BottomTabs";
+import SetupGate from "@/components/SetupGate";
 import { AppProvider } from "./providers";
 import "./globals.css";
 
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       data-scroll-behavior="smooth"
     >
       <body className="min-h-screen font-sans antialiased">
+        <SetupGate />
         <AppProvider>
           <Sidebar />
           <div className="app-shell">

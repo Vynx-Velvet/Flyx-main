@@ -10,13 +10,41 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/get-session";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { findAccountById } from "@/lib/db";
-import { readFileSync, writeFileSync, existsSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, renameSync } from "fs";
 import path from "path";
 
 const DB_DIR = process.env.FLYX_DATA_DIR || path.resolve(process.cwd(), ".flyx");
 const DB_PATH = path.join(DB_DIR, "store.json");
 
 export const runtime = "nodejs";
+
+/**
+ * Read store.json directly (bypasses the in-memory cache for writes).
+ * Shape-validates like lib/db: a file that parses but isn't a store
+ * (partial write, older schema) reads as "no accounts" instead of
+ * throwing a TypeError mid-request.
+ */
+function loadStore(): any | null {
+  if (!existsSync(DB_PATH)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(DB_PATH, "utf-8"));
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.accounts)) {
+      console.warn("[auth/password] store.json has an unexpected shape");
+      return null;
+    }
+    return parsed;
+  } catch {
+    console.warn("[auth/password] store.json is unreadable");
+    return null;
+  }
+}
+
+/** Atomic write (tmp + rename) — a crash mid-write must never truncate the store. */
+function saveStore(store: any): void {
+  const tmp = DB_PATH + ".tmp";
+  writeFileSync(tmp, JSON.stringify(store, null, 2), "utf-8");
+  renameSync(tmp, DB_PATH);
+}
 
 export async function PATCH(request: NextRequest) {
   const session = await getSession();
@@ -31,11 +59,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "New password must be at least 8 characters" }, { status: 400 });
     }
 
-    // Read store directly (bypass the in-memory cache for writes)
-    if (!existsSync(DB_PATH)) {
+    const store = loadStore();
+    if (!store) {
       return NextResponse.json({ error: "No accounts found" }, { status: 404 });
     }
-    const store = JSON.parse(readFileSync(DB_PATH, "utf-8"));
 
     // Resetting a specific user's password (by ID)
     if (userId) {
@@ -47,7 +74,7 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
       store.accounts[targetIdx].passwordHash = await hashPassword(newPassword);
-      writeFileSync(DB_PATH, JSON.stringify(store, null, 2), "utf-8");
+      saveStore(store);
       return NextResponse.json({ ok: true });
     }
 
@@ -59,7 +86,7 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: "Account not found" }, { status: 404 });
       }
       store.accounts[selfIdx].passwordHash = await hashPassword(newPassword);
-      writeFileSync(DB_PATH, JSON.stringify(store, null, 2), "utf-8");
+      saveStore(store);
       return NextResponse.json({ ok: true });
     }
 
@@ -79,7 +106,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     store.accounts[selfIdx].passwordHash = await hashPassword(newPassword);
-    writeFileSync(DB_PATH, JSON.stringify(store, null, 2), "utf-8");
+    saveStore(store);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

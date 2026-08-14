@@ -41,6 +41,10 @@ npm-debug.log*
 .flyx-cache/
 .flyx-standalone/
 
+# Flyx desktop (Electron) dev data + packaging output
+# (packages/desktop/dist/ is covered by the `dist/` pattern above)
+.flyx-dev-data/
+
 # Python reference files
 *.py
 

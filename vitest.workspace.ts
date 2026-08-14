@@ -6,4 +6,5 @@ export default defineWorkspace([
   "packages/providers",
   "packages/extractors",
   "packages/app",
+  "packages/desktop",
 ]);

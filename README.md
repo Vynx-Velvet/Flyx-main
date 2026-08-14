@@ -42,6 +42,38 @@ flyx start
 
 > **Need a TMDB API key?** [Get one free here](https://www.themoviedb.org/settings/api) — takes 30 seconds.
 
+## Desktop App (Windows / macOS / Linux)
+
+Prefer a real app over a terminal? Flyx ships as a self-contained desktop
+app — **no Node.js, npm, or git needed**. Every push to `main` is auto-built
+by GitHub Actions for all three platforms, and every `v*` tag is published as
+a [GitHub Release](https://github.com/Vynx-Velvet/Flyx-main/releases).
+
+| Platform | Artifacts | How to use |
+|---|---|---|
+| **Windows** | `Flyx-Setup-<version>.exe` · `Flyx-Portable-<version>.exe` | see below |
+| **macOS** | `Flyx-<version>.dmg` | Open the dmg, drag Flyx to Applications. First launch: **right-click → Open** (v1 is unsigned — Gatekeeper will warn) |
+| **Linux** | `Flyx-<version>.AppImage` · `Flyx-<version>.deb` | AppImage: `chmod +x Flyx-*.AppImage`, then run it; or install the `.deb` with your package manager |
+
+**Windows — Setup vs. Portable:**
+
+- **Setup** (`Flyx-Setup-…exe`) — installs like a normal program (you pick
+  the install folder), adds Start Menu shortcuts, and **auto-updates** when
+  you quit the app.
+- **Portable** (`Flyx-Portable-…exe`) — one single exe. Put it anywhere
+  (USB stick, sync folder), double-click to run, delete the file to remove
+  it. No install, no auto-update.
+
+**First launch** (any platform) opens the setup wizard: enter your TMDB key,
+create your account, and pick a network mode. Your data lives in
+`%LOCALAPPDATA%\flyx` on Windows (`~/Library/Application Support/flyx` on
+macOS, `~/.local/share/flyx` on Linux). Closing the window keeps the server
+running in the tray for your home network — **Quit from the tray menu** to
+actually stop it. Windows SmartScreen may warn on first launch (unsigned v1):
+choose **More info → Run anyway**.
+
+Full details (auto-update matrix, auth model, manual testing): [docs/desktop.md](./docs/desktop.md)
+
 ## CLI Commands
 
 After running `npm run cli:link` (step 3 above), `flyx` works from any terminal, any folder:
@@ -133,6 +165,7 @@ npm run lint          # Lint all packages
 |---|---|
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | System design and data flow |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | Setup, coding standards, adding providers |
+| [docs/desktop.md](./docs/desktop.md) | Desktop app: packaging, auto-update, auth model |
 | [docs/api/](./docs/api/) | API reference |
 | [docs/DECISIONS/](./docs/DECISIONS/) | Architecture Decision Records |
 | [docs/player/](./docs/player/) | Player hook API reference |
