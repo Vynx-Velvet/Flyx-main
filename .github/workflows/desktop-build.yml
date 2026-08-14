@@ -21,9 +21,9 @@ jobs:
         os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # latest 22.x (>= 22.12 required — Electron's install script uses require(ESM))
           node-version: 22
@@ -31,6 +31,15 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # npm only records the lockfile-generating platform's optional native
+      # deps (our lockfile was made on Windows), so `npm ci` on macOS/Linux
+      # skips them and `next build` dies on Tailwind's native modules.
+      # Install the current platform's variants explicitly. Versions must
+      # match the lockfile — bump them when Tailwind/lightningcss upgrades.
+      - name: Install platform-native deps (missing from lockfile)
+        if: runner.os != 'Windows'
+        run: npm install --no-save --ignore-scripts lightningcss@1.32.0 @tailwindcss/oxide@4.3.3
 
       - name: Build standalone server
         run: node scripts/build-desktop.mjs
@@ -51,9 +60,13 @@ jobs:
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         run: npm run dist --workspace=@flyx/desktop
         env:
+          # publish: github is configured in electron-builder.yml, which
+          # makes plain `dist` construct the publisher — it needs a token
+          # even though nothing is uploaded on branch builds.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: flyx-desktop-${{ matrix.os }}
           if-no-files-found: error
