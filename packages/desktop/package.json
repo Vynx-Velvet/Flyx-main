@@ -4,8 +4,7 @@
   "private": true,
   "description": "Flyx Electron desktop shell — embedded server + LAN sharing",
   "author": {
-    "name": "Vynx",
-    "email": "108192909+Vynx-Velvet@users.noreply.github.com"
+    "name": "Vynx"
   },
   "type": "commonjs",
   "main": "main.js",

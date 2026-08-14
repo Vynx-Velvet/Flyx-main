@@ -15,46 +15,27 @@ import { execSync } from "child_process";
 import { cpSync, existsSync, mkdirSync, rmSync, readdirSync, lstatSync, realpathSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { homedir } from "os";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const APP_DIR = join(ROOT, "packages", "app");
 const STANDALONE_DIR = join(ROOT, ".flyx-standalone");
 
-// Load env from the Flyx data dir so the build has TMDB_API_KEY etc.
-function getDataDir() {
-  if (process.env.FLYX_DATA_DIR) return process.env.FLYX_DATA_DIR;
-  if (process.platform === "win32") {
-    const localAppData = process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local");
-    return join(localAppData, "flyx");
-  }
-  if (process.platform === "darwin") {
-    return join(homedir(), "Library", "Application Support", "flyx");
-  }
-  return join(homedir(), ".local", "share", "flyx");
-}
-
-function loadEnvFile(filePath) {
-  const vars = {};
-  if (!existsSync(filePath)) return vars;
-  const raw = readFileSync(filePath, "utf-8");
-  for (const line of raw.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq > 0) vars[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
-  }
-  return vars;
-}
-
 console.log("[standalone] Building Next.js standalone...");
 
-// Step 1: Build — inject Flyx env vars so Next.js has TMDB_API_KEY etc.
-const dataDirEnv = loadEnvFile(join(getDataDir(), ".env"));
+// Step 1: Build with DUMMY env only. Never load the Flyx data dir .env —
+// it holds the user's real JWT secret, host key, master token and account
+// password, and build-time env can end up baked into build output that gets
+// shipped publicly. Real config is injected at runtime by the desktop app.
 execSync("npx next build", {
   cwd: APP_DIR,
-  env: { ...process.env, ...dataDirEnv, FLYX_STANDALONE: "1" },
+  env: {
+    ...process.env,
+    TMDB_API_KEY: "dummy-key-for-build",
+    JWT_SECRET: "dummy-secret-for-build-0123456789abcdef",
+    HOST_KEY: "dummy-host-key-for-build",
+    FLYX_STANDALONE: "1",
+  },
   stdio: "inherit",
 });
 
@@ -107,18 +88,12 @@ if (existsSync(publicSrc)) {
   console.log("[standalone] Public assets copied to app public/");
 }
 
-// Step 5b: Minimal desktop .env (Electron injects real config at runtime:
-// TMDB key, credentials, JWT secret, etc. via the setup wizard)
+// Step 5b: Minimal desktop .env — NEVER copy the real one. Next's standalone
+// output includes packages/app/.env (which holds the real TMDB API key), and
+// that file ends up in the public installer. Ship only harmless placeholders.
 const envPath = join(STANDALONE_DIR, "packages", "app", ".env");
-let envContent = "";
-if (existsSync(envPath)) {
-  envContent = readFileSync(envPath, "utf-8");
-}
-if (!envContent.includes("FLYX_DESKTOP")) {
-  envContent += "\nFLYX_CLI=true\n";
-  writeFileSync(envPath, envContent.trim() + "\n");
-}
-console.log("[standalone] Standalone .env ready (Electron injects runtime config)");
+writeFileSync(envPath, "TMDB_API_KEY=dummy-key-for-build\nFLYX_DESKTOP=true\n", "utf-8");
+console.log("[standalone] Standalone .env reset to dummy values (Electron injects runtime config)");
 
 // Step 6: Copy workspace packages (@flyx/*) into standalone node_modules.
 // Next.js standalone output does not automatically include monorepo workspace

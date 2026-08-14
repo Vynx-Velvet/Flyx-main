@@ -82,7 +82,10 @@ if (existsSync(publicSrc)) {
 // Step 5a: Strip dev/test-only junk Next's standalone copy picks up (it
 // copies the whole app package dir in a monorepo, including e2e tests and
 // playwright test-results). Never ship those in the desktop payload.
-for (const junk of ["e2e", "test-results"]) {
+// .flyx/ is runtime state (accounts + password hashes) written when the
+// standalone server runs with a local CWD — shipping it would leak any
+// accounts created during local testing into the public installer.
+for (const junk of ["e2e", "test-results", ".flyx"]) {
   const junkPath = join(STANDALONE_DIR, "packages", "app", junk);
   if (existsSync(junkPath)) {
     rmSync(junkPath, { recursive: true });
@@ -122,18 +125,14 @@ for (const name of readdirSync(join(ROOT, "node_modules", "@next"))) {
   console.log(`[desktop:build] Copied missing Next runtime dep: @next/${name}`);
 }
 
-// Step 5b: Minimal desktop .env (Electron injects real config at runtime:
-// TMDB key, credentials, JWT secret, etc. via the setup wizard)
+// Step 5b: Minimal desktop .env — NEVER copy the real one. Next's standalone
+// output includes packages/app/.env (which holds the real TMDB API key), and
+// that file ends up in the public installer. Electron injects real config at
+// runtime (TMDB key, credentials, JWT secret, etc.) via server-manager + the
+// setup wizard, so ship only harmless placeholders.
 const envPath = join(STANDALONE_DIR, "packages", "app", ".env");
-let envContent = "";
-if (existsSync(envPath)) {
-  envContent = readFileSync(envPath, "utf-8");
-}
-if (!envContent.includes("FLYX_DESKTOP")) {
-  envContent += "\nFLYX_DESKTOP=true\n";
-  writeFileSync(envPath, envContent.trim() + "\n");
-}
-console.log("[desktop:build] Standalone .env ready (Electron injects runtime config)");
+writeFileSync(envPath, "TMDB_API_KEY=dummy-key-for-build\nFLYX_DESKTOP=true\n", "utf-8");
+console.log("[desktop:build] Standalone .env reset to dummy values (Electron injects runtime config)");
 
 // Step 6: Copy workspace packages (@flyx/*) into the app-level node_modules.
 // Next.js standalone output does not automatically include monorepo workspace
