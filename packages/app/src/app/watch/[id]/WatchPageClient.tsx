@@ -9,25 +9,28 @@ import { ExtensionGate } from '@/components/ExtensionGate';
 import styles from './WatchPage.module.css';
 
 // Proxy source URLs for mobile player — mirrors applyStreamProxy in VideoPlayer.tsx
-function proxySourceUrl(sourceUrl: string, providerName: string, requiresProxy?: boolean): string {
-  if (!sourceUrl) return sourceUrl;
+/**
+ * Route a source through /api/stream/proxy when it needs Referer/Origin
+ * headers (browsers cannot set Referer on cross-origin fetches) or when
+ * the provider marks it requiresSegmentProxy. Other URLs play directly.
+ */
+function proxySourceUrl(source: { url: string; referer?: string; origin?: string; requiresSegmentProxy?: boolean }): string {
+  if (!source.url) return source.url;
   // Already proxied — don't double-wrap
-  if (sourceUrl.includes('/videasy/') ||
-      sourceUrl.includes('/api/stream-proxy') ||
-      sourceUrl.includes('/api/stream/proxy') ||
-      sourceUrl.includes('/bingebox/') ||
-      sourceUrl.includes('/stream?url=') ||
-      // AnimeX HLS proxy URLs — now routed through our server for /uwu/ rewriting
-      sourceUrl.includes('aniwatchtv.site/media/')) {
-    return sourceUrl;
+  if (source.url.includes('/api/stream/proxy') || source.url.includes('/api/stream-proxy')) {
+    return source.url;
   }
 
-  const needsProxy = requiresProxy ||
-    sourceUrl.includes('.workers.dev') ||
-    sourceUrl.includes('wind.');
-  if (!needsProxy) return sourceUrl;
+  const needsProxy =
+    source.requiresSegmentProxy === true ||
+    !!source.referer ||
+    !!source.origin;
+  if (!needsProxy) return source.url;
 
-  return sourceUrl;
+  const params = new URLSearchParams({ url: source.url });
+  if (source.referer) params.set('referer', source.referer);
+  if (source.origin) params.set('origin', source.origin);
+  return `/api/stream/proxy?${params.toString()}`;
 }
 
 // Type alias for anime audio preference
@@ -494,7 +497,7 @@ function WatchContent() {
           if (validSources.length > 0) {
             const sources = validSources.map((s: any) => ({
               title: s.title || s.quality || `${provider} Source`,
-              url: proxySourceUrl(s.url, provider, s.requiresSegmentProxy),
+              url: proxySourceUrl(s),
               quality: s.quality,
               provider: provider,
               skipIntro: s.skipIntro,
@@ -612,7 +615,7 @@ function WatchContent() {
       if (validSources.length > 0) {
         const sources = validSources.map((s: any) => ({
           title: s.title || s.quality || `${provider} Source`,
-          url: proxySourceUrl(s.url, provider, s.requiresSegmentProxy),
+          url: proxySourceUrl(s),
           quality: s.quality,
           provider: provider,
           skipIntro: s.skipIntro,

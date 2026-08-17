@@ -9,7 +9,18 @@ export async function extractAnimeClient(
   title: string,
   episode?: number,
 ): Promise<{
-  sources: Array<{ title: string; url: string; quality?: string; skipIntro?: [number, number]; skipOutro?: [number, number] }>;
+  sources: Array<{
+    title: string;
+    url: string;
+    quality?: string;
+    skipIntro?: [number, number];
+    skipOutro?: [number, number];
+    // Carried through so consumers can route via /api/stream/proxy —
+    // browsers cannot send Referer/Origin on cross-origin fetches.
+    referer?: string;
+    origin?: string;
+    requiresSegmentProxy?: boolean;
+  }>;
   error?: string;
 }> {
   try {
@@ -22,7 +33,18 @@ export async function extractAnimeClient(
     const data = await res.json();
 
     if (data.success && data.sources?.length) {
-      return { sources: data.sources };
+      return {
+        sources: data.sources.map((s: any) => ({
+          title: s.title,
+          url: s.url,
+          quality: s.quality,
+          skipIntro: s.skipIntro,
+          skipOutro: s.skipOutro,
+          referer: s.referer,
+          origin: s.origin,
+          requiresSegmentProxy: s.requiresSegmentProxy,
+        })),
+      };
     }
 
     // Return the error from the API so the UI can show it

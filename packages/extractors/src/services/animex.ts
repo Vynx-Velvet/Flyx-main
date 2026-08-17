@@ -1,12 +1,12 @@
 /**
  * AnimeX Extractor — animex.one full API.
  *
- * Reverse-engineered 2026-08-05:
+ * Reverse-engineered 2026-08-05, reworked 2026-08-17:
  *
  * Infrastructure:
  *   graphql.animex.one/graphql  — GraphQL (search, anime metadata)
  *   pp.animex.one/rest/api/*    — REST (episodes, servers, sources)
- *   *.aniwatchtv.site/uwu/{token} — HLS decode-and-proxy
+ *   *.aniwatchtv.site/uwu/{token} — HLS decode-and-proxy (DEPRECATED, see below)
  *
  * Flow:
  *   1. GraphQL searchAnime → find anime by title
@@ -14,10 +14,27 @@
  *   3. REST /episodes?id={internalId} → episode list
  *   4. REST /servers?id={internalId}&epNum={N} → available providers
  *   5. REST /sources?id={internalId}&epNum={N}&type=sub&providerId=uwu → stream URLs
- *   6. Wrap source URLs through yi() proxy for CORS/referer bypass
+ *   6. Serve raw URLs through our own /api/stream/proxy with the API's
+ *      per-provider Referer/Origin headers attached
  *
  * Auth: NONE — bare browser UA, no cookies, no tokens needed.
- * All endpoints verified live.
+ *
+ * 2026-08-17 change: aniwatchtv.site (the yi() /uwu/ proxy AND the hawk/bd
+ * media hosts the old PROVIDER_REWRITES pointed at) is now behind a
+ * Cloudflare bot challenge that blocks every server-side fetch (403
+ * "Attention Required" for plain curl/Node regardless of headers). The
+ * API's raw source hosts (vivibebe.site, playeng.animeapps.top,
+ * hls.anidb.app, *.workers.dev) answer plain fetches fine, so we no longer
+ * wrap URLs through yi() — we pass the raw URLs through, attach the
+ * Referer/Origin headers the /sources response provides, and mark every
+ * source `requiresSegmentProxy: true` so our local proxy forwards those
+ * headers (browsers cannot set Referer on cross-origin fetches).
+ *
+ * Providers currently Cloudflare-challenged for server-side fetch:
+ *   yuki  → cdn.watching.onl
+ *   sora  → hls.krussdomi.com
+ * They are skipped at extraction time (BLOCKED_PROVIDERS) — re-test if
+ * upstream unblocks them.
  */
 
 import type { StreamSource, SubtitleTrack } from "@flyx/core";
@@ -31,31 +48,10 @@ const UA =
 
 const PREFIX = "[AnimeX]";
 
-// HLS proxy hosts (round-robin)
-const PROXY_HOSTS = ["cx", "nsx", "pro", "rl2", "rrl"];
-let proxyHostIdx = 0;
-
-// XOR key for yi() token encoding
-const YI_KEY = "10b06cdc1ca48c9fb0b94af97cc040cf";
-
-// Provider ID → referer mapping (hardcoded in animex.one client bundle)
-const PROVIDER_REFERERS: Record<string, string> = {
-  uwu: "https://kwik.cx/",
-  kiwi: "https://anidb.app/",
-  yuki: "https://megaplay.buzz",
-  sora: "https://krussdomi.com",
-  miku: "https://allanime.uns.bio",
-};
-
-// Source URL rewrites for non-proxy providers
-const PROVIDER_REWRITES: Record<string, { from: string; to: string }> = {
-  beep: { from: "playeng.animeapps.top/r2/", to: "https://bd.aniwatchtv.site/media/" },
-  mimi: { from: "vivibebe.site/public/stream/", to: "https://hawk.aniwatchtv.site/media/" },
-  mochi: { from: "tools.fast4speed.rsvp", to: "https://mp4.24stream.xyz/storage" },
-};
-
-// Providers that go through yi() → aniwatchtv.site/uwu proxy
-const YI_PROVIDERS = new Set(Object.keys(PROVIDER_REFERERS));
+// Providers whose CDNs answer a Cloudflare bot challenge to plain fetch
+// (verified 2026-08-17). Sources from these would always fail at playback,
+// so they are filtered out instead of burning the player's failure budget.
+const BLOCKED_PROVIDERS = new Set(["yuki", "sora"]);
 
 export interface ExtractionResult {
   sources: StreamSource[];
@@ -90,45 +86,7 @@ async function restGet<T>(path: string, params: Record<string, string>): Promise
   return res.json() as Promise<T>;
 }
 
-// ── yi() — XOR token wrapper (replicates animex.one client function) ──────────
-
-/**
- * Build the XOR token that the HLS proxy uses to decode the target URL + referer.
- * KEY = "10b06cdc1ca48c9fb0b94af97cc040cf"
- * token = base64url(XOR(url + "\0" + referer, repeating KEY bytes))
- */
-function xorEncode(text: string, key: string): string {
-  const keyBytes = new TextEncoder().encode(key);
-  const textBytes = new TextEncoder().encode(text);
-  const out = new Uint8Array(textBytes.length);
-  for (let i = 0; i < textBytes.length; i++) {
-    out[i] = textBytes[i]! ^ keyBytes[i % keyBytes.length]!;
-  }
-  // base64url: standard base64 → replace +/ with -_, strip padding
-  return btoa(String.fromCharCode(...out))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-}
-
-/**
- * Wrap a source URL through the aniwatchtv.site HLS proxy.
- *
- * Returns the full uwu URL containing the host so our stream proxy can
- * dynamically extract the host when rewriting relative /uwu/ segment paths.
- *
- * The uwu proxy at {host}.aniwatchtv.site XOR-decodes the token to get the
- * original CDN URL + referer, fetches the content, and returns an M3U8.
- * Segment references in that M3U8 are relative paths like /uwu/{hash}
- * which must be resolved against the same {host}.aniwatchtv.site origin.
- */
-function yi(sourceUrl: string, referer: string): string {
-  const payload = sourceUrl + "\0" + referer;
-  const token = xorEncode(payload, YI_KEY);
-  const host = PROXY_HOSTS[proxyHostIdx % PROXY_HOSTS.length]!;
-  proxyHostIdx++;
-  return `https://${host}.aniwatchtv.site/uwu/${token}`;
-}
+// ── Search ───────────────────────────────────────────────────────────────────
 
 interface AnimeXSearchResult {
   id: string;         // internal id: "slug-abcde"
@@ -165,8 +123,6 @@ query($malId: Int) {
     subCount dubCount
   }
 }`;
-
-// ── Search ───────────────────────────────────────────────────────────────────
 
 export async function searchAnime(query: string, limit = 20): Promise<AnimeXSearchResult[]> {
   if (!query.trim()) return [];
@@ -314,39 +270,51 @@ async function getSources(
 
 // ── Source URL processing ────────────────────────────────────────────────────
 
+interface TransformedSource {
+  url: string;
+  referer?: string;
+  origin?: string;
+}
+
 /**
- * Apply provider-specific URL transformation to a raw source URL.
- * Replicates the client-side `dg()` function from animex.one's bundle.
+ * Prepare a raw source URL for playback through our stream proxy.
+ *
+ * The API returns the CDN URL plus the Referer/Origin headers that CDN
+ * requires. Browsers cannot set Referer on cross-origin fetches, so both
+ * are attached to the StreamSource and forwarded by /api/stream/proxy.
  */
-function transformSourceUrl(rawUrl: string, providerId: string, _headers?: { Referer?: string; Origin?: string }): string {
-  // Providers that go through yi() proxy
-  if (providerId in PROVIDER_REFERERS) {
-    const referer = PROVIDER_REFERERS[providerId]!;
-    return yi(rawUrl, referer);
-  }
+function transformSourceUrl(
+  rawUrl: string,
+  providerId: string,
+  headers?: { Referer?: string; Origin?: string },
+): TransformedSource {
+  let url = rawUrl;
 
-  // Direct URL rewrites
-  const rewrite = PROVIDER_REWRITES[providerId];
-  if (rewrite && rawUrl.includes(rewrite.from)) {
-    return rawUrl.replace(rewrite.from, rewrite.to);
-  }
-
-  // Shiro: XOR-137 decode
+  // Shiro: XOR-137 decode — only when the last path segment is actually a
+  // hex-encoded URL. Most shows now serve plain URLs through shiro, and
+  // decoding a plain segment (e.g. "master.m3u8") produces garbage.
   if (providerId === "shiro") {
-    try {
-      const hexStr = rawUrl.split("/").pop() || "";
-      const decoded = hexStr
-        .match(/.{2}/g)
-        ?.map((h) => String.fromCharCode(parseInt(h, 16) ^ 137))
-        .join("") || rawUrl;
-      return `${decoded}&origin=https://kem.clvd.xyz/`;
-    } catch {
-      // fall through to passthrough
+    const last = rawUrl.split("/").pop() || "";
+    if (last.length >= 8 && last.length % 2 === 0 && /^[0-9a-f]+$/i.test(last)) {
+      try {
+        const decoded = last
+          .match(/.{2}/g)
+          ?.map((h) => String.fromCharCode(parseInt(h, 16) ^ 137))
+          .join("") || "";
+        if (decoded.startsWith("http")) {
+          url = `${decoded}&origin=https://kem.clvd.xyz/`;
+        }
+      } catch {
+        // fall through to passthrough
+      }
     }
   }
 
-  // Passthrough (vee, neko, or unknown)
-  return rawUrl;
+  return {
+    url,
+    referer: headers?.Referer,
+    origin: headers?.Origin,
+  };
 }
 
 // ── Main Extractor ───────────────────────────────────────────────────────────
@@ -422,8 +390,9 @@ export async function extractAnimeX(
     const allTracks: SubtitleTrack[] = [];
     const seenUrls = new Set<string>();
 
-    // Try preferred providers first: uwu (default), then kiwi, yuki, sora
-    const priorityProviders = ["uwu", "kiwi", "yuki", "sora", "miku", "beep", "mimi", "mochi", "vee", "neko", "shiro"];
+    // Try preferred providers first. Blocked (Cloudflare-challenged)
+    // providers are filtered out entirely — their sources can only fail.
+    const priorityProviders = ["uwu", "kiwi", "miku", "beep", "mimi", "mochi", "vee", "neko", "shiro"];
 
     for (const audioType of (["sub", "dub"] as const)) {
       const providerList = audioType === "sub" ? servers.subProviders : servers.dubProviders;
@@ -439,15 +408,17 @@ export async function extractAnimeX(
 
       console.log(`${PREFIX} Trying ${audioType} providers: ${providerList.map((p) => p.id).join(", ")}`);
 
-      // Sort: priority providers first, then rest
-      const sorted = [...providerList].sort((a, b) => {
-        const ai = priorityProviders.indexOf(a.id);
-        const bi = priorityProviders.indexOf(b.id);
-        if (ai === -1 && bi === -1) return 0;
-        if (ai === -1) return 1;
-        if (bi === -1) return -1;
-        return ai - bi;
-      });
+      // Sort: priority providers first, then rest; drop Cloudflare-blocked ones
+      const sorted = [...providerList]
+        .filter((p) => !BLOCKED_PROVIDERS.has(p.id))
+        .sort((a, b) => {
+          const ai = priorityProviders.indexOf(a.id);
+          const bi = priorityProviders.indexOf(b.id);
+          if (ai === -1 && bi === -1) return 0;
+          if (ai === -1) return 1;
+          if (bi === -1) return -1;
+          return ai - bi;
+        });
 
       for (const provider of sorted.slice(0, 2)) {
         // Only fetch from first 2 providers per audio type
@@ -459,28 +430,28 @@ export async function extractAnimeX(
           for (const src of result.sources) {
             if (!src.url) continue;
 
-            const finalUrl = transformSourceUrl(src.url, provider.id, result.headers);
+            const transformed = transformSourceUrl(src.url, provider.id, result.headers);
+            const finalUrl = transformed.url;
             if (seenUrls.has(finalUrl)) continue;
             seenUrls.add(finalUrl);
 
-            const isYiProvider = YI_PROVIDERS.has(provider.id);
             const langLabel = audioType === "dub" ? "Dub" : "Sub";
             // Use API's type field ("video/mpegurl" = HLS), fall back to URL check.
-            // yi()-wrapped URLs don't contain .m3u8, so we must check src.type.
             const isHls = src.type === "video/mpegurl" || finalUrl.includes(".m3u8");
 
-            // yi() providers (uwu, kiwi, yuki, sora, miku) return HLS URLs
-            // whose M3U8 contains relative /uwu/{hash} segment paths.
-            // These MUST go through our /api/stream/proxy so the proxy can
-            // rewrite the relative paths to https://{host}.aniwatchtv.site/uwu/{hash}
-            // using the host extracted from the source URL.
+            // All sources go through our /api/stream/proxy: it forwards the
+            // per-provider Referer/Origin headers (browsers can't set
+            // Referer themselves) and sidesteps missing CORS on raw hosts.
+            // The proxy also rewrites relative segment paths in M3U8 bodies.
             allSources.push({
               url: finalUrl,
               quality: src.quality || "Auto",
               type: isHls ? "hls" : "mp4",
               title: `AnimeX ${provider.id} ${src.quality || "Auto"} · ${langLabel}`,
               language: audioType,
-              requiresSegmentProxy: isYiProvider,
+              requiresSegmentProxy: true,
+              referer: transformed.referer,
+              origin: transformed.origin,
             });
           }
 

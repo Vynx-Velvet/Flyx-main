@@ -96,7 +96,7 @@ const VOD_PROVIDERS: CatalogProvider[] = [
 
 /** Anime RE extractors */
 const ANIME_PROVIDERS: CatalogProvider[] = [
-  { id: "animex", label: "AnimeX", blurb: "animex.one · cx.aniwatchtv.site", kind: "anime" },
+  { id: "animex", label: "AnimeX", blurb: "animex.one · multi-CDN", kind: "anime" },
 ];
 
 /**
