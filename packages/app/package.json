@@ -1,6 +1,6 @@
 {
   "name": "@flyx/app",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "private": true,
   "description": "Flyx Next.js application — flat provider tree, SSR admin",
   "scripts": {

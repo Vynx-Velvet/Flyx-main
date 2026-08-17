@@ -1,6 +1,6 @@
 {
   "name": "flyx",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "private": true,
   "description": "Flyx 3.0 — Privacy-first streaming platform",
   "workspaces": [
