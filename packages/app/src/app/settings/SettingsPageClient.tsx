@@ -173,6 +173,19 @@ function PlaybackSettings() {
           </button>
         </div>
 
+        <div className={styles.settingItem}>
+          <div className={styles.settingInfo}>
+            <span className={styles.settingLabel}>Show now playing</span>
+            <span className={styles.settingDesc}>Expose the watched title to Windows media controls and VRChat companion apps</span>
+          </div>
+          <button
+            className={`${styles.toggle} ${preferences.showNowPlaying ? styles.on : ''}`}
+            onClick={() => updatePreference('showNowPlaying', !preferences.showNowPlaying)}
+          >
+            <span className={styles.toggleKnob} />
+          </button>
+        </div>
+
         {preferences.autoPlayNextEpisode && (
           <>
             <div className={styles.settingItem}>

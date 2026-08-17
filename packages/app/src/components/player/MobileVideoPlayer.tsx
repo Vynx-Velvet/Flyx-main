@@ -26,6 +26,7 @@ import {
   IconVolumeMute,
 } from './icons';
 import { useCast } from '@/hooks/useCast';
+import { useMediaSession } from '@/hooks/useMediaSession';
 import PlayerHelpModal, {
   shouldAutoShowPlayerHelp,
   markPlayerHelpSeen,
@@ -139,6 +140,10 @@ export default function MobileVideoPlayer({
     onDisconnect: () => setIsCastOverlayVisible(false),
     onError: () => setCastErrorDismissed(false),
   });
+
+  // Publish now-playing metadata to the system media session (Windows SMTC,
+  // read by VRChat companions like MagicChatbox) and the window title.
+  useMediaSession({ mediaType, title, season, episode, isAnime, videoRef });
 
   const handleCastClick = useCallback(async () => {
     if (cast.isCasting || cast.isConnected) {

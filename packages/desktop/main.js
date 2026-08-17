@@ -38,6 +38,11 @@ const updater = require("./src/updater");
 
 app.setName("Flyx");
 
+// Windows only: stable AppUserModelID so the OS media session (SMTC) and
+// taskbar attribute Flyx's now-playing metadata to this app (matches the
+// electron-builder appId "com.flyx.desktop"). No-op on other platforms.
+app.setAppUserModelId("com.flyx.desktop");
+
 // ── State ────────────────────────────────────────────────────────
 
 let mainWindow = null;

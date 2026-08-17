@@ -13,6 +13,7 @@ import {
 } from "react";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useCast } from "@/hooks/useCast";
+import { useMediaSession } from "@/hooks/useMediaSession";
 import PlayerHelpModal, {
   shouldAutoShowPlayerHelp,
   markPlayerHelpSessionShown,
@@ -540,6 +541,20 @@ function WatchInner() {
     (details?.poster_path
       ? `${TMDB_IMG}/w500${details.poster_path}`
       : animePoster) || "";
+
+  // Publish now-playing metadata to the system media session (Windows SMTC,
+  // read by VRChat companions like MagicChatbox) and the window title.
+  useMediaSession({
+    mediaType,
+    title,
+    season: season ? Number(season) : undefined,
+    episode: episode ? Number(episode) : undefined,
+    year,
+    malId: malId || undefined,
+    isAnime,
+    artwork: poster || undefined,
+    videoRef,
+  });
 
   const inList = malId
     ? isInWatchlist(malId, "anime")

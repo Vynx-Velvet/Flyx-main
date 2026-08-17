@@ -4,6 +4,8 @@ export interface PlayerPreferences {
   showNextEpisodeBeforeEnd: number;
   preferredQuality: string;
   playbackSpeed: number;
+  /** Publish now-playing metadata (Windows SMTC / window title) for VRChat companions. */
+  showNowPlaying: boolean;
 }
 
 const STORAGE_KEY = "flyx_player_prefs_v1";
@@ -14,6 +16,7 @@ const DEFAULTS: PlayerPreferences = {
   showNextEpisodeBeforeEnd: 60,
   preferredQuality: "auto",
   playbackSpeed: 1,
+  showNowPlaying: true,
 };
 
 export function getPlayerPreferences(): PlayerPreferences {

@@ -35,6 +35,7 @@ import {
   IconVolumeMute,
 } from './icons';
 import { getPlayerPreferences } from '@/lib/utils/player-preferences';
+import { useMediaSession } from '@/hooks/useMediaSession';
 import { useCast } from '@/hooks/useCast';
 import PlayerHelpModal, {
   shouldAutoShowPlayerHelp,
@@ -147,6 +148,10 @@ export default function VideoPlayer({
   const helpAutoOpenedRef = useRef(false);
 
   const prefs = useRef(getPlayerPreferences());
+
+  // Publish now-playing metadata to the system media session (Windows SMTC,
+  // read by VRChat companions like MagicChatbox) and the window title.
+  useMediaSession({ mediaType, title, season, episode, malId, videoRef });
   // Latest values for keyboard handler (avoids stale closures / empty-deps listener)
   const volumeRef = useRef(volume);
   const speedRef = useRef(speed);
