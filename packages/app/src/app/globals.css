@@ -2889,6 +2889,131 @@ input::placeholder {
   to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
+.cinema-sub-hud {
+  top: 34%;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.85rem 1rem;
+  border-radius: 1.1rem;
+  background: rgba(8, 8, 14, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  animation: cinema-subhud-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.cinema-sub-hud-label {
+  font-size: 0.65rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+.cinema-sub-hud-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.cinema-sub-hud-btn {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 750;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.7rem;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.08s ease;
+}
+.cinema-sub-hud-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.cinema-sub-hud-btn:active {
+  transform: scale(0.96);
+}
+.cinema-sub-hud-value {
+  min-width: 4rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #00e5bf;
+}
+.cinema-sub-hud-reset {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  cursor: pointer;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.4rem;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+.cinema-sub-hud-reset:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+@keyframes cinema-subhud-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.96); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+.cinema-sub-hud.is-leaving {
+  animation: cinema-subhud-out 0.26s ease both;
+}
+@keyframes cinema-subhud-out {
+  from { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  to { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.98); }
+}
+
+.cinema-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(8, 8, 14, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: cinema-drop-in 0.15s ease both;
+}
+.cinema-drop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 1.5rem 2.25rem;
+  border-radius: 1.25rem;
+  border: 2px dashed rgba(0, 229, 191, 0.55);
+  background: rgba(0, 0, 0, 0.55);
+  color: #00e5bf;
+}
+.cinema-drop-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #fff;
+}
+.cinema-drop-sub {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: rgba(255, 255, 255, 0.55);
+}
+@keyframes cinema-drop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .cinema-speed-wrap {
   position: relative;
 }
@@ -2978,6 +3103,128 @@ input::placeholder {
 .cinema-sub-option.is-active {
   color: #00e5bf;
   background: rgba(0, 229, 191, 0.12);
+}
+.cinema-sub-menu-note {
+  margin: 0;
+  padding: 0.4rem 0.65rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.45);
+}
+.cinema-sub-track {
+  display: flex;
+  align-items: stretch;
+  gap: 0.2rem;
+}
+.cinema-sub-track-select {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cinema-sub-track-remove {
+  flex: 0 0 auto;
+  align-self: center;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: inherit;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+.cinema-sub-track-remove:hover {
+  color: #fff;
+  background: rgba(255, 90, 90, 0.25);
+}
+.cinema-sub-upload {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.55rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+.cinema-sub-upload:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.cinema-sub-delay {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+  padding: 0.5rem 0.55rem 0.45rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.cinema-sub-delay-label {
+  font-size: 0.65rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+}
+.cinema-sub-delay-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.cinema-sub-delay-btn {
+  flex: 1;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.9);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 650;
+  padding: 0.45rem 0.4rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.cinema-sub-delay-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.cinema-sub-delay-value {
+  min-width: 3.4rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #00e5bf;
+}
+.cinema-sub-delay-reset {
+  align-self: center;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+  border-radius: 0.4rem;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+.cinema-sub-delay-reset:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+.cinema-sub-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .cinema-speed-option {
   display: block;

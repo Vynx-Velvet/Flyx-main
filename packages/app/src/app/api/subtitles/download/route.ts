@@ -15,7 +15,11 @@ import {
   AnubisBlockedError,
   OSDownloadError,
 } from "@flyx/extractors/services";
-import { convertSRTtoVTT, decodeSubtitleText } from "@/lib/subtitles/srt";
+import {
+  convertSRTtoVTT,
+  decodeSubtitleText,
+  normalizeVTT,
+} from "@/lib/subtitles/srt";
 
 export const runtime = "nodejs";
 
@@ -95,7 +99,9 @@ export async function GET(request: NextRequest) {
     }
 
     const text = decodeSubtitleText(bytes);
-    const vtt = /\.srt$/i.test(pick) ? convertSRTtoVTT(text) : text;
+    const vtt = normalizeVTT(
+      /\.srt$/i.test(pick) ? convertSRTtoVTT(text) : text,
+    );
     vttCacheSet(subId, vtt);
     console.log(
       `[subtitles/download] ${subId} → ${pick} (${Math.round(bytes.byteLength / 1024)}KB → ${Math.round(vtt.length / 1024)}KB vtt)`,

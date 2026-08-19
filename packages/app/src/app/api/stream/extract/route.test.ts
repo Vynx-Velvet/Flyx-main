@@ -69,7 +69,7 @@ describe("Health Endpoint", () => {
     const response = await fetch(`${BASE_URL}/api/health`);
     const body = await response.json();
     expect(body.status).toBe("ok");
-    expect(body.version).toBe("3.0.3");
+    expect(body.version).toBe("3.0.3a");
     expect(body.providers).toBe(7);
   });
 });

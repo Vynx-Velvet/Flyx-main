@@ -1,6 +1,6 @@
 {
   "name": "@flyx/cli",
-  "version": "3.0.3",
+  "version": "3.0.3a",
   "private": true,
   "description": "Flyx CLI — manage your streaming server instance",
   "bin": {

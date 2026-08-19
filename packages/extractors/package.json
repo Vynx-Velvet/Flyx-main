@@ -1,6 +1,6 @@
 {
   "name": "@flyx/extractors",
-  "version": "3.0.3",
+  "version": "3.0.3a",
   "private": true,
   "description": "Flyx unified extraction pipeline and per-provider extraction logic",
   "main": "./src/index.ts",

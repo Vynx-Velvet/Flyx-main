@@ -11,7 +11,7 @@ import "@flyx/providers/providers";
 export async function GET() {
   return NextResponse.json({
     status: "ok",
-    version: "3.0.3",
+    version: "3.0.3a",
     timestamp: Date.now(),
     providers: providerRegistry.size,
     uptime: process.uptime(),

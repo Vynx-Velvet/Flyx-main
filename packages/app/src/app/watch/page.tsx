@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
+  type DragEvent as ReactDragEvent,
 } from "react";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useCast } from "@/hooks/useCast";
@@ -32,10 +33,36 @@ import {
   saveProviderSettings,
 } from "@/lib/sync";
 import { getSubtitlePreferences } from "@/lib/utils/subtitle-preferences";
+import {
+  convertSRTtoVTT,
+  decodeSubtitleText,
+  normalizeVTT,
+} from "@/lib/subtitles/srt";
 import type { SubtitleTrack } from "@flyx/core";
 import DownloadMenu from "@/components/downloads/DownloadMenu";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p";
+
+/** Max accepted size for a user-uploaded .srt/.vtt subtitle file (5 MB). */
+const MAX_SUBTITLE_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+/** True when a drag payload contains files (vs. text/images dragged on-page). */
+function dragHasFiles(e: ReactDragEvent): boolean {
+  const dt = e.dataTransfer;
+  if (!dt) return false;
+  if (Array.from(dt.types ?? []).includes("Files")) return true;
+  return dt.files != null && dt.files.length > 0;
+}
+
+/** First .srt/.vtt file in a drop payload, or null. */
+function droppedSubtitleFile(e: ReactDragEvent): File | null {
+  const files = e.dataTransfer?.files;
+  if (!files || files.length === 0) return null;
+  const f = files[0];
+  if (!f) return null;
+  const lower = f.name.toLowerCase();
+  return lower.endsWith(".srt") || lower.endsWith(".vtt") ? f : null;
+}
 
 type AnimeAudioMode = "sub" | "dub";
 
@@ -335,6 +362,13 @@ function formatTime(sec: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/** Format a subtitle sync offset (ms) for the HUD, e.g. "+0.2s". */
+function formatSubtitleDelay(ms: number): string {
+  if (ms === 0) return "0.0s";
+  const sign = ms > 0 ? "+" : "-";
+  return `${sign}${(Math.abs(ms) / 1000).toFixed(1)}s`;
+}
+
 function WatchInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -445,6 +479,10 @@ function WatchInner() {
   } | null>(null);
   const [volumeHud, setVolumeHud] = useState(false);
   const [actionToast, setActionToast] = useState<string | null>(null);
+  const [subtitleDelayHud, setSubtitleDelayHud] = useState<
+    "hidden" | "shown" | "leaving"
+  >("hidden");
+  const [dragOver, setDragOver] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
 
@@ -455,6 +493,13 @@ function WatchInner() {
   const [subtitleStatus, setSubtitleStatus] = useState<
     "idle" | "ok" | "blocked" | "failed"
   >("idle");
+  /** Subtitle sync offset in ms — applied to every cue's start/end time. */
+  const [subtitleDelayMs, setSubtitleDelayMs] = useState(0);
+  /** Locally uploaded subtitle files (blob-backed VTT tracks). */
+  const [uploadedTracks, setUploadedTracks] = useState<SubtitleTrack[]>([]);
+  const subFileInputRef = useRef<HTMLInputElement>(null);
+  /** Blob URLs created for uploaded tracks — revoked on reset/unmount. */
+  const uploadedUrlsRef = useRef<string[]>([]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
@@ -464,7 +509,31 @@ function WatchInner() {
   const seekFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const volumeHudTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const subtitleDelayHudTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragDepthRef = useRef(0);
   const lastTapRef = useRef<{ t: number; side: string }>({ t: 0, side: "" });
+
+  // Fetched + uploaded tracks are rendered together as <track> children, so
+  // activeSubtitle indexes into this combined list.
+  const allSubtitleTracks = useMemo(
+    () => [...subtitleTracks, ...uploadedTracks],
+    [subtitleTracks, uploadedTracks],
+  );
+
+  // Original cue timings keyed by cue object — lets us shift cue times for
+  // sync delay without compounding offsets across re-applies.
+  const cueOriginalsRef = useRef(
+    new WeakMap<TextTrackCue, { start: number; end: number }>(),
+  );
+
+  // Uploaded subtitle files + sync offset are per-title/episode — reset when
+  // the content changes (covers anime too, where OpenSubtitles lookup is skipped).
+  useEffect(() => {
+    for (const url of uploadedUrlsRef.current) URL.revokeObjectURL(url);
+    uploadedUrlsRef.current = [];
+    setUploadedTracks([]);
+    setSubtitleDelayMs(0);
+  }, [tmdbId, malId, mediaType, season, episode]);
 
   // Fetch subtitles from the OpenSubtitles scraper (movies/TV only — anime
   // streams come with subs baked in). Best-effort: failures just disable CC.
@@ -528,7 +597,63 @@ function WatchInner() {
     for (let i = 0; i < v.textTracks.length; i++) {
       v.textTracks[i]!.mode = i === activeSubtitle ? "showing" : "disabled";
     }
-  }, [activeSubtitle, subtitleTracks, activeUrl]);
+  }, [activeSubtitle, allSubtitleTracks, activeUrl]);
+
+  // Shift cue timings by the subtitle sync offset. Native <track> cues load
+  // asynchronously, so we re-apply on each track's `load` event as well as on
+  // any delay / track / source change.
+  const applySubtitleDelay = useCallback((delayMs: number) => {
+    const v = videoRef.current;
+    if (!v) return;
+    const offset = delayMs / 1000;
+    for (let i = 0; i < v.textTracks.length; i++) {
+      const track = v.textTracks[i];
+      if (!track?.cues) continue;
+      // Snapshot first — cue lists are live and re-sort when startTime changes.
+      const cues = Array.from(track.cues) as TextTrackCue[];
+      for (const cue of cues) {
+        let orig = cueOriginalsRef.current.get(cue);
+        if (!orig) {
+          orig = { start: cue.startTime, end: cue.endTime };
+          cueOriginalsRef.current.set(cue, orig);
+        }
+        const ns = Math.max(0, orig.start + offset);
+        const ne = Math.max(ns + 0.001, orig.end + offset);
+        // Set in an order that never violates start >= 0 && start <= end.
+        if (ne >= cue.startTime) {
+          cue.endTime = ne;
+          cue.startTime = ns;
+        } else {
+          cue.startTime = ns;
+          cue.endTime = ne;
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const apply = () => applySubtitleDelay(subtitleDelayMs);
+    const tracks: TextTrack[] = [];
+    for (let i = 0; i < v.textTracks.length; i++) {
+      const t = v.textTracks[i];
+      if (t) {
+        tracks.push(t);
+        t.addEventListener("load", apply);
+      }
+    }
+    apply();
+    return () => {
+      for (const t of tracks) t.removeEventListener("load", apply);
+    };
+  }, [
+    subtitleDelayMs,
+    activeSubtitle,
+    allSubtitleTracks,
+    activeUrl,
+    applySubtitleDelay,
+  ]);
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -589,6 +714,33 @@ function WatchInner() {
     volumeHudTimer.current = setTimeout(() => setVolumeHud(false), 1000);
   }, []);
 
+  // Show the subtitle-sync HUD, keep it up while the user adjusts, then fade out.
+  const flashSubtitleDelay = useCallback(() => {
+    setSubtitleDelayHud("shown");
+    if (subtitleDelayHudTimer.current)
+      clearTimeout(subtitleDelayHudTimer.current);
+    subtitleDelayHudTimer.current = setTimeout(
+      () => setSubtitleDelayHud("leaving"),
+      2200,
+    );
+  }, []);
+
+  // Unmount the HUD once its fade-out finishes.
+  useEffect(() => {
+    if (subtitleDelayHud !== "leaving") return;
+    const t = setTimeout(() => setSubtitleDelayHud("hidden"), 260);
+    return () => clearTimeout(t);
+  }, [subtitleDelayHud]);
+
+  // Flash the HUD the moment subtitles switch on (auto-selected, menu pick,
+  // or upload) so the user knows sync controls are available.
+  const prevActiveSubtitleRef = useRef(activeSubtitle);
+  useEffect(() => {
+    const prev = prevActiveSubtitleRef.current;
+    prevActiveSubtitleRef.current = activeSubtitle;
+    if (activeSubtitle >= 0 && prev < 0) flashSubtitleDelay();
+  }, [activeSubtitle, flashSubtitleDelay]);
+
   const seekBy = useCallback(
     (delta: number) => {
       const v = videoRef.current;
@@ -646,6 +798,118 @@ function WatchInner() {
       bumpChrome();
     },
     [showToast, bumpChrome],
+  );
+
+  const adjustSubtitleDelay = useCallback(
+    (deltaMs: number) => {
+      if (activeSubtitle < 0) {
+        showToast("No subtitles active");
+        return;
+      }
+      setSubtitleDelayMs((prev) => prev + deltaMs);
+      flashSubtitleDelay();
+      bumpChrome();
+    },
+    [activeSubtitle, flashSubtitleDelay, showToast, bumpChrome],
+  );
+
+  const resetSubtitleDelay = useCallback(() => {
+    setSubtitleDelayMs(0);
+    flashSubtitleDelay();
+    bumpChrome();
+  }, [flashSubtitleDelay, bumpChrome]);
+
+  const handleSubtitleFile = useCallback(
+    async (file: File) => {
+      const lower = file.name.toLowerCase();
+      if (!lower.endsWith(".srt") && !lower.endsWith(".vtt")) {
+        showToast("Use a .srt or .vtt file");
+        return;
+      }
+      if (file.size > MAX_SUBTITLE_UPLOAD_BYTES) {
+        showToast("Subtitle file is too large (5 MB max)");
+        return;
+      }
+      try {
+        const buf = await file.arrayBuffer();
+        const text = decodeSubtitleText(new Uint8Array(buf));
+        const vtt = normalizeVTT(
+          lower.endsWith(".srt") ? convertSRTtoVTT(text) : text,
+        );
+        if (!vtt.includes("-->")) {
+          showToast("No subtitles found in that file");
+          return;
+        }
+        const url = URL.createObjectURL(new Blob([vtt], { type: "text/vtt" }));
+        uploadedUrlsRef.current.push(url);
+        const track: SubtitleTrack = {
+          label: `Uploaded · ${file.name}`,
+          language: "local",
+          url,
+        };
+        setUploadedTracks((prev) => [...prev, track]);
+        // Select the newly added track (it's appended after fetched tracks).
+        setActiveSubtitle(subtitleTracks.length + uploadedTracks.length);
+        showToast(`Added ${file.name}`);
+      } catch {
+        showToast("Couldn't read that file");
+      }
+    },
+    [subtitleTracks.length, uploadedTracks.length, showToast],
+  );
+
+  const removeUploadedTrack = useCallback(
+    (uploadedIndex: number) => {
+      const combinedIndex = subtitleTracks.length + uploadedIndex;
+      const url = uploadedTracks[uploadedIndex]?.url;
+      if (url?.startsWith("blob:")) {
+        URL.revokeObjectURL(url);
+        uploadedUrlsRef.current = uploadedUrlsRef.current.filter(
+          (u) => u !== url,
+        );
+      }
+      setUploadedTracks((prev) => prev.filter((_, i) => i !== uploadedIndex));
+      setActiveSubtitle((cur) => {
+        if (cur === combinedIndex) return -1;
+        if (cur > combinedIndex) return cur - 1;
+        return cur;
+      });
+      bumpChrome();
+    },
+    [subtitleTracks.length, uploadedTracks, bumpChrome],
+  );
+
+  // Drag-and-drop subtitle upload — show an overlay for file drags and feed
+  // the dropped .srt/.vtt through the same handler as the file picker.
+  const onDragEnter = useCallback((e: ReactDragEvent) => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setDragOver(true);
+  }, []);
+
+  const onDragOver = useCallback((e: ReactDragEvent) => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  const onDragLeave = useCallback((e: ReactDragEvent) => {
+    if (!dragHasFiles(e)) return;
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setDragOver(false);
+  }, []);
+
+  const onDrop = useCallback(
+    (e: ReactDragEvent) => {
+      e.preventDefault();
+      dragDepthRef.current = 0;
+      setDragOver(false);
+      const file = droppedSubtitleFile(e);
+      if (file) void handleSubtitleFile(file);
+      else showToast("Use a .srt or .vtt file");
+    },
+    [handleSubtitleFile, showToast],
   );
 
   const cast = useCast({
@@ -2094,6 +2358,16 @@ const sourceReferer = currentSource?.referer;
         );
         return;
       }
+      if (key === "[" || code === "BracketLeft") {
+        e.preventDefault();
+        adjustSubtitleDelay(-100);
+        return;
+      }
+      if (key === "]" || code === "BracketRight") {
+        e.preventDefault();
+        adjustSubtitleDelay(100);
+        return;
+      }
       if (code === "Escape") {
         if (showSpeedMenu) setShowSpeedMenu(false);
         else if (showSubMenu) setShowSubMenu(false);
@@ -2128,6 +2402,7 @@ const sourceReferer = currentSource?.referer;
     seekToPercent,
     setSpeed,
     playbackSpeed,
+    adjustSubtitleDelay,
     bumpChrome,
   ]);
 
@@ -2318,6 +2593,10 @@ const sourceReferer = currentSource?.referer;
       onMouseMove={bumpChrome}
       onTouchStart={bumpChrome}
       onClick={onStagePointer}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
     >
       {/* Full-bleed video layer — always mount <video> so cast/AirPlay can attach */}
       <div className="cinema-stage">
@@ -2336,7 +2615,7 @@ const sourceReferer = currentSource?.referer;
               status === "ready" && (playing || hasStarted) ? "auto" : "none",
           }}
         >
-          {subtitleTracks.map((track, i) => (
+          {allSubtitleTracks.map((track, i) => (
             <track
               key={`${track.language}-${i}`}
               kind="subtitles"
@@ -2444,6 +2723,57 @@ const sourceReferer = currentSource?.referer;
         {actionToast && (
           <div className="cinema-feedback cinema-action-toast" role="status">
             {actionToast}
+          </div>
+        )}
+
+        {subtitleDelayHud !== "hidden" && activeSubtitle >= 0 && (
+          <div
+            className={`cinema-feedback cinema-sub-hud${
+              subtitleDelayHud === "leaving" ? " is-leaving" : ""
+            }`}
+            role="group"
+            aria-label="Subtitle sync"
+          >
+            <span className="cinema-sub-hud-label">Subtitle sync</span>
+            <div className="cinema-sub-hud-controls">
+              <button
+                type="button"
+                className="cinema-sub-hud-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  adjustSubtitleDelay(-100);
+                }}
+                aria-label="Shift subtitles 100ms earlier"
+              >
+                −100ms
+              </button>
+              <span className="cinema-sub-hud-value">
+                {formatSubtitleDelay(subtitleDelayMs)}
+              </span>
+              <button
+                type="button"
+                className="cinema-sub-hud-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  adjustSubtitleDelay(100);
+                }}
+                aria-label="Shift subtitles 100ms later"
+              >
+                +100ms
+              </button>
+            </div>
+            {subtitleDelayMs !== 0 && (
+              <button
+                type="button"
+                className="cinema-sub-hud-reset"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  resetSubtitleDelay();
+                }}
+              >
+                Reset
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -2767,70 +3097,148 @@ const sourceReferer = currentSource?.referer;
                   </div>
                 )}
               </div>
-              {(subtitleTracks.length > 0 ||
-                subtitleStatus === "blocked" ||
-                subtitleStatus === "failed") && (
-                <div className="cinema-sub-wrap">
-                  <button
-                    type="button"
-                    className={`cinema-icon-btn${showSubMenu ? " is-on" : ""}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowSubMenu((v) => !v);
-                      setShowSpeedMenu(false);
-                      setShowSources(false);
-                      setShowEpisodes(false);
-                      bumpChrome();
-                    }}
-                    aria-label="Subtitles"
-                    title={
-                      subtitleTracks.length === 0
-                        ? "Subtitles unavailable"
-                        : "Subtitles"
-                    }
-                    disabled={subtitleTracks.length === 0}
-                  >
-                    {activeSubtitle >= 0 && subtitleTracks[activeSubtitle] ? (
-                      subtitleTracks[activeSubtitle].label.slice(0, 3)
-                    ) : (
-                      <SubtitleIcon />
-                    )}
-                  </button>
-                  {showSubMenu && subtitleTracks.length > 0 && (
-                    <div
-                      className="cinema-sub-menu"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <p className="cinema-sub-menu-label">Subtitles</p>
-                      <button
-                        type="button"
-                        className={`cinema-sub-option${activeSubtitle === -1 ? " is-active" : ""}`}
-                        onClick={() => {
-                          setActiveSubtitle(-1);
-                          setShowSubMenu(false);
-                          bumpChrome();
-                        }}
-                      >
-                        Off
-                      </button>
-                      {subtitleTracks.map((track, i) => (
-                        <button
-                          key={`${track.language}-${i}`}
-                          type="button"
-                          className={`cinema-sub-option${i === activeSubtitle ? " is-active" : ""}`}
-                          onClick={() => {
-                            setActiveSubtitle(i);
-                            setShowSubMenu(false);
-                            bumpChrome();
-                          }}
-                        >
-                          {track.label}
-                        </button>
-                      ))}
-                    </div>
+              <div className="cinema-sub-wrap">
+                <button
+                  type="button"
+                  className={`cinema-icon-btn${showSubMenu ? " is-on" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowSubMenu((v) => !v);
+                    setShowSpeedMenu(false);
+                    setShowSources(false);
+                    setShowEpisodes(false);
+                    bumpChrome();
+                  }}
+                  aria-label="Subtitles"
+                  title="Subtitles"
+                >
+                  {activeSubtitle >= 0 && allSubtitleTracks[activeSubtitle] ? (
+                    allSubtitleTracks[activeSubtitle].label.slice(0, 3)
+                  ) : (
+                    <SubtitleIcon />
                   )}
-                </div>
-              )}
+                </button>
+                {showSubMenu && (
+                  <div
+                    className="cinema-sub-menu"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="cinema-sub-menu-label">Subtitles</p>
+                    <button
+                      type="button"
+                      className={`cinema-sub-option${activeSubtitle === -1 ? " is-active" : ""}`}
+                      onClick={() => {
+                        setActiveSubtitle(-1);
+                        setShowSubMenu(false);
+                        bumpChrome();
+                      }}
+                    >
+                      Off
+                    </button>
+                    {allSubtitleTracks.map((track, i) => {
+                      const isUploaded = i >= subtitleTracks.length;
+                      return (
+                        <div
+                          key={`${track.language}-${i}`}
+                          className="cinema-sub-track"
+                        >
+                          <button
+                            type="button"
+                            className={`cinema-sub-option cinema-sub-track-select${
+                              i === activeSubtitle ? " is-active" : ""
+                            }`}
+                            onClick={() => {
+                              setActiveSubtitle(i);
+                              setShowSubMenu(false);
+                              bumpChrome();
+                            }}
+                          >
+                            {track.label}
+                          </button>
+                          {isUploaded && (
+                            <button
+                              type="button"
+                              className="cinema-sub-track-remove"
+                              onClick={() =>
+                                removeUploadedTrack(i - subtitleTracks.length)
+                              }
+                              aria-label={`Remove ${track.label}`}
+                              title="Remove uploaded subtitle"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {allSubtitleTracks.length === 0 && (
+                      <p className="cinema-sub-menu-note">
+                        {subtitleStatus === "blocked"
+                          ? "Subtitle lookup was blocked — upload your own below."
+                          : "No subtitles found — upload your own below."}
+                      </p>
+                    )}
+                    {allSubtitleTracks.length > 0 && activeSubtitle >= 0 && (
+                      <div className="cinema-sub-delay">
+                        <span className="cinema-sub-delay-label">
+                          Sync delay
+                        </span>
+                        <div className="cinema-sub-delay-row">
+                          <button
+                            type="button"
+                            className="cinema-sub-delay-btn"
+                            onClick={() => adjustSubtitleDelay(-100)}
+                            aria-label="Shift subtitles 100ms earlier"
+                          >
+                            −100ms
+                          </button>
+                          <span className="cinema-sub-delay-value">
+                            {formatSubtitleDelay(subtitleDelayMs)}
+                          </span>
+                          <button
+                            type="button"
+                            className="cinema-sub-delay-btn"
+                            onClick={() => adjustSubtitleDelay(100)}
+                            aria-label="Shift subtitles 100ms later"
+                          >
+                            +100ms
+                          </button>
+                        </div>
+                        {subtitleDelayMs !== 0 && (
+                          <button
+                            type="button"
+                            className="cinema-sub-delay-reset"
+                            onClick={resetSubtitleDelay}
+                          >
+                            Reset sync
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      className="cinema-sub-option cinema-sub-upload"
+                      onClick={() => subFileInputRef.current?.click()}
+                    >
+                      <UploadIcon />
+                      <span>Upload subtitle file…</span>
+                    </button>
+                  </div>
+                )}
+                <input
+                  ref={subFileInputRef}
+                  type="file"
+                  accept=".srt,.vtt,text/vtt,application/x-subrip"
+                  className="cinema-sub-file-input"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleSubtitleFile(file);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
               <button
                 type="button"
                 className="cinema-icon-btn"
@@ -3303,6 +3711,16 @@ const sourceReferer = currentSource?.referer;
         }}
         platform={detectHelpPlatform()}
       />
+
+      {dragOver && (
+        <div className="cinema-drop-overlay" aria-hidden>
+          <div className="cinema-drop-card">
+            <UploadIcon />
+            <p className="cinema-drop-title">Drop subtitle file</p>
+            <p className="cinema-drop-sub">.srt or .vtt</p>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -3403,6 +3821,14 @@ function SubtitleIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden>
       <rect x="2" y="4" width="20" height="16" rx="3" />
       <path d="M6.5 11h4M13.5 11h4M6.5 15h4M13.5 15h4" />
+    </svg>
+  );
+}
+function UploadIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 16V4M6 10l6-6 6 6" />
+      <path d="M4 20h16" />
     </svg>
   );
 }

@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { convertSRTtoVTT } from "@/lib/subtitles/srt";
+import { convertSRTtoVTT, normalizeVTT } from "@/lib/subtitles/srt";
 
 const UA = "Flyx/3.0 (https://github.com/Vynx-Velvet/Flyx-main)";
 
@@ -48,9 +48,8 @@ export async function GET(request: NextRequest) {
       url.endsWith(".srt") ||
       body.includes(" --> ") && body.includes("\n\n");
 
-    if (isSRT) {
-      body = convertSRTtoVTT(body);
-    }
+    body = isSRT ? convertSRTtoVTT(body) : body;
+    body = normalizeVTT(body);
 
     // Cache it
     cache.set(url, { data: body, contentType: "text/vtt", ts: Date.now() });

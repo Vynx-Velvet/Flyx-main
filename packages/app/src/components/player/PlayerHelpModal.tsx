@@ -97,6 +97,13 @@ function desktopShortcuts(isApple: boolean): { sections: Array<{ label: string; 
         ],
       },
       {
+        label: 'Subtitles',
+        items: [
+          { action: 'Sync earlier / later 100ms', keys: ['[', ']'] },
+          { action: 'Upload your own file', keys: ['Sub menu'] },
+        ],
+      },
+      {
         label: 'Casting',
         items: [
           { action: 'Cast to TV (player button)', keys: ['Cast icon'] },

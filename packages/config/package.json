@@ -1,6 +1,6 @@
 {
   "name": "@flyx/config",
-  "version": "3.0.3",
+  "version": "3.0.3a",
   "private": true,
   "description": "Flyx shared configuration: provider priorities, env validation, constants",
   "main": "./src/index.ts",

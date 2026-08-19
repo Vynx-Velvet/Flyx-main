@@ -1,22 +1,53 @@
 /**
- * Subtitle text helpers — shared by the subtitle proxy + download routes.
+ * Subtitle text helpers — shared by the subtitle proxy + download routes and
+ * the in-player subtitle uploader.
  */
 
-/** Convert SRT cue blocks to VTT (timestamp commas → dots, cue indices dropped). */
+/** Normalize line endings and strip a leading BOM so SRT/VTT text parses cleanly. */
+function normalizeText(text: string): string {
+  return text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+}
+
+/** Drop tags WebVTT won't render while keeping the text inside them. */
+function cleanCueText(text: string): string {
+  return text
+    .replace(/<br\s*\/?>/gi, "\n") // HTML line breaks → VTT newlines
+    .replace(/<\/?(font|span)\b[^>]*>/gi, "") // unsupported inline tags
+    .replace(/\{[^}]*\}/g, "") // ASS-style override blocks
+    .trim();
+}
+
+/**
+ * Convert SRT cue blocks to VTT (timestamp commas → dots, cue indices dropped).
+ * Handles CRLF/CR/LF, BOMs, whitespace-only separators, and SRT position hints.
+ */
 export function convertSRTtoVTT(srt: string): string {
-  let vtt = "WEBVTT\n\n";
-  const normalized = srt.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const blocks = normalized.split(/\n\n+/);
+  const normalized = normalizeText(srt);
+  const blocks = normalized.split(/\n[ \t]*\n+/);
+  const out: string[] = ["WEBVTT", ""];
   for (const block of blocks) {
-    const lines = block.trim().split("\n");
-    if (lines.length < 2) continue;
+    const lines = block.split("\n").filter((l) => l.trim().length > 0);
     const tsIdx = lines.findIndex((l) => l.includes("-->"));
     if (tsIdx === -1) continue;
-    const timestamp = lines[tsIdx].replace(/,(\d{3})/g, ".$1");
-    const text = lines.slice(tsIdx + 1).join("\n");
-    vtt += `${timestamp}\n${text}\n\n`;
+    const timestamp = lines[tsIdx]
+      .replace(/,(\d{3})/g, ".$1")
+      .replace(/\s+(X1|X2|Y1|Y2):[^\s]+.*$/i, "");
+    const text = cleanCueText(lines.slice(tsIdx + 1).join("\n"));
+    if (!text) continue;
+    out.push(timestamp, text, "");
   }
-  return vtt;
+  return out.join("\n") + "\n";
+}
+
+/**
+ * Ensure `vtt` is a valid WebVTT document — prepend the `WEBVTT` header if the
+ * file (or a converted SRT) is missing it, so the browser's native <track> can
+ * parse it.
+ */
+export function normalizeVTT(vtt: string): string {
+  const text = normalizeText(vtt).trimStart();
+  if (/^WEBVTT([ \t]|\n)/.test(text)) return text.trimEnd() + "\n";
+  return `WEBVTT\n\n${text.trimEnd()}\n`;
 }
 
 /**
