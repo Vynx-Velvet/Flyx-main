@@ -44,6 +44,12 @@ const TABS = [
     icon: "M4 6h16M4 12h16M4 18h16",
   },
   {
+    href: "/downloads",
+    label: "Downloads",
+    match: (p: string) => p.startsWith("/downloads"),
+    icon: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3",
+  },
+  {
     href: "/help",
     label: "Help",
     match: (p: string) => p.startsWith("/help"),

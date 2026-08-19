@@ -8,6 +8,7 @@ import ContentRail from "@/components/ui/ContentRail";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { ErrorState, PageLoader } from "@/components/ui/EmptyState";
 import styles from "./DetailsPage.module.css";
+import DownloadMenu from "@/components/downloads/DownloadMenu";
 
 const IMG = "https://image.tmdb.org/t/p";
 
@@ -420,6 +421,26 @@ export default function DetailsPageClient({
                 >
                   {inList ? "✓ In List" : "+ My List"}
                 </button>
+                <DownloadMenu
+                  item={{
+                    kind: "video",
+                    tmdbId: Number(id),
+                    mediaType,
+                    season: mediaType === "tv" ? selectedSeason : undefined,
+                    episode: mediaType === "tv" ? 1 : undefined,
+                    title,
+                    durationSec:
+                      mediaType === "movie"
+                        ? details.runtime
+                          ? details.runtime * 60
+                          : undefined
+                        : details.episode_run_time?.[0]
+                          ? details.episode_run_time[0] * 60
+                          : undefined,
+                  }}
+                  label="Download"
+                  className="btn-secondary !px-4 !py-2.5 text-sm"
+                />
                 {trailer && (
                   <button
                     type="button"
@@ -475,61 +496,118 @@ export default function DetailsPageClient({
                 No episodes found for this season.
               </p>
             ) : (
-              <div className={styles.epGrid}>
-                {episodes.map((ep) => (
-                  <Link
-                    key={ep.id}
-                    href={playHref(ep.season_number, ep.episode_number)}
-                    className={styles.epCard}
-                  >
-                    <div className={styles.epStill}>
-                      {ep.still_path ? (
-                        <img
-                          src={`${IMG}/w300${ep.still_path}`}
-                          alt=""
-                          loading="lazy"
+              <>
+                <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 0.75rem" }}>
+                  <DownloadMenu
+                    items={episodes.map((ep) => ({
+                      kind: "video",
+                      tmdbId: Number(id),
+                      mediaType,
+                      season: ep.season_number,
+                      episode: ep.episode_number,
+                      title,
+                      durationSec: ep.runtime ? ep.runtime * 60 : undefined,
+                    }))}
+                    menuAlign="right"
+                    label={`Download Season ${selectedSeason} (${episodes.length})`}
+                    className="btn-secondary !px-4 !py-2 text-sm"
+                  />
+                </div>
+                <div className={styles.epGrid}>
+                  {episodes.map((ep) => (
+                    <div key={ep.id} className={styles.epCard}>
+                      <Link
+                        href={playHref(ep.season_number, ep.episode_number)}
+                        style={{
+                          display: "flex",
+                          flex: 1,
+                          minWidth: 0,
+                          textDecoration: "none",
+                          color: "inherit",
+                        }}
+                      >
+                        <div className={styles.epStill}>
+                          {ep.still_path ? (
+                            <img
+                              src={`${IMG}/w300${ep.still_path}`}
+                              alt=""
+                              loading="lazy"
+                            />
+                          ) : details.backdrop_path ? (
+                            <img
+                              src={`${IMG}/w300${details.backdrop_path}`}
+                              alt=""
+                              loading="lazy"
+                              style={{ opacity: 0.45 }}
+                            />
+                          ) : null}
+                          <span className={styles.epBadge}>
+                            E{ep.episode_number}
+                          </span>
+                          <div className={styles.epPlay}>
+                            <span className={styles.epPlayIcon}>
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="#030307" aria-hidden>
+                                <path d="M8 5.5v13l11-6.5L8 5.5z" />
+                              </svg>
+                            </span>
+                          </div>
+                        </div>
+                        <div className={styles.epBody}>
+                          <p className={styles.epTitle}>
+                            {ep.name || `Episode ${ep.episode_number}`}
+                          </p>
+                          {ep.overview && (
+                            <p className={styles.epDesc}>{ep.overview}</p>
+                          )}
+                          <div className={styles.epMeta}>
+                            {[
+                              formatDate(ep.air_date),
+                              ep.runtime ? `${ep.runtime}m` : null,
+                              ep.vote_average && ep.vote_average > 0
+                                ? `★ ${ep.vote_average.toFixed(1)}`
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </div>
+                        </div>
+                      </Link>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          padding: "0 0.6rem",
+                        }}
+                      >
+                        <DownloadMenu
+                          item={{
+                            kind: "video",
+                            tmdbId: Number(id),
+                            mediaType,
+                            season: ep.season_number,
+                            episode: ep.episode_number,
+                            title,
+                            durationSec: ep.runtime ? ep.runtime * 60 : undefined,
+                          }}
+                          menuAlign="right"
+                          label="⬇"
+                          queuedLabel="✓"
+                          title={`Download S${ep.season_number} E${ep.episode_number}`}
+                          style={{
+                            background: "transparent",
+                            border: "1px solid rgba(255,255,255,0.15)",
+                            borderRadius: 8,
+                            color: "rgba(255,255,255,0.8)",
+                            fontSize: "0.8rem",
+                            padding: "0.3rem 0.5rem",
+                            cursor: "pointer",
+                          }}
                         />
-                      ) : details.backdrop_path ? (
-                        <img
-                          src={`${IMG}/w300${details.backdrop_path}`}
-                          alt=""
-                          loading="lazy"
-                          style={{ opacity: 0.45 }}
-                        />
-                      ) : null}
-                      <span className={styles.epBadge}>
-                        E{ep.episode_number}
-                      </span>
-                      <div className={styles.epPlay}>
-                        <span className={styles.epPlayIcon}>
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="#030307" aria-hidden>
-                            <path d="M8 5.5v13l11-6.5L8 5.5z" />
-                          </svg>
-                        </span>
                       </div>
                     </div>
-                    <div className={styles.epBody}>
-                      <p className={styles.epTitle}>
-                        {ep.name || `Episode ${ep.episode_number}`}
-                      </p>
-                      {ep.overview && (
-                        <p className={styles.epDesc}>{ep.overview}</p>
-                      )}
-                      <div className={styles.epMeta}>
-                        {[
-                          formatDate(ep.air_date),
-                          ep.runtime ? `${ep.runtime}m` : null,
-                          ep.vote_average && ep.vote_average > 0
-                            ? `★ ${ep.vote_average.toFixed(1)}`
-                            : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </>
             )}
           </section>
         )}

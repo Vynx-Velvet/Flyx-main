@@ -23,6 +23,10 @@ files:
 extraResources:
   - from: ../../.flyx-standalone
     to: server
+  # The runtime window/tray icon. Ships unpacked (not in the asar) because
+  # nativeImage/Chromium load icons from real disk.
+  - from: build/icon.png
+    to: icon.png
 
 asar: true
 npmRebuild: false

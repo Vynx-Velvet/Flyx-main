@@ -1,6 +1,6 @@
 {
   "name": "flyx",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "private": true,
   "description": "Flyx 3.0 — Privacy-first streaming platform",
   "workspaces": [
@@ -50,7 +50,8 @@
     "desktop:dev": "node scripts/build-desktop.mjs && npm run start --workspace=@flyx/desktop",
     "desktop:package": "npm run desktop:build && npm run dist --workspace=@flyx/desktop",
     "desktop:publish": "npm run desktop:build && npm run dist:publish --workspace=@flyx/desktop",
-    "desktop:icons": "node scripts/gen-desktop-icon.mjs"
+    "desktop:icons": "node scripts/gen-desktop-icon.mjs",
+    "ffmpeg:fetch": "node scripts/fetch-ffmpeg.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

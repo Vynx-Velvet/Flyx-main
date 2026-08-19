@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import ContentCard from "@/components/ContentCard";
+import DownloadMenu from "@/components/downloads/DownloadMenu";
+import type { DownloadItemInput } from "@/lib/downloads/types";
 import {
   useWatchlist,
   type WatchlistItem,
@@ -14,8 +16,49 @@ type Sort = "recent" | "title" | "rating";
 
 function itemHref(item: WatchlistItem) {
   if (item.mediaType === "anime") return `/anime/${item.contentId}`;
+  if (item.mediaType === "manga") return `/manga/${item.contentId}`;
   return `/details/${item.contentId}?type=${item.mediaType}`;
 }
+
+/** Movies/anime are single titles and can download directly; tv/manga need a picker. */
+function directDownload(item: WatchlistItem): DownloadItemInput | null {
+  if (item.mediaType === "movie") {
+    return {
+      kind: "video",
+      tmdbId: Number(item.contentId) || 0,
+      mediaType: "movie",
+      title: item.title,
+    };
+  }
+  if (item.mediaType === "anime") {
+    return {
+      kind: "video",
+      tmdbId: 0,
+      mediaType: "movie",
+      malId: Number(item.contentId) || undefined,
+      title: item.title,
+    };
+  }
+  return null;
+}
+
+const DOWNLOAD_ICON = (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
 
 function formatAdded(ts: number) {
   const d = new Date(ts);
@@ -200,24 +243,50 @@ export default function WatchlistPageClient() {
           <>
             <div className="watchlist-panel">
               <div className="watchlist-grid">
-                {filtered.map((item: WatchlistItem, i) => (
-                  <div
-                    key={item.id}
-                    className="watchlist-card"
-                    style={{
-                      animation: "rail-fade-in 0.4s var(--ease-out) both",
-                      animationDelay: `${Math.min(i * 0.03, 0.35)}s`,
-                    }}
-                  >
-                    <ContentCard
-                      tmdbId={Number(item.contentId) || 0}
-                      title={item.title}
-                      mediaType={item.mediaType}
-                      posterUrl={item.posterPath}
-                      rating={item.rating}
-                      year={item.year}
-                      href={itemHref(item)}
-                    />
+                {filtered.map((item: WatchlistItem, i) => {
+                  const dl = directDownload(item);
+                  return (
+                    <div
+                      key={item.id}
+                      className="watchlist-card"
+                      style={{
+                        animation: "rail-fade-in 0.4s var(--ease-out) both",
+                        animationDelay: `${Math.min(i * 0.03, 0.35)}s`,
+                      }}
+                    >
+                      <ContentCard
+                        tmdbId={Number(item.contentId) || 0}
+                        title={item.title}
+                        mediaType={item.mediaType}
+                        posterUrl={item.posterPath}
+                        rating={item.rating}
+                        year={item.year}
+                        href={itemHref(item)}
+                      />
+                      <div className="watchlist-download">
+                        {dl ? (
+                          <DownloadMenu
+                            item={dl}
+                            label={DOWNLOAD_ICON}
+                            queuedLabel={DOWNLOAD_ICON}
+                            title={`Download ${item.title}`}
+                            className="watchlist-download-btn"
+                          />
+                        ) : (
+                          <Link
+                            href={itemHref(item)}
+                            className="watchlist-download-btn"
+                            title={
+                              item.mediaType === "manga"
+                                ? "Download chapters — opens manga page"
+                                : "Download episodes — opens details page"
+                            }
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {DOWNLOAD_ICON}
+                          </Link>
+                        )}
+                      </div>
                     <button
                       type="button"
                       onClick={(e) => {
@@ -244,8 +313,9 @@ export default function WatchlistPageClient() {
                     <p className="watchlist-added">
                       Added {formatAdded(item.addedAt)}
                     </p>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

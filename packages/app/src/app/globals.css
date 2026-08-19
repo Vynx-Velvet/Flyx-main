@@ -5148,6 +5148,43 @@ input::placeholder {
   color: #fff;
   transform: scale(1.05);
 }
+.watchlist-download {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 30;
+}
+.watchlist-download-btn {
+  display: flex;
+  width: 1.85rem;
+  height: 1.85rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.78);
+  color: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+.watchlist-download-btn:hover {
+  background: rgba(0, 229, 191, 0.16);
+  border-color: rgba(0, 229, 191, 0.5);
+  color: #00e5bf;
+  transform: scale(1.05);
+}
+.watchlist-download-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .watchlist-added {
   margin: 0.35rem 0 0;
   padding: 0 0.15rem;

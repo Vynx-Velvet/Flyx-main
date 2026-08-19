@@ -35,6 +35,7 @@ const { bootstrap, readEnv, updateEnv, ensureMasterToken, ensureSecrets } = requ
 const server = require("./src/server-manager");
 const { getLANURLs, getLocalURL, isPortInUse } = require("./src/network");
 const updater = require("./src/updater");
+const ghUpdater = require("./src/github-updater");
 
 app.setName("Flyx");
 
@@ -71,6 +72,15 @@ if (!gotLock) {
 // ── Startup ──────────────────────────────────────────────────────
 
 async function onReady() {
+  cleanupStalePortableExes(); // portable self-update: drop the previous build
+  // The embedded server writes downloads here by default (overridable in
+  // Settings → Downloads). Must be set before the server child is spawned so
+  // it's inherited via process.env.
+  try {
+    process.env.FLYX_DEFAULT_DOWNLOAD_DIR = app.getPath("downloads");
+  } catch {
+    /* app not ready for getPath yet — server falls back to ~/Downloads */
+  }
   bootstrap(); // first run: writes secrets + HOSTNAME=0.0.0.0
   ensureMasterToken(); // migrate pre-token data dirs (before watcher is armed)
   ensureSecrets(); // heal .env files missing JWT_SECRET/HOST_KEY (older builds)
@@ -312,8 +322,22 @@ const RESTARTING_HTML = `<!doctype html>
 </body>
 </html>`;
 
+/**
+ * Resolve the app icon (window + tray). In a packaged build the icon ships
+ * unpacked as <resources>/icon.png via extraResources — nativeImage and
+ * Chromium read files from real disk, not from inside the asar. In dev it
+ * lives at build/icon.png next to main.js.
+ */
+function getIconPath() {
+  if (app.isPackaged && process.resourcesPath) {
+    const packaged = path.join(process.resourcesPath, "icon.png");
+    if (fs.existsSync(packaged)) return packaged;
+  }
+  return path.join(__dirname, "build", "icon.png");
+}
+
 function createWindow() {
-  const iconPath = path.join(__dirname, "..", "build", "icon.png");
+  const iconPath = getIconPath();
   const icon = fs.existsSync(iconPath) ? iconPath : undefined;
 
   mainWindow = new BrowserWindow({
@@ -425,10 +449,182 @@ function showRestartingPage() {
     .catch(() => {});
 }
 
-function sendToWindow(channel) {
+function sendToWindow(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(channel);
+    mainWindow.webContents.send(channel, payload);
   }
+}
+
+// ── GitHub updates (manual pull — portable + installer) ─────────
+
+function isPortable() {
+  return Boolean(process.env.PORTABLE_EXECUTABLE_FILE);
+}
+
+/**
+ * Portable self-update cleanup. The updater downloads the new
+ * Flyx-Portable-<version>.exe next to the current one and relaunches; on the
+ * next start (running the new build) sweep up any stale Flyx-Portable-*.exe
+ * so the previous build doesn't linger in the folder.
+ */
+function cleanupStalePortableExes() {
+  if (!isPortable()) return;
+  const dir = process.env.PORTABLE_EXECUTABLE_DIR;
+  const current = process.env.PORTABLE_EXECUTABLE_FILE;
+  if (!dir || !current) return;
+
+  let entries;
+  try {
+    entries = fs.readdirSync(dir);
+  } catch {
+    return;
+  }
+
+  const currentName = path.basename(current).toLowerCase();
+  for (const name of entries) {
+    if (!/^Flyx-Portable-.*\.exe$/i.test(name)) continue;
+    if (name.toLowerCase() === currentName) continue;
+    const full = path.join(dir, name);
+    try {
+      fs.unlinkSync(full);
+      server.log(`[updater] removed old portable build ${name}`);
+    } catch (err) {
+      server.log(`[updater] could not remove ${name}: ${(err && err.message) || err}`);
+    }
+  }
+}
+
+function sendUpdateStatus(status) {
+  sendToWindow("flyx:update-status", status);
+}
+
+/**
+ * Spawn a detached Electron-as-node helper that launches `dest` after a
+ * short delay, then quit. The delay lets this process fully exit (and
+ * release the single-instance lock) before the new build starts.
+ */
+function launchDetachedAfterDelay(dest) {
+  const script =
+    'setTimeout(function(){require("child_process").spawn(process.argv[1],[],{detached:true,stdio:"ignore"}).unref()},1500);';
+  const child = require("child_process").spawn(
+    process.execPath,
+    ["-e", script, dest],
+    {
+      detached: true,
+      stdio: "ignore",
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+    },
+  );
+  child.unref();
+}
+
+/**
+ * Download + install the latest GitHub release for this build. Never throws
+ * — resolves with an outcome object and emits `flyx:update-status` events.
+ */
+async function downloadGithubUpdate() {
+  const info = await ghUpdater.checkForUpdate({
+    currentVersion: app.getVersion(),
+    platform: process.platform,
+    portable: isPortable(),
+  });
+
+  if (!info.available || !info.assetUrl || !info.asset) {
+    const message = info.assetUrl
+      ? "No compatible download found for this build"
+      : "You are already up to date";
+    sendUpdateStatus({ phase: "error", message });
+    return { ok: false, ...info, message };
+  }
+
+  // Portable builds download the new exe next to the current one (the
+  // artifact name embeds the version, so it won't collide); installers and
+  // other platforms download to the OS temp dir and run from there.
+  const dest =
+    isPortable() && process.env.PORTABLE_EXECUTABLE_DIR
+      ? path.join(process.env.PORTABLE_EXECUTABLE_DIR, info.asset)
+      : path.join(app.getPath("temp"), info.asset);
+  sendUpdateStatus({ phase: "downloading", percent: 0, asset: info.asset });
+
+  try {
+    await ghUpdater.downloadToFile(info.assetUrl, dest, ({ received, total }) => {
+      const percent = total ? Math.round((received / total) * 100) : 0;
+      sendUpdateStatus({ phase: "downloading", percent, asset: info.asset });
+    });
+  } catch (err) {
+    const message = String((err && err.message) || err);
+    server.log(`[updater] github download failed: ${message}`);
+    sendUpdateStatus({ phase: "error", message });
+    return { ok: false, ...info, message };
+  }
+
+  sendUpdateStatus({ phase: "installing", asset: info.asset, path: dest });
+
+  const ext = path.extname(info.asset).toLowerCase();
+  if (ext === ".dmg" || ext === ".deb") {
+    // The user must finish the OS-level install (drag to Applications /
+    // run the package). Open it and keep Flyx running — quitting now would
+    // drop LAN sharing mid-install.
+    try {
+      const { shell } = require("electron");
+      await shell.openPath(dest);
+    } catch (err) {
+      server.log(`[updater] open ${info.asset} failed: ${(err && err.message) || err}`);
+    }
+    sendUpdateStatus({ phase: "done", asset: info.asset, path: dest });
+    return { ok: true, ...info, path: dest, restarted: false };
+  }
+
+  if (ext === ".appimage") {
+    try { fs.chmodSync(dest, 0o755); } catch {}
+  }
+
+  launchDetachedAfterDelay(dest);
+  sendUpdateStatus({ phase: "done", asset: info.asset, path: dest });
+  quitApp();
+  return { ok: true, ...info, path: dest, restarted: true };
+}
+
+/** Tray flow: check GitHub, prompt, then download + install. */
+async function checkGithubAndPromptInstall() {
+  let info;
+  try {
+    info = await ghUpdater.checkForUpdate({
+      currentVersion: app.getVersion(),
+      platform: process.platform,
+      portable: isPortable(),
+    });
+  } catch (err) {
+    server.log(`[updater] github check failed: ${(err && err.message) || err}`);
+    dialog.showMessageBox({
+      type: "error",
+      title: "Flyx Update",
+      message: "Could not check for updates.",
+      detail: "Check your internet connection and try again.",
+    });
+    return;
+  }
+
+  if (!info.available) {
+    dialog.showMessageBox({
+      type: "info",
+      title: "Flyx Update",
+      message: "You're up to date.",
+      detail: `Flyx ${info.current} is the latest version.`,
+    });
+    return;
+  }
+
+  const { response } = await dialog.showMessageBox({
+    type: "info",
+    title: "Flyx Update",
+    message: `Flyx ${info.latest} is available`,
+    detail: `You have ${info.current}. Download and install now?`,
+    buttons: ["Download & Install", "Later"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response === 0) await downloadGithubUpdate();
 }
 
 // ── Tray ─────────────────────────────────────────────────────────
@@ -438,9 +634,7 @@ const TRAY_FALLBACK_PNG =
 
 function loadTrayIcon() {
   try {
-    const img = nativeImage.createFromPath(
-      path.join(__dirname, "..", "build", "icon.png"),
-    );
+    const img = nativeImage.createFromPath(getIconPath());
     if (!img.isEmpty()) return img.resize({ width: 16, height: 16 });
   } catch {}
   return nativeImage
@@ -471,20 +665,12 @@ function buildTrayMenu() {
     },
     { type: "separator" },
     { label: "Restart Server", click: () => restartFlow() },
-    ...(updater.isActive()
+    { label: "Check for Updates", click: () => checkGithubAndPromptInstall() },
+    ...(updater.isActive() && updateDownloaded
       ? [
-          ...(updateDownloaded
-            ? [
-                {
-                  label: "Restart to Update",
-                  click: () => updater.quitAndInstall(),
-                },
-              ]
-            : []),
           {
-            label: updateDownloaded ? "Update ready" : "Check for Updates",
-            enabled: !updateDownloaded,
-            click: () => updater.checkForUpdates(),
+            label: "Restart to Update",
+            click: () => updater.quitAndInstall(),
           },
         ]
       : []),
@@ -494,10 +680,10 @@ function buildTrayMenu() {
   return Menu.buildFromTemplate(template);
 }
 
-function onUpdateDownloaded() {
+function onUpdateDownloaded(info) {
   updateDownloaded = true;
   if (tray && !tray.isDestroyed()) tray.setContextMenu(buildTrayMenu());
-  sendToWindow("flyx:update-downloaded");
+  sendToWindow("flyx:update-downloaded", info);
 }
 
 // ── IPC ──────────────────────────────────────────────────────────
@@ -508,6 +694,17 @@ function registerIpc() {
     currentHostname === "0.0.0.0" ? getLANURLs(currentPort) : [],
   );
   ipcMain.handle("flyx:get-local-url", () => getLocalURL(currentPort));
+  ipcMain.handle("flyx:check-updates", async () => {
+    if (!app.isPackaged) {
+      return { available: false, current: app.getVersion(), dev: true };
+    }
+    return ghUpdater.checkForUpdate({
+      currentVersion: app.getVersion(),
+      platform: process.platform,
+      portable: isPortable(),
+    });
+  });
+  ipcMain.handle("flyx:download-update", () => downloadGithubUpdate());
 }
 
 // ── App lifecycle ────────────────────────────────────────────────

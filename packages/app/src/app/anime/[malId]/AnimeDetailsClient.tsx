@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ExtensionGate } from "@/components/ExtensionGate";
+import DownloadMenu from "@/components/downloads/DownloadMenu";
+import type { DownloadItemInput } from "@/lib/downloads/types";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import {
   jikanFull,
@@ -140,6 +142,18 @@ function AnimeDetailsClientInner({ malId }: { malId: number }) {
     anime?.images?.jpg?.image_url ||
     "";
 
+  const animeTitle =
+    anime?.title_english || anime?.title || `Anime ${malId}`;
+
+  /** Download item for an anime episode (absolute number) or the movie. */
+  const animeDownload = useCallback(
+    (epNum?: number): DownloadItemInput =>
+      epNum
+        ? { kind: "video", tmdbId: 0, mediaType: "tv", season: 1, episode: epNum, malId, title: animeTitle }
+        : { kind: "video", tmdbId: 0, mediaType: "movie", malId, title: animeTitle },
+    [malId, animeTitle],
+  );
+
   const toggleWatchlist = useCallback(() => {
     if (!anime) return;
     if (inList) {
@@ -228,6 +242,7 @@ function AnimeDetailsClientInner({ malId }: { malId: number }) {
         onBack={() => router.push("/anime")}
         inList={inList}
         onToggleList={toggleWatchlist}
+        downloadItem={isMovie ? animeDownload() : animeDownload(1)}
       />
 
       {/* Pill tab strip — sticky, compact */}
@@ -273,6 +288,8 @@ function AnimeDetailsClientInner({ malId }: { malId: number }) {
                 fallbackCount={epCount}
                 isMovie={isMovie}
                 poster={poster}
+                malId={malId}
+                title={animeTitle}
                 onPlay={playEp}
                 onWatchMovie={() => playEp(1)}
               />
@@ -344,6 +361,7 @@ function HeroBanner({
   onBack,
   inList,
   onToggleList,
+  downloadItem,
 }: {
   anime: JikanAnime;
   poster: string;
@@ -357,6 +375,7 @@ function HeroBanner({
   onBack: () => void;
   inList: boolean;
   onToggleList: () => void;
+  downloadItem: DownloadItemInput;
 }) {
   const chip = typeChip(anime.type);
   const airing = anime.status === "Currently Airing";
@@ -490,6 +509,11 @@ function HeroBanner({
               >
                 {inList ? "✓ In List" : "+ My List"}
               </button>
+              <DownloadMenu
+                item={downloadItem}
+                label={isMovie ? "Download" : "Download E1"}
+                className="btn-secondary !px-4 !py-2.5 text-sm"
+              />
               {trailerId && (
                 <button
                   type="button"
@@ -509,11 +533,35 @@ function HeroBanner({
 
 // ─── Episodes ───────────────────────────────────────────────────────────────
 
+const EP_DL_BTN: CSSProperties = {
+  background: "transparent",
+  border: "1px solid rgba(255,255,255,0.15)",
+  borderRadius: 8,
+  color: "rgba(255,255,255,0.8)",
+  fontSize: "0.8rem",
+  padding: "0.35rem 0.5rem",
+  cursor: "pointer",
+  flexShrink: 0,
+};
+
+const EP_DL_CELL: CSSProperties = {
+  background: "rgba(0,0,0,0.72)",
+  border: "1px solid rgba(255,255,255,0.18)",
+  borderRadius: 6,
+  color: "rgba(255,255,255,0.85)",
+  fontSize: "0.72rem",
+  padding: "0.2rem 0.4rem",
+  cursor: "pointer",
+  backdropFilter: "blur(6px)",
+};
+
 function EpisodesTab({
   episodes,
   fallbackCount,
   isMovie,
   poster,
+  malId,
+  title,
   onPlay,
   onWatchMovie,
 }: {
@@ -521,6 +569,8 @@ function EpisodesTab({
   fallbackCount: number;
   isMovie: boolean;
   poster: string;
+  malId: number;
+  title: string;
   onPlay: (ep: number) => void;
   onWatchMovie: () => void;
 }) {
@@ -534,81 +584,151 @@ function EpisodesTab({
           <h3>Feature film</h3>
           <p>No episode list — stream the full movie.</p>
         </div>
-        <button type="button" onClick={onWatchMovie} className="btn-primary shrink-0">
-          <PlayIcon className="h-4 w-4" /> Watch
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <DownloadMenu
+            item={{ kind: "video", tmdbId: 0, mediaType: "movie", malId, title }}
+            label="⬇ Download"
+            queuedLabel="✓ Queued"
+            className="btn-secondary shrink-0 !px-4 !py-2.5 text-sm"
+          />
+          <button type="button" onClick={onWatchMovie} className="btn-primary shrink-0">
+            <PlayIcon className="h-4 w-4" /> Watch
+          </button>
+        </div>
       </div>
     );
   }
 
-  if (episodes.length > 0) {
+  const epNumbers =
+    episodes.length > 0
+      ? episodes.map((ep, i) => ep.mal_id || i + 1)
+      : Array.from({ length: fallbackCount }, (_, i) => i + 1);
+
+  if (epNumbers.length === 0) {
     return (
-      <div className="anime-ep-list">
-        {episodes.map((ep, i) => {
-          const epNum = ep.mal_id || i + 1;
-          return (
-            <button
-              key={`ep-${epNum}-${i}`}
-              type="button"
-              onClick={() => onPlay(epNum)}
-              className="anime-ep-row"
-            >
-              <div className="anime-ep-thumb">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={poster} alt="" aria-hidden />
-                <span className="anime-ep-play">
-                  <PlayIcon className="h-3 w-3" />
-                </span>
-                <span className="anime-ep-num">E{epNum}</span>
-              </div>
-              <div className="anime-ep-body">
-                <div className="anime-ep-title">
-                  {ep.title || `Episode ${epNum}`}
-                </div>
-                <div className="anime-ep-meta">
-                  {ep.aired && (
-                    <span>
-                      {new Date(ep.aired).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </span>
-                  )}
-                  {ep.filler && <span className="is-filler">Filler</span>}
-                  {ep.recap && <span className="is-recap">Recap</span>}
-                </div>
-              </div>
-            </button>
-          );
-        })}
+      <div className="anime-detail-empty">
+        <p>No episode data available yet</p>
       </div>
     );
   }
 
-  if (fallbackCount > 0) {
-    return (
-      <div className="anime-ep-grid">
-        {Array.from({ length: fallbackCount }, (_, i) => i + 1).map(
-          (epNum) => (
-            <button
-              key={epNum}
-              type="button"
-              onClick={() => onPlay(epNum)}
-              className="anime-ep-cell"
-            >
-              {epNum}
-            </button>
-          ),
-        )}
-      </div>
-    );
-  }
+  const allItems: DownloadItemInput[] = epNumbers.map((epNum) => ({
+    kind: "video",
+    tmdbId: 0,
+    mediaType: "tv",
+    season: 1,
+    episode: epNum,
+    malId,
+    title,
+  }));
 
   return (
-    <div className="anime-detail-empty">
-      <p>No episode data available yet</p>
-    </div>
+    <>
+      <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 0.75rem" }}>
+        <DownloadMenu
+          items={allItems}
+          menuAlign="right"
+          label={`Download All (${epNumbers.length})`}
+          className="btn-secondary !px-4 !py-2 text-sm"
+        />
+      </div>
+
+      {episodes.length > 0 ? (
+        <div className="anime-ep-list">
+          {episodes.map((ep, i) => {
+            const epNum = ep.mal_id || i + 1;
+            return (
+              <div
+                key={`ep-${epNum}-${i}`}
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              >
+                <button
+                  type="button"
+                  onClick={() => onPlay(epNum)}
+                  className="anime-ep-row"
+                  style={{ flex: 1, minWidth: 0 }}
+                >
+                  <div className="anime-ep-thumb">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={poster} alt="" aria-hidden />
+                    <span className="anime-ep-play">
+                      <PlayIcon className="h-3 w-3" />
+                    </span>
+                    <span className="anime-ep-num">E{epNum}</span>
+                  </div>
+                  <div className="anime-ep-body">
+                    <div className="anime-ep-title">
+                      {ep.title || `Episode ${epNum}`}
+                    </div>
+                    <div className="anime-ep-meta">
+                      {ep.aired && (
+                        <span>
+                          {new Date(ep.aired).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </span>
+                      )}
+                      {ep.filler && <span className="is-filler">Filler</span>}
+                      {ep.recap && <span className="is-recap">Recap</span>}
+                    </div>
+                  </div>
+                </button>
+                <DownloadMenu
+                  item={{
+                    kind: "video",
+                    tmdbId: 0,
+                    mediaType: "tv",
+                    season: 1,
+                    episode: epNum,
+                    malId,
+                    title,
+                  }}
+                  menuAlign="right"
+                  label="⬇"
+                  queuedLabel="✓"
+                  title={`Download Episode ${epNum}`}
+                  style={EP_DL_BTN}
+                />
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="anime-ep-grid">
+          {epNumbers.map((epNum) => (
+            <div key={epNum} style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => onPlay(epNum)}
+                className="anime-ep-cell"
+                style={{ width: "100%" }}
+              >
+                {epNum}
+              </button>
+              <div style={{ position: "absolute", right: 6, bottom: 6 }}>
+                <DownloadMenu
+                  item={{
+                    kind: "video",
+                    tmdbId: 0,
+                    mediaType: "tv",
+                    season: 1,
+                    episode: epNum,
+                    malId,
+                    title,
+                  }}
+                  label="⬇"
+                  queuedLabel="✓"
+                  title={`Download Episode ${epNum}`}
+                  style={EP_DL_CELL}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

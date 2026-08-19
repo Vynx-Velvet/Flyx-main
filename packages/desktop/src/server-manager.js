@@ -140,12 +140,19 @@ function spawnServer({ port, hostname, onExit } = {}) {
     }
   }
 
+  // Ship the bundled ffmpeg binary to the server (extraResources copies it
+  // to <STANDALONE_DIR>/ffmpeg). The server's downloader also falls back to
+  // its own cwd lookup and `ffmpeg` on PATH.
+  const ffmpegBin = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+  const bundledFfmpeg = path.join(STANDALONE_DIR, "ffmpeg", ffmpegBin);
+
   const serverEnv = {
     ...process.env,
     ...standaloneEnv,
     ...filteredEnv,
     FLYX_DATA_DIR: DATA_DIR,
     FLYX_DESKTOP: "true",
+    ...(fs.existsSync(bundledFfmpeg) ? { FLYX_FFMPEG_PATH: bundledFfmpeg } : {}),
     // Electron's bundled Node runs the server (ELECTRON_RUN_AS_NODE=1)
     ELECTRON_RUN_AS_NODE: "1",
     HOSTNAME: filteredEnv.HOSTNAME || env.HOSTNAME || h,

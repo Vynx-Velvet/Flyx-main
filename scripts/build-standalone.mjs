@@ -15,6 +15,7 @@ import { execSync } from "child_process";
 import { cpSync, existsSync, mkdirSync, rmSync, readdirSync, lstatSync, realpathSync, readFileSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { ensureFfmpeg } from "./fetch-ffmpeg.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -161,6 +162,13 @@ if (existsSync(flyxSrc)) {
     copyDir(realPath, destPath);
     console.log(`[standalone] Copied workspace package: @flyx/${name}`);
   }
+}
+
+// Step 7: Fetch the ffmpeg binary for the download feature.
+try {
+  await ensureFfmpeg(join(STANDALONE_DIR, "ffmpeg"));
+} catch (err) {
+  console.warn(`[standalone] ${err.message} — remux downloads will fall back to system ffmpeg`);
 }
 
 console.log("[standalone] Done! Standalone build at:", STANDALONE_DIR);

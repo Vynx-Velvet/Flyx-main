@@ -33,6 +33,7 @@ import {
 } from "@/lib/sync";
 import { getSubtitlePreferences } from "@/lib/utils/subtitle-preferences";
 import type { SubtitleTrack } from "@flyx/core";
+import DownloadMenu from "@/components/downloads/DownloadMenu";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p";
 
@@ -2515,6 +2516,31 @@ const sourceReferer = currentSource?.referer;
               {cast.isCasting || cast.isConnected ? "Casting" : "Cast"}
             </span>
           </button>
+          <DownloadMenu
+            item={{
+              kind: "video",
+              tmdbId: malId ? Number(tmdbId) || 0 : Number(tmdbId),
+              // Anime routes by malId and uses absolute episode numbers (season 1).
+              mediaType: malId ? "tv" : mediaType,
+              season: malId ? 1 : mediaType === "tv" ? Number(season) : undefined,
+              episode: malId ? Number(episode) : mediaType === "tv" ? Number(episode) : undefined,
+              malId: malId ? Number(malId) : undefined,
+              title,
+            }}
+            menuAlign="right"
+            label={
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span>Download</span>
+              </>
+            }
+            className="cinema-btn"
+            title="Download this to your device"
+          />
           <button
             type="button"
             className={`cinema-icon-btn${inList ? " is-on" : ""}`}

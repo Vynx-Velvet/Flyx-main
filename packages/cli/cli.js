@@ -28,7 +28,7 @@ const program = new Command();
 program
   .name("flyx")
   .description("Flyx — Privacy-first streaming server manager")
-  .version("3.0.2")
+  .version("3.0.3")
   .addHelpCommand("help [command]", "Show help for a command");
 
 // ── setup ───────────────────────────────────────────────────────

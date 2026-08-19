@@ -7,6 +7,7 @@ import { ExtensionGate } from "@/components/ExtensionGate";
 import { getChapterPages, getMangaDetails } from "@/lib/manga/allmanga-client"; // weebcentral-backed client
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useMangaProgress } from "@/hooks/useMangaProgress";
+import DownloadButton from "@/components/downloads/DownloadButton";
 import type { MangaPageData, ChapterData } from "@flyx/core";
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 35 };
@@ -438,6 +439,13 @@ function Reader({ mangaId, chapterNumber }: { mangaId: string; chapterNumber: nu
                     <button onClick={() => jump(resumePage)}
                       className="text-xs lg:text-sm font-medium text-[#00e5bf]/60 hover:text-[#00e5bf] px-3 py-1.5 rounded-lg hover:bg-[#00e5bf]/5 transition-all">Resume p.{resumePage}</button>
                   )}
+                  <DownloadButton
+                    item={{ kind: "manga", mangaId, chapter: chapterNumber, title: mangaTitle || `Manga ${mangaId}` }}
+                    label="⬇"
+                    queuedLabel="✓"
+                    title="Download this chapter"
+                    className="rounded-xl p-2.5 lg:p-3 text-white/35 hover:text-white/70 hover:bg-white/[0.04] transition-all"
+                  />
                   <button onClick={toggleBookmark}
                     className={`rounded-xl p-2.5 lg:p-3 transition-all ${bookmarked ? "text-[#00e5bf]" : "text-white/35 hover:text-white/70 hover:bg-white/[0.04]"}`} title={bookmarked ? "Bookmarked" : "Bookmark"}>
                     <BookmarkIcon className="h-5 w-5 lg:h-6 lg:w-6" filled={bookmarked} />

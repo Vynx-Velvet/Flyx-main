@@ -7,6 +7,7 @@ import { ExtensionGate } from "@/components/ExtensionGate";
 import { getMangaDetails } from "@/lib/manga/allmanga-client";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useMangaProgress } from "@/hooks/useMangaProgress";
+import DownloadButton from "@/components/downloads/DownloadButton";
 import type { MangaData, ChapterData } from "@flyx/core";
 
 type Tab = "chapters" | "info";
@@ -118,7 +119,13 @@ function Inner({ mangaId }: { mangaId: string }) {
         <AnimatePresence mode="wait">
           {tab === "chapters" && (
             <motion.div key="ch" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
-              <ChaptersTab chapters={chapters} progress={progress} onRead={readChapter} />
+              <ChaptersTab
+                chapters={chapters}
+                progress={progress}
+                onRead={readChapter}
+                mangaId={mangaId}
+                mangaTitle={manga.title}
+              />
             </motion.div>
           )}
           {tab === "info" && (
@@ -215,8 +222,12 @@ function HeroBanner({ manga, progress, bookmarked, onBack, onStartReading, onRes
 
 // ─── Chapters Tab ───────────────────────────────────────────────────────────
 
-function ChaptersTab({ chapters, progress, onRead }: {
-  chapters: ChapterData[]; progress: any; onRead: (ch: ChapterData) => void;
+function ChaptersTab({ chapters, progress, onRead, mangaId, mangaTitle }: {
+  chapters: ChapterData[];
+  progress: any;
+  onRead: (ch: ChapterData) => void;
+  mangaId: string;
+  mangaTitle: string;
 }) {
   if (chapters.length === 0) {
     return (
@@ -228,25 +239,56 @@ function ChaptersTab({ chapters, progress, onRead }: {
   }
 
   return (
-    <div className="anime-ep-list">
-      {chapters.map((ch) => {
-        const isContinue = progress?.chapterNumber === ch.number;
-        return (
-          <button key={ch.id || ch.number} type="button" onClick={() => onRead(ch)} className="anime-ep-row">
-            <div className="anime-ep-body">
-              <div className="anime-ep-title">
-                {isContinue && <span className="text-[#00e5bf] mr-2 text-xs font-semibold">● Continue</span>}
-                {ch.title || `Chapter ${ch.number}`}
-              </div>
-              <div className="anime-ep-meta">
-                <span>Ch. {ch.number}</span>
-                {ch.publishedAt && <><span className="text-white/15">·</span><span>{new Date(ch.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span></>}
-              </div>
+    <>
+      <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 0.75rem" }}>
+        <DownloadButton
+          items={chapters.map((ch) => ({
+            kind: "manga",
+            mangaId,
+            chapter: ch.number,
+            title: mangaTitle,
+          }))}
+          label={`Download All (${chapters.length})`}
+          className="btn-secondary !px-4 !py-2 text-sm"
+        />
+      </div>
+      <div className="anime-ep-list">
+        {chapters.map((ch) => {
+          const isContinue = progress?.chapterNumber === ch.number;
+          return (
+            <div key={ch.id || ch.number} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <button type="button" onClick={() => onRead(ch)} className="anime-ep-row" style={{ flex: 1 }}>
+                <div className="anime-ep-body">
+                  <div className="anime-ep-title">
+                    {isContinue && <span className="text-[#00e5bf] mr-2 text-xs font-semibold">● Continue</span>}
+                    {ch.title || `Chapter ${ch.number}`}
+                  </div>
+                  <div className="anime-ep-meta">
+                    <span>Ch. {ch.number}</span>
+                    {ch.publishedAt && <><span className="text-white/15">·</span><span>{new Date(ch.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span></>}
+                  </div>
+                </div>
+              </button>
+              <DownloadButton
+                item={{ kind: "manga", mangaId, chapter: ch.number, title: mangaTitle }}
+                label="⬇"
+                queuedLabel="✓"
+                title={`Download Chapter ${ch.number}`}
+                style={{
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  borderRadius: 8,
+                  color: "rgba(255,255,255,0.8)",
+                  fontSize: "0.8rem",
+                  padding: "0.35rem 0.5rem",
+                  cursor: "pointer",
+                }}
+              />
             </div>
-          </button>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 

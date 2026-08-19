@@ -20,6 +20,14 @@ contextBridge.exposeInMainWorld("flyxDesktop", {
   onServerReady: (cb) => ipcRenderer.on("flyx:server-ready", () => cb()),
   onUpdateDownloaded: (cb) =>
     ipcRenderer.on("flyx:update-downloaded", (_event, info) => cb(info)),
+  // Manual GitHub-release updates (works for portable + installer).
+  checkUpdates: () => ipcRenderer.invoke("flyx:check-updates"),
+  downloadUpdate: () => ipcRenderer.invoke("flyx:download-update"),
+  onUpdateStatus: (cb) => {
+    const listener = (_event, status) => cb(status);
+    ipcRenderer.on("flyx:update-status", listener);
+    return () => ipcRenderer.removeListener("flyx:update-status", listener);
+  },
   // Window hidden to tray / shown again — the watch page pauses playback
   // and stops buffering while hidden, then resumes on show.
   onWindowHidden: (cb) => {

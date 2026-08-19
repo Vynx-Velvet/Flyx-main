@@ -93,6 +93,13 @@ const LIBRARY: NavItem[] = [
     match: (p) => p === "/watchlist" || p.startsWith("/watchlist/"),
   },
   {
+    href: "/downloads",
+    label: "Downloads",
+    accent: "secondary",
+    icon: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3",
+    match: (p) => p === "/downloads" || p.startsWith("/downloads/"),
+  },
+  {
     href: "/settings",
     label: "Settings",
     accent: "secondary",

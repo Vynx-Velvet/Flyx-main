@@ -5,6 +5,9 @@ import SyncSettings from '@/components/settings/SyncSettings';
 import ProviderSettings from '@/components/settings/ProviderSettings';
 import NetworkSettings from '@/components/settings/NetworkSettings';
 import SecuritySettings from '@/components/settings/SecuritySettings';
+import EnvSettings from '@/components/settings/EnvSettings';
+import UpdatesSettings from '@/components/settings/UpdatesSettings';
+import DownloadsSettings from '@/components/settings/DownloadsSettings';
 import {
   getPlayerPreferences,
   savePlayerPreferences,
@@ -18,7 +21,16 @@ import {
 } from '@/lib/utils/subtitle-preferences';
 import styles from './SettingsPage.module.css';
 
-type SettingsTab = 'sync' | 'providers' | 'playback' | 'subtitles' | 'network' | 'security';
+type SettingsTab =
+  | 'sync'
+  | 'providers'
+  | 'playback'
+  | 'subtitles'
+  | 'network'
+  | 'security'
+  | 'environment'
+  | 'updates'
+  | 'downloads';
 
 export default function SettingsPageClient() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('sync');
@@ -83,6 +95,38 @@ export default function SettingsPageClient() {
         </svg>
       ),
     },
+    {
+      id: 'environment',
+      label: 'Environment',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M4 17V7l8 5 8-5v10" />
+          <line x1="4" y1="7" x2="20" y2="7" />
+        </svg>
+      ),
+    },
+    {
+      id: 'updates',
+      label: 'Updates',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+      ),
+    },
+    {
+      id: 'downloads',
+      label: 'Downloads',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+      ),
+    },
   ];
 
   return (
@@ -117,6 +161,9 @@ export default function SettingsPageClient() {
           {activeTab === 'subtitles' && <SubtitleSettingsPanel />}
           {activeTab === 'network' && <NetworkSettings />}
           {activeTab === 'security' && <SecuritySettings />}
+          {activeTab === 'environment' && <EnvSettings />}
+          {activeTab === 'updates' && <UpdatesSettings />}
+          {activeTab === 'downloads' && <DownloadsSettings />}
         </div>
       </div>
     </div>
