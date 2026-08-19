@@ -1,6 +1,6 @@
 {
   "name": "@flyx/providers",
-  "version": "3.0.3a",
+  "version": "3.0.4",
   "private": true,
   "description": "Flyx provider system: abstract base classes, decorator registry, and 20+ content providers",
   "main": "./src/index.ts",

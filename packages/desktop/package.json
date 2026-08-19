@@ -1,6 +1,6 @@
 {
   "name": "@flyx/desktop",
-  "version": "3.0.3a",
+  "version": "3.0.4",
   "private": true,
   "description": "Flyx Electron desktop shell — embedded server + LAN sharing",
   "author": {
