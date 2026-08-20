@@ -1,4 +1,13 @@
-// Stream proxy configuration — ported from Flyx 2.0
+// Live TV proxy configuration.
+//
+// `getTvPlaylistUrl` builds the API URL the browser hits to resolve a
+// channel ID into an HLS playlist URL (routed through /api/livetv/stream
+// which calls extractDLHD server-side).
+//
+// `getAvailableBackends` fetches the server-side list of upstream CDN
+// backends exposed at /api/livetv/backends. The browser does *not* learn
+// raw upstream hostnames — the server writes them into the M3U8 proxy URL
+// as the `origin` parameter.
 
 export interface BackendInfo {
   id: string;
@@ -19,17 +28,23 @@ export function getTvPlaylistUrl(
   return `${base}/stream?${params}`;
 }
 
+/**
+ * Fetch the list of upstream CDN backends available for `channelId`.
+ * Returns an empty array on error so the UI degrades gracefully — the
+ * "Switch Server" menu simply disappears.
+ */
 export async function getAvailableBackends(
-  _channelId: string,
+  channelId: string,
 ): Promise<BackendInfo[]> {
-  return [
-    { id: "primary", isPrimary: true, label: "Primary (DLHD)" },
-    { id: "secondary", isPrimary: false, label: "Secondary" },
-    { id: "fallback", isPrimary: false, label: "Fallback" },
-  ];
-}
-
-export function resolveBackendId(serverUrl: string): string {
-  if (!serverUrl) return "primary";
-  return serverUrl.split("/").pop() ?? "primary";
+  try {
+    const r = await fetch(
+      `/api/livetv/backends?channel=${encodeURIComponent(channelId)}`,
+      { cache: "no-store" },
+    );
+    if (!r.ok) return [];
+    const data = await r.json();
+    return Array.isArray(data?.backends) ? data.backends : [];
+  } catch {
+    return [];
+  }
 }

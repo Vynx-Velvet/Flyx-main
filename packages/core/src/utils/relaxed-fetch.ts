@@ -19,12 +19,29 @@ const RELAXED_HOSTS = new Set([
   "dlhd.sx",
   "daddylive.mp",
   "hamis.romponalis.st",
-  // Video CDNs used by DLHD — may block Node.js TLS or have self-signed certs
+  // Video CDNs used by DLHD — may block Node.js TLS or have self-signed certs.
+  // DLHD currently rotates the CDN subdomain (xameleon.phantemlis.top today,
+  // could be any-<base> tomorrow). The match against RELAXED_HOSTS uses a
+  // suffix check below, so listing the base domain covers every subdomain.
   "phantemlis.top",
   "epaly.fun",
   "xameleon.xyz",
   "xameleoncdn.xyz",
 ]);
+
+/**
+ * Returns true if `hostname` is itself a relaxed host, or a subdomain of one.
+ * DLHD rotates CDN subdomains (xameleon.phantemlis.top, <other>.phantemlis.top,
+ * …), so suffix matching prevents the relaxed-fetch path from silently falling
+ * back to vanilla fetch the moment a new subdomain shows up.
+ */
+function isRelaxedHost(hostname: string): boolean {
+  if (RELAXED_HOSTS.has(hostname)) return true;
+  for (const base of RELAXED_HOSTS) {
+    if (hostname.endsWith("." + base)) return true;
+  }
+  return false;
+}
 
 /** Shared agent with relaxed TLS — reused across all relaxed fetches. */
 let _agent: Agent | null = null;
@@ -55,7 +72,7 @@ export async function relaxedFetch(
     return fetch(url, init as RequestInit);
   }
 
-  if (!RELAXED_HOSTS.has(hostname)) {
+  if (!isRelaxedHost(hostname)) {
     return fetch(url, init as RequestInit);
   }
 
@@ -78,10 +95,11 @@ export async function relaxedFetch(
 
 /**
  * Check if a URL's host is known to need TLS relaxation.
+ * Matches the exact host *or* any subdomain of a relaxed base.
  */
 export function needsRelaxedTLS(url: string): boolean {
   try {
-    return RELAXED_HOSTS.has(new URL(url).hostname);
+    return isRelaxedHost(new URL(url).hostname);
   } catch {
     return false;
   }

@@ -18,7 +18,11 @@ export class DLHDProvider extends BaseLiveTVProvider {
     sources: StreamSource[];
     subtitles?: SubtitleTrack[];
   }> {
-    const result = await extractDLHD(request.title ?? "");
+    // Prefer the explicit `channelId` (live TV lookup), but fall back to
+    // `title` so the registry can still find a channel when only a name
+    // is supplied (legacy callers).
+    const channelId = request.channelId ?? request.title ?? "";
+    const result = await extractDLHD(channelId);
     return { sources: result.sources ?? [], subtitles: result.subtitles ?? [] };
   }
 }

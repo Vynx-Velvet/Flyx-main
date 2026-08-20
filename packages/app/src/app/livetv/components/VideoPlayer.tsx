@@ -11,7 +11,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import Hls from 'hls.js';
 import { LiveEvent, TVChannel } from '../hooks/useLiveTVData';
-import { getTvPlaylistUrl, getAvailableBackends, resolveBackendId } from '@/app/lib/proxy-config';
+import { getTvPlaylistUrl, getAvailableBackends } from '@/app/lib/proxy-config';
 import styles from './VideoPlayer.module.css';
 
 interface VideoPlayerProps {
@@ -56,12 +56,19 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
   const destroyingRef = useRef(false); // guards against cascading callbacks during teardown
   const recoveryRef = useRef(false); // tracks if auto-recovery is in progress
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Mirror refs for state read from inside long-lived callbacks (the loading
+  // timeout, the stall detector, etc). Reading state from those closures
+  // captures the value at the time the callback was registered, so a stale
+  // `true` would trigger spurious reloads after the manifest had parsed.
+  const isLoadingRef = useRef(true);
+  const errorRef = useRef<string | null>(null);
   const stallTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastPlaybackTimeRef = useRef(0);
   const stallCountRef = useRef(0);
-  // Backend switching state
-  // SECURITY: Backend IDs are obfuscated - actual server/domain names are NOT exposed to client
-  // The resolveBackendId() function maps obfuscated IDs to actual values for API calls only
+  // Backend switching state — `availableBackends` is the list of upstream
+  // CDN backends the server exposes for this channel; `selectedBackend`
+  // round-trips to the stream URL and is used by the proxy when picking
+  // which CDN to fetch the M3U8 from.
   const [availableBackends, setAvailableBackends] = useState<Array<{
     id: string;
     isPrimary: boolean;
@@ -172,11 +179,12 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
 
         setQualities(levels);
         setIsLoading(false);
+        isLoadingRef.current = false;
         setRecoveryStatus(null);
         // Stream loaded successfully — cancel the "slow to load" auto-recovery
-        // timer. Its callback closes over a stale `isLoading` (true at init) and
-        // would otherwise force a full reload every ~25s even on healthy live
-        // playback, which the user sees as periodic buffering.
+        // timer. Without this, the timer would close over a stale `true` and
+        // force a full reload every ~25s on healthy live playback, which the
+        // user sees as periodic buffering.
         if (loadingTimeoutRef.current) {
           clearTimeout(loadingTimeoutRef.current);
           loadingTimeoutRef.current = null;
@@ -308,6 +316,7 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
       video.src = url;
       video.addEventListener('loadedmetadata', () => {
         setIsLoading(false);
+        isLoadingRef.current = false;
         video.play().catch(() => {});
       });
       video.addEventListener('error', () => {
@@ -320,100 +329,13 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
         }, 2000);
       });
     } else {
-      setError('HLS not supported');
+      const msg = 'HLS not supported in this browser';
+      setError(msg);
+      errorRef.current = msg;
       setIsLoading(false);
+      isLoadingRef.current = false;
     }
   }, [retryCount, attemptFullReload, recoveryStatus]);
-
-  // Execute DLHD decoder script in browser to decrypt the stream URL.
-  // The decoder sets video.src = m3u8, which we intercept via prototype patching.
-  const loadDecoderScript = useCallback((displayVideo: HTMLVideoElement, dataUrl: string) => {
-    try {
-    const b64 = dataUrl.replace("data:text/javascript;base64,", "");
-    const decoderJs = atob(b64);
-    // Hidden video element for the decoder
-    const hv = document.createElement("video");
-    hv.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;";
-    hv.muted = true;
-    document.body.appendChild(hv);
-
-    let captured = "";
-    const origDesc = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, "src");
-    const origSA = HTMLVideoElement.prototype.setAttribute;
-
-    // Intercept src setter
-    Object.defineProperty(HTMLVideoElement.prototype, "src", {
-      get() { return origDesc?.get?.call(this) || ""; },
-      set(url: string) {
-        if (typeof url === "string" && /\.(?:m3u8|mpd)/i.test(url) && !captured) {
-          captured = url;
-        }
-        if (origDesc?.set) origDesc.set.call(this, url);
-      },
-      configurable: true,
-    });
-
-    // Intercept setAttribute
-    HTMLVideoElement.prototype.setAttribute = function(n: string, v: string) {
-      if (n === "src" && typeof v === "string" && /\.(?:m3u8|mpd)/i.test(v) && !captured) {
-        captured = v;
-      }
-      return origSA.call(this, n, v);
-    };
-
-    // Run the decoder in live DOM
-    const se = document.createElement("script");
-    se.textContent = decoderJs;
-    // Spy on console.error to see what the decoder logs
-    const origConsoleError = console.error;
-    console.error = function(...args: unknown[]) {
-      origConsoleError.call(console, '[VideoPlayer][decoder]', ...args);
-    };
-
-    // Catch all errors from the decoder
-    const onErr = (msg: string | Event, src?: string, line?: number, col?: number, err?: Error) => {
-      console.error('[VideoPlayer] Decoder error:', msg, src, line, col, err);
-      return true; // prevent default
-    };
-    window.addEventListener('error', onErr);
-    window.addEventListener('unhandledrejection', (e) => {
-      console.error('[VideoPlayer] Decoder unhandled rejection:', e.reason);
-    });
-    const origLoc = {} as Record<string, unknown>;
-    const loc = window.location as unknown as Record<string, unknown>;
-    for (const k of ['href','hostname','host','origin','protocol','port','pathname']) {
-      try {
-        origLoc[k] = loc[k];
-        Object.defineProperty(window.location, k, { value: loc[k], writable: true, configurable: true });
-      } catch {}
-    }
-
-    // Patch document.currentScript so the decoder can find itself
-    Object.defineProperty(document, "currentScript", { value: se, configurable: true, writable: true });
-    document.body.appendChild(se);
-    setTimeout(() => { try { delete (document as any).currentScript; } catch {} }, 0);
-
-    // Poll for captured URL
-    let ticks = 0;
-    const iv = setInterval(() => {
-      ticks++;
-      if (captured || ticks > 60) {
-        clearInterval(iv);
-        Object.defineProperty(HTMLVideoElement.prototype, "src", origDesc || { get() { return ""; }, set() {}, configurable: true });
-        HTMLVideoElement.prototype.setAttribute = origSA;
-        hv.remove(); se.remove();
-        window.removeEventListener('error', onErr);
-        console.error = origConsoleError;
-        if (captured) {
-          loadHlsStream(displayVideo, captured);
-        } else {
-          setIsLoading(false);
-          setError("DLHD decoder ran but did not set a video source");
-        }
-      }
-    }, 250);
-    } catch(e) { console.error('[VideoPlayer] loadDecoderScript error:', e); setIsLoading(false); setError('Decoder error: ' + (e as Error).message); }
-  }, [loadHlsStream]);
 
   // Initialize player
   const initPlayer = useCallback(async () => {
@@ -440,6 +362,8 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
 
     setIsLoading(true);
     setError(null);
+    isLoadingRef.current = true;
+    errorRef.current = null;
     setRecoveryStatus(null);
     recoveryRef.current = false;
     lastPlaybackTimeRef.current = 0;
@@ -449,7 +373,9 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
 
     if (!streamUrl) {
       setError('No stream URL available - channel may not be configured');
+      errorRef.current = 'No stream URL available - channel may not be configured';
       setIsLoading(false);
+      isLoadingRef.current = false;
       return;
     }
 
@@ -461,25 +387,33 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
         if (data.streamUrl) {
           loadHlsStream(video, data.streamUrl);
         } else {
-          setError(data.error || 'Failed to get stream from API');
+          const msg = data.error || 'Failed to get stream from API';
+          setError(msg);
+          errorRef.current = msg;
           setIsLoading(false);
+          isLoadingRef.current = false;
         }
       } catch (err) {
         console.error('[VideoPlayer] API fetch error:', err);
-        setError('Failed to fetch stream - network error');
+        const msg = 'Failed to fetch stream - network error';
+        setError(msg);
+        errorRef.current = msg;
         setIsLoading(false);
+        isLoadingRef.current = false;
       }
       return;
     }
 
-    // Keys are inlined in the M3U8 by the /play endpoint — no browser whitelist needed.
+    // HLS keys are baked into the playlist by the CDN (no key whitelist
+    // needed in the browser).
 
     loadHlsStream(video, streamUrl);
 
     // Loading timeout — instead of killing the stream, attempt a full reload
-    // This handles the case where the initial manifest never loads
+    // when the manifest never arrives. The condition reads refs (not stale
+    // closure state) so it correctly observes updates from MANIFEST_PARSED.
     loadingTimeoutRef.current = setTimeout(() => {
-      if (isLoading && !error && !recoveryRef.current) {
+      if (isLoadingRef.current && !errorRef.current && !recoveryRef.current) {
         console.warn('[VideoPlayer] Loading timeout — attempting auto-recovery');
         setRecoveryStatus('Stream slow to load, retrying...');
         attemptFullReload();
@@ -489,7 +423,11 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
     return () => {
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
     };
-  }, [getStreamUrl, loadHlsStream, isLoading, error, attemptFullReload, channel, event, selectedChannelIndex]);
+    // We intentionally do not depend on isLoading/error — those are tracked
+    // via isLoadingRef/errorRef to avoid restarting the player on every state
+    // update. Adding them here used to cause double-init / cancel races.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [getStreamUrl, loadHlsStream, attemptFullReload, channel, event, selectedChannelIndex]);
 
   // Keep ref in sync so attemptFullReload can call initPlayer without circular deps
   useEffect(() => { initPlayerRef.current = initPlayer; }, [initPlayer]);
@@ -521,41 +459,38 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
     }
   }, [channel, event, selectedChannelIndex]);
 
-  // Switch backend - uses obfuscated ID which gets resolved to server.domain for the /play endpoint
-  // SECURITY: The actual server.domain is resolved internally, never exposed in UI
-  const switchBackend = useCallback((obfuscatedId: string) => {
-    // Resolve the obfuscated ID to actual server.domain for the API call
-    const resolvedBackend = resolveBackendId(obfuscatedId);
-    if (!resolvedBackend) {
-      console.error('[VideoPlayer] Failed to resolve backend ID:', obfuscatedId);
+  // Switch backend — the backend ID is sent as `backend` on the stream URL
+  // and the server uses it (or falls back to the default origin) when
+  // picking which upstream CDN to fetch the M3U8 from.
+  const switchBackend = useCallback((backendId: string) => {
+    if (!backendId) {
+      console.error('[VideoPlayer] Empty backend ID');
       return;
     }
-    setSelectedBackend(resolvedBackend);
+    setSelectedBackend(backendId);
     setShowBackendMenu(false);
     setError(null);
+    errorRef.current = null;
     setRetryCount(0);
     setRecoveryStatus(null);
     stallCountRef.current = 0;
   }, []);
 
-  // Re-init when channel or backend changes
+  // Single mount/unmount effect for the player. The previous version had two
+  // overlapping effects — one keyed on isOpen/event/channel and another on
+  // selectedChannelIndex/selectedBackend — that both called initPlayer(),
+  // causing the player to double-init on first open and tear itself down
+  // before MANIFEST_PARSED fired (the user saw an infinite spinner).
   useEffect(() => {
-    if (isOpen && (event || channel)) {
-      initPlayer();
-    }
-  }, [selectedChannelIndex, selectedBackend]);
+    if (!isOpen || (!event && !channel)) return;
 
-  // Initialize when opened
-  useEffect(() => {
-    if (isOpen && (event || channel)) {
-      setSelectedChannelIndex(0);
-      setRetryCount(0);
-      setRecoveryStatus(null);
-      stallCountRef.current = 0;
-      setSelectedBackend(undefined); // Reset backend when opening new channel
-      setAvailableBackends([]); // Clear cached backends
-      initPlayer();
-    }
+    setSelectedChannelIndex(0);
+    setRetryCount(0);
+    setRecoveryStatus(null);
+    stallCountRef.current = 0;
+    setSelectedBackend(undefined); // Reset backend when opening new channel
+    setAvailableBackends([]); // Clear cached backends
+    initPlayer();
 
     return () => {
       // Set destroying flag FIRST — prevents ERROR/FRAG_BUFFERED
@@ -575,7 +510,7 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
         loadingTimeoutRef.current = null;
       }
     };
-  }, [isOpen, event, channel]);
+  }, [isOpen, event, channel, selectedChannelIndex, selectedBackend]);
 
   // Video event handlers - sync play/pause/volume state with video element
   useEffect(() => {
@@ -800,7 +735,7 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
                   <button
                     key={backend.id}
                     onClick={() => switchBackend(backend.id)}
-                    className={`${styles.backendOption} ${selectedBackend === resolveBackendId(backend.id) ? styles.active : ''} ${backend.isPrimary ? styles.primary : ''}`}
+                    className={`${styles.backendOption} ${selectedBackend === backend.id ? styles.active : ''} ${backend.isPrimary ? styles.primary : ''}`}
                   >
                     {backend.label}
                     {backend.status === 'online' && <span className={styles.statusOnline}>●</span>}
@@ -932,7 +867,7 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
                           <button
                             key={backend.id}
                             onClick={() => switchBackend(backend.id)}
-                            className={`${styles.backendOption} ${selectedBackend === resolveBackendId(backend.id) ? styles.active : ''} ${backend.isPrimary ? styles.primary : ''}`}
+                            className={`${styles.backendOption} ${selectedBackend === backend.id ? styles.active : ''} ${backend.isPrimary ? styles.primary : ''}`}
                           >
                             {backend.label}
                             {backend.status === 'online' && <span className={styles.statusOnline}>●</span>}

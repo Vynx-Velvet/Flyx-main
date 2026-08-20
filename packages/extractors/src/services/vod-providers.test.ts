@@ -130,13 +130,18 @@ describe("MultiEmbed", () => {
 // ── Live TV ──────────────────────────────────────────────────────────────────
 
 describe("DLHD (Live TV)", () => {
+  // "44" = ESPN USA in dlhd-channels.json — a real channel ID, not a name.
+  // DLHD's stream pages key off the numeric ID; "espn" is a channel *name*
+  // and never resolved to a valid stream page, so the previous test silently
+  // passed with 0 sources (it only asserted Array.isArray).
   it(
     "extracts live TV channels",
     async () => {
-      const result = await extractDLHD("espn");
+      const result = await extractDLHD("44");
       expect(Array.isArray(result.sources)).toBe(true);
       console.log(summarize("DLHD", result.sources));
-      // Live TV may return no sources if the channel is offline
+      // If the channel is offline the extractor legitimately returns no
+      // sources; only validate the *shape* of whatever it returns.
       for (const s of result.sources) assertStreamSourceShape(s, "DLHD");
     },
     API_TIMEOUT,
@@ -147,6 +152,7 @@ describe("DLHD (Live TV)", () => {
     async () => {
       const result = await extractDLHD("nonexistent-channel-xyz-12345");
       expect(Array.isArray(result.sources)).toBe(true);
+      expect(result.sources.length).toBe(0);
       // Should return empty, not throw
     },
     API_TIMEOUT,
@@ -195,7 +201,7 @@ describe("Provider Matrix", () => {
         },
         {
           name: "DLHD",
-          extract: () => extractDLHD("espn"),
+          extract: () => extractDLHD("44"),
         },
         {
           name: "AnimeX",

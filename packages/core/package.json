@@ -1,6 +1,6 @@
 {
   "name": "@flyx/core",
-  "version": "3.0.4",
+  "version": "3.1.0",
   "private": true,
   "description": "Flyx shared types, error hierarchy, unified cache, and utilities",
   "main": "./src/index.ts",

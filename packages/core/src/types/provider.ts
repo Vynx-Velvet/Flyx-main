@@ -85,6 +85,9 @@ export interface ExtractionRequest {
   malTitle?: string;
   /** CAPTCHA token for providers that require human verification. */
   capToken?: string;
+  /** Live TV channel ID (live TV providers only). Provider-specific — DLHD
+   * uses the numeric channel ID from dlhd-channels.json. */
+  channelId?: string;
 }
 
 /** Result of a provider extraction attempt. */
