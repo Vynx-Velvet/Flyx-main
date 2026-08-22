@@ -116,10 +116,7 @@ const LIBRARY: NavItem[] = [
 ];
 
 /** Details pages highlight Movies or TV by type query */
-function browseTypeFromPath(
-  pathname: string,
-  searchType: string | null,
-): string | null {
+function browseTypeFromPath(pathname: string, searchType: string | null): string | null {
   if (pathname === "/browse" || pathname.startsWith("/browse/")) {
     return searchType === "tv" ? "tv" : "movie";
   }
@@ -226,9 +223,7 @@ function NavLink({
               {kbdLabel}
             </span>
           )}
-          {active && item.accent === "live" && (
-            <span className={styles.liveDot} aria-hidden />
-          )}
+          {active && item.accent === "live" && <span className={styles.liveDot} aria-hidden />}
           {active && item.accent !== "live" && (
             <span className={activeDotClass(item.accent)} aria-hidden />
           )}
@@ -254,13 +249,9 @@ function NavLink({
   const onNavClick = () => {
     // Immediate Movies/TV highlight before Next finishes the soft nav
     if (item.accent === "movies") {
-      window.dispatchEvent(
-        new CustomEvent("flyx:navigate", { detail: { type: "movie" } }),
-      );
+      window.dispatchEvent(new CustomEvent("flyx:navigate", { detail: { type: "movie" } }));
     } else if (item.accent === "tv") {
-      window.dispatchEvent(
-        new CustomEvent("flyx:navigate", { detail: { type: "tv" } }),
-      );
+      window.dispatchEvent(new CustomEvent("flyx:navigate", { detail: { type: "tv" } }));
     }
   };
 
@@ -328,9 +319,7 @@ function SidebarInner() {
   }, []);
 
   useEffect(() => {
-    document
-      .querySelector(".app-shell")
-      ?.classList.toggle("sidebar-collapsed", collapsed);
+    document.querySelector(".app-shell")?.classList.toggle("sidebar-collapsed", collapsed);
     localStorage.setItem("flyx-sidebar-collapsed", collapsed ? "1" : "0");
   }, [collapsed]);
 
@@ -369,14 +358,9 @@ function SidebarInner() {
       <div className={styles.orbBottom} aria-hidden />
       <div className={styles.grain} aria-hidden />
 
-      <Link
-        href="/"
-        className={`${styles.brand} ${collapsed ? styles.brandCollapsed : ""}`}
-      >
+      <Link href="/" className={`${styles.brand} ${collapsed ? styles.brandCollapsed : ""}`}>
         <span className={styles.logoMark}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="#030307" aria-hidden>
-            <path d="M8 5.5v13l11-6.5L8 5.5z" />
-          </svg>
+          <img src="/favicon.svg" alt="" aria-hidden />
         </span>
         {!collapsed && (
           <>
@@ -392,9 +376,7 @@ function SidebarInner() {
         {DISCOVER.map((item) => {
           // For browse items, pass resolved media type so Movies/TV toggle correctly
           const typeForMatch =
-            item.accent === "movies" || item.accent === "tv"
-              ? mediaType
-              : rawType;
+            item.accent === "movies" || item.accent === "tv" ? mediaType : rawType;
           const active = item.match(pathname, typeForMatch);
           return (
             <NavLink
@@ -411,21 +393,12 @@ function SidebarInner() {
         <div className={styles.divider} />
 
         {!collapsed && (
-          <p className={`${styles.sectionLabel} ${styles.sectionLabelMuted}`}>
-            Library
-          </p>
+          <p className={`${styles.sectionLabel} ${styles.sectionLabelMuted}`}>Library</p>
         )}
 
         {LIBRARY.map((item) => {
           const active = item.match(pathname, rawType);
-          return (
-            <NavLink
-              key={item.href}
-              item={item}
-              active={active}
-              collapsed={collapsed}
-            />
-          );
+          return <NavLink key={item.href} item={item} active={active} collapsed={collapsed} />;
         })}
       </nav>
 

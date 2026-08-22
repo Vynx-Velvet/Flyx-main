@@ -3,58 +3,333 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#08090b" />
+    <meta name="theme-color" content="#080a09" />
     <meta name="color-scheme" content="dark" />
-    <title>Flyx — Your screen. Your rules.</title>
+    <title>Flyx — Take the profit out of piracy.</title>
     <meta
       name="description"
-      content="Flyx is a private, open-source entertainment platform. Explore the source on GitHub or join the community on Discord."
+      content="Flyx is an open-source, self-hosted entertainment platform built to remove the ads, tracking, malware, and profiteering from unlicensed streaming."
     />
-    <meta property="og:title" content="Flyx — Your screen. Your rules." />
+    <meta property="og:title" content="Flyx — Take the profit out of piracy." />
     <meta
       property="og:description"
-      content="Private, open-source entertainment. Built in the open and hosted by you."
+      content="No ads. No tracking. No middleman profiting from content they do not own."
     />
     <meta property="og:type" content="website" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main>
-      <section class="card" aria-labelledby="page-title">
-        <div class="ambient ambient-one" aria-hidden="true"></div>
-        <div class="ambient ambient-two" aria-hidden="true"></div>
+    <a class="skip-link" href="#main">Skip to content</a>
 
-        <header>
-          <a class="brand" href="/" aria-label="Flyx home">
-            <span class="brand-mark" aria-hidden="true"><span></span></span>
-            <span>FLYX</span>
-          </a>
-          <span class="status"><i></i> Open source</span>
-        </header>
+    <div class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="#top" aria-label="Flyx home">
+          <img src="favicon.svg" alt="" />
+          <span>FLYX</span>
+        </a>
 
-        <div class="content">
-          <p class="eyebrow">Privacy-first entertainment</p>
-          <h1 id="page-title">Your screen.<br /><em>Your rules.</em></h1>
-          <p class="lede">
-            A private, self-hosted home for movies, television, anime, manga, live TV, and sports.
-            No ads. No tracking. No accounts here.
+        <nav class="site-nav" aria-label="Main navigation">
+          <a href="#why">Why Flyx</a>
+          <a href="#architecture">Architecture</a>
+          <a href="#self-host">Self-host</a>
+        </nav>
+
+        <a
+          class="header-link"
+          href="https://github.com/Vynx-Velvet/Flyx-main"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          GitHub <span aria-hidden="true">↗</span>
+        </a>
+      </header>
+
+      <main id="main">
+        <section class="hero" id="top" aria-labelledby="page-title">
+          <div class="ambient ambient-one" aria-hidden="true"></div>
+          <div class="ambient ambient-two" aria-hidden="true"></div>
+
+          <div class="hero-copy">
+            <p class="eyebrow"><i></i> Open source · Self-hosted · Zero ads</p>
+            <h1 id="page-title">Take the profit<br /><em>out of piracy.</em></h1>
+            <p class="hero-lede">
+              Pirate streaming sites monetize work they did not create through ads, trackers,
+              popups, and malware. Flyx removes that exploitative middle layer. It finds the same
+              freely circulating sources and delivers them through software you run and control.
+            </p>
+
+            <div class="actions">
+              <a
+                class="button primary"
+                href="https://github.com/Vynx-Velvet/Flyx-main"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Explore the source <span aria-hidden="true">↗</span>
+              </a>
+              <a
+                class="button secondary"
+                href="https://discord.gg/flyx"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Join the community
+              </a>
+            </div>
+
+            <ul class="trust-row" aria-label="Project principles">
+              <li>No advertising</li>
+              <li>No analytics</li>
+              <li>No hosted media</li>
+            </ul>
+          </div>
+
+          <aside class="hero-panel" aria-label="What Flyx removes">
+            <div class="panel-head">
+              <span>THE OLD MODEL</span>
+              <b>EXTRACTIVE BY DESIGN</b>
+            </div>
+            <div class="toll-list">
+              <div>
+                <span>01</span>
+                <p>Someone else’s stream</p>
+              </div>
+              <div class="blocked">
+                <span>02</span>
+                <p>Ads, trackers &amp; popups</p>
+                <i>REMOVED</i>
+              </div>
+              <div class="blocked">
+                <span>03</span>
+                <p>Malware &amp; cryptominers</p>
+                <i>REMOVED</i>
+              </div>
+              <div class="blocked">
+                <span>04</span>
+                <p>Operator profit</p>
+                <i>REMOVED</i>
+              </div>
+            </div>
+            <div class="panel-result">
+              <img src="favicon.svg" alt="" />
+              <div>
+                <small>WHAT REMAINS</small>
+                <strong>Search. Select. Play.</strong>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <section class="statement" id="why" aria-labelledby="why-title">
+          <p class="section-label">01 · Why this exists</p>
+          <div class="statement-grid">
+            <h2 id="why-title">The content was never theirs to monetize.</h2>
+            <div class="statement-copy">
+              <p>
+                The familiar pirate-site business model is simple: take links to unlicensed media,
+                surround them with invasive advertising, profile the audience, and turn somebody
+                else’s work into revenue. The visitor pays with attention, privacy, device
+                resources, and sometimes security.
+              </p>
+              <p>
+                Flyx rejects the toll booth. It does not claim the media, sell access, host files,
+                or build a business around your viewing history. The code is public, the instance
+                belongs to its operator, and the interface exists to connect a person to a
+                source—not to extract value from either.
+              </p>
+            </div>
+          </div>
+
+          <div class="principles">
+            <article>
+              <span class="principle-number">01</span>
+              <h3>No invented middleman</h3>
+              <p>
+                Flyx adds no paywall, ad network, affiliate funnel, or artificial waiting room
+                between discovery and playback.
+              </p>
+            </article>
+            <article>
+              <span class="principle-number">02</span>
+              <h3>No surveillance economy</h3>
+              <p>
+                There is no central Flyx service collecting searches or viewing history. Your data
+                stays with the instance you control.
+              </p>
+            </article>
+            <article>
+              <span class="principle-number">03</span>
+              <h3>No ownership theater</h3>
+              <p>
+                Flyx hosts no media and pretends no ownership. It is transparent software for
+                locating, normalizing, and playing external sources.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="architecture" id="architecture" aria-labelledby="architecture-title">
+          <div class="section-heading">
+            <div>
+              <p class="section-label">02 · Under the hood</p>
+              <h2 id="architecture-title">One auditable path from search to screen.</h2>
+            </div>
+            <p>
+              Flyx 3.0 replaces a tangled monolith with focused packages, typed boundaries, and a
+              single extraction pipeline. Every stage has one job and can fail without taking the
+              rest of the application down.
+            </p>
+          </div>
+
+          <ol class="pipeline">
+            <li>
+              <span class="step">01</span>
+              <div class="step-icon" aria-hidden="true">⌕</div>
+              <h3>Discover</h3>
+              <p>
+                Metadata and search requests enter a priority-ordered registry of focused provider
+                modules.
+              </p>
+              <small>PROVIDER REGISTRY</small>
+            </li>
+            <li>
+              <span class="step">02</span>
+              <div class="step-icon" aria-hidden="true">⇥</div>
+              <h3>Extract</h3>
+              <p>
+                One pipeline tries compatible providers, isolates failures, and deduplicates the
+                sources it resolves.
+              </p>
+              <small>FAULT-ISOLATED FALLBACK</small>
+            </li>
+            <li>
+              <span class="step">03</span>
+              <div class="step-icon" aria-hidden="true">↻</div>
+              <h3>Cache</h3>
+              <p>
+                Unified TTL and stale-while-revalidate caching avoids duplicate upstream work and
+                keeps repeat requests fast.
+              </p>
+              <small>REQUEST DEDUPLICATION</small>
+            </li>
+            <li>
+              <span class="step">04</span>
+              <div class="step-icon" aria-hidden="true">▶</div>
+              <h3>Proxy &amp; play</h3>
+              <p>
+                When required, your server rewrites HLS manifests, keys, segments, and request
+                headers for clean playback.
+              </p>
+              <small>YOUR INFRASTRUCTURE</small>
+            </li>
+          </ol>
+
+          <div class="architecture-notes">
+            <div class="architecture-stat">
+              <strong>12</strong>
+              <span>focused workspace packages</span>
+            </div>
+            <div class="architecture-stat">
+              <strong>12</strong>
+              <span>provider modules across media types</span>
+            </div>
+            <div class="architecture-stat">
+              <strong>1</strong>
+              <span>shared extraction and cache path</span>
+            </div>
+            <div class="architecture-detail">
+              <p>
+                Movies, television, anime, manga, live TV, sports, subtitles, downloads, and watch
+                state share a coherent application instead of a pile of unrelated embeds.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="control" aria-labelledby="control-title">
+          <div class="control-copy">
+            <p class="section-label">03 · Operator controlled</p>
+            <h2 id="control-title">Your instance.<br />Your data. Your rules.</h2>
+            <p>
+              Run Flyx on one machine, share it across your home network, package it with Docker, or
+              deploy it to Cloudflare. Authentication, storage, proxying, provider priorities, and
+              access rules remain under the operator’s control.
+            </p>
+            <ul class="check-list">
+              <li>SQLite locally or D1 on Cloudflare</li>
+              <li>Private or shared-account modes</li>
+              <li>Desktop, web, and Docker deployment paths</li>
+              <li>MIT-licensed source you can inspect and change</li>
+            </ul>
+          </div>
+
+          <div class="system-map" aria-label="Flyx deployment model">
+            <div class="map-node source-node"><small>EXTERNAL</small><b>Free sources</b></div>
+            <span class="map-line line-one" aria-hidden="true"></span>
+            <div class="map-node core-node">
+              <img src="favicon.svg" alt="" />
+              <small>YOUR INSTANCE</small>
+              <b>Flyx</b>
+            </div>
+            <span class="map-line line-two" aria-hidden="true"></span>
+            <div class="map-node viewer-node"><small>PRIVATE</small><b>Your screens</b></div>
+            <div class="map-caption">No Flyx-owned media server sits in the middle.</div>
+          </div>
+        </section>
+
+        <section class="self-host" id="self-host" aria-labelledby="self-host-title">
+          <div class="setup-copy">
+            <p class="section-label">04 · Make it yours</p>
+            <h2 id="self-host-title">The source is the product.</h2>
+            <p>
+              No subscription and no hosted account to trust. Clone the repository, run the guided
+              setup, and keep the complete stack under your control.
+            </p>
+            <div class="actions">
+              <a
+                class="button primary"
+                href="https://github.com/Vynx-Velvet/Flyx-main#readme"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open the setup guide <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="terminal" aria-label="Flyx setup commands">
+            <div class="terminal-head">
+              <span></span><span></span><span></span><b>flyx / setup</b>
+            </div>
+            <code>
+              <span><i>$</i> git clone https://github.com/Vynx-Velvet/Flyx-main.git</span>
+              <span><i>$</i> cd Flyx-main &amp;&amp; npm install</span>
+              <span><i>$</i> npm run cli:link</span>
+              <span><i>$</i> flyx setup</span>
+              <span class="success">✓ configuration saved</span>
+              <span class="success">✓ your instance is ready</span>
+              <span><i>$</i> flyx start<b class="cursor"></b></span>
+            </code>
+          </div>
+        </section>
+
+        <section class="final-word" aria-labelledby="final-title">
+          <img src="favicon.svg" alt="" />
+          <p class="section-label">Open source. Closed toll booth.</p>
+          <h2 id="final-title">No one should profit from<br /><em>what they do not own.</em></h2>
+          <p>
+            Flyx is a technical answer to an ethical problem: remove the exploitative layer and give
+            control back to the person at the screen.
           </p>
-
-          <nav class="actions" aria-label="Flyx links">
+          <div class="actions">
             <a
               class="button primary"
               href="https://github.com/Vynx-Velvet/Flyx-main"
               target="_blank"
               rel="noopener noreferrer"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M12 .7a11.5 11.5 0 0 0-3.64 22.4c.58.1.79-.25.79-.56v-2.23c-3.22.7-3.9-1.36-3.9-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.78 1.2 1.78 1.2 1.04 1.77 2.72 1.26 3.38.96.1-.75.4-1.26.74-1.55-2.57-.3-5.28-1.29-5.28-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.16 1.18a10.94 10.94 0 0 1 5.76 0c2.19-1.49 3.16-1.18 3.16-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.71 5.39-5.29 5.68.42.36.79 1.07.79 2.15v3.19c0 .31.21.67.79.56A11.5 11.5 0 0 0 12 .7Z"
-                />
-              </svg>
-              View on GitHub
-              <span aria-hidden="true">↗</span>
+              Get Flyx on GitHub <span aria-hidden="true">↗</span>
             </a>
             <a
               class="button secondary"
@@ -62,23 +337,29 @@
               target="_blank"
               rel="noopener noreferrer"
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M19.5 5.34A16.3 16.3 0 0 0 15.44 4l-.5 1.02a15.04 15.04 0 0 0-5.86 0L8.56 4A16.6 16.6 0 0 0 4.5 5.35C1.93 9.18 1.23 12.9 1.58 16.57a16.4 16.4 0 0 0 4.98 2.51l1.2-1.64a10.8 10.8 0 0 1-1.88-.9l.46-.35a11.7 11.7 0 0 0 11.32 0l.47.35c-.6.35-1.24.65-1.89.9l1.2 1.64a16.3 16.3 0 0 0 4.98-2.51c.41-4.25-.7-7.94-2.92-11.23ZM8.52 14.34c-1 0-1.82-.92-1.82-2.04s.8-2.04 1.82-2.04c1.02 0 1.84.92 1.82 2.04 0 1.12-.8 2.04-1.82 2.04Zm6.96 0c-1 0-1.82-.92-1.82-2.04s.8-2.04 1.82-2.04c1.02 0 1.84.92 1.82 2.04 0 1.12-.8 2.04-1.82 2.04Z"
-                />
-              </svg>
               Join Discord
-              <span aria-hidden="true">↗</span>
             </a>
-          </nav>
-        </div>
+          </div>
+        </section>
+      </main>
 
-        <footer>
-          <span>Flyx 3.0</span>
-          <span>MIT licensed</span>
-          <span>Built in the open</span>
-        </footer>
-      </section>
-    </main>
+      <footer class="site-footer">
+        <a class="brand" href="#top">
+          <img src="favicon.svg" alt="" />
+          <span>FLYX</span>
+        </a>
+        <p>No ads. No tracking. No ownership theater.</p>
+        <div>
+          <a
+            href="https://github.com/Vynx-Velvet/Flyx-main"
+            target="_blank"
+            rel="noopener noreferrer"
+            >GitHub</a
+          >
+          <a href="https://discord.gg/flyx" target="_blank" rel="noopener noreferrer">Discord</a>
+          <span>MIT License</span>
+        </div>
+      </footer>
+    </div>
   </body>
 </html>
