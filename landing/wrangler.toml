@@ -1,4 +1,6 @@
-# Cloudflare Pages config — static landing page for flyx.app
-name = "flyx-landing"
+# Cloudflare Workers Builds deploys this directory as the static landing site.
+name = "flyx-main"
 compatibility_date = "2026-08-07"
-pages_build_output_dir = "."
+
+[assets]
+directory = "."
