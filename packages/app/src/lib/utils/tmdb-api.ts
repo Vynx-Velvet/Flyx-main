@@ -9,9 +9,7 @@
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 
 class TmdbApi {
-  private readonly apiKey: string;
-
-  constructor() {
+  private getApiKey(): string {
     const key = process.env.TMDB_API_KEY;
     if (!key) {
       const err = new Error('TMDB_API_KEY is not configured') as Error & {
@@ -20,13 +18,16 @@ class TmdbApi {
       err.code = 'MISSING_API_KEY';
       throw err;
     }
-    this.apiKey = key;
+    return key;
   }
 
   private async fetch<T>(
     path: string,
     params: Record<string, string | number> = {},
   ): Promise<T> {
+    // Resolve configuration at request time. Next.js evaluates route modules while
+    // collecting build data, when runtime-only secrets are intentionally absent.
+    const apiKey = this.getApiKey();
     const url = new URL(`${TMDB_BASE}${path}`);
     url.searchParams.set('language', 'en-US');
 
@@ -39,10 +40,10 @@ class TmdbApi {
     const headers: Record<string, string> = { Accept: 'application/json' };
 
     // Bearer auth for JWT tokens, api_key param for legacy keys
-    if (this.apiKey.startsWith('eyJ')) {
-      headers.Authorization = `Bearer ${this.apiKey}`;
+    if (apiKey.startsWith('eyJ')) {
+      headers.Authorization = `Bearer ${apiKey}`;
     } else {
-      url.searchParams.set('api_key', this.apiKey);
+      url.searchParams.set('api_key', apiKey);
     }
 
     const resp = await fetch(url.toString(), {
