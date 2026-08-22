@@ -8,270 +8,77 @@
     <title>Flyx — Your screen. Your rules.</title>
     <meta
       name="description"
-      content="A private, open-source home for movies, television, anime, manga, live TV, and sports. Self-host Flyx and keep your viewing yours."
+      content="Flyx is a private, open-source entertainment platform. Explore the source on GitHub or join the community on Discord."
     />
     <meta property="og:title" content="Flyx — Your screen. Your rules." />
     <meta
       property="og:description"
-      content="Private, open-source entertainment. One beautifully simple experience, hosted by you."
+      content="Private, open-source entertainment. Built in the open and hosted by you."
     />
     <meta property="og:type" content="website" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <a class="skip-link" href="#main">Skip to content</a>
-    <header class="site-header">
-      <a class="brand" href="#top" aria-label="Flyx home"
-        ><span class="brand-mark" aria-hidden="true"><span></span></span><span>FLYX</span></a
-      >
-      <nav class="nav" aria-label="Main navigation">
-        <a href="#experience">Experience</a><a href="#inside">How it works</a
-        ><a href="#self-host">Self-host</a>
-      </nav>
-      <a
-        class="header-cta"
-        href="https://github.com/Vynx-Velvet/Flyx-main"
-        target="_blank"
-        rel="noopener noreferrer"
-        >View on GitHub <span aria-hidden="true">↗</span></a
-      >
-    </header>
-    <main id="main">
-      <section class="hero" id="top">
-        <div class="hero-glow" aria-hidden="true"></div>
-        <div class="hero-copy">
-          <div class="eyebrow"><span></span> Flyx 3.0 is live</div>
-          <h1>Your screen.<br /><em>Your rules.</em></h1>
-          <p class="hero-lede">
-            Movies, shows, anime, manga, live TV, and sports in one beautifully private place. No
-            ads. No tracking. Hosted by you.
+    <main>
+      <section class="card" aria-labelledby="page-title">
+        <div class="ambient ambient-one" aria-hidden="true"></div>
+        <div class="ambient ambient-two" aria-hidden="true"></div>
+
+        <header>
+          <a class="brand" href="/" aria-label="Flyx home">
+            <span class="brand-mark" aria-hidden="true"><span></span></span>
+            <span>FLYX</span>
+          </a>
+          <span class="status"><i></i> Open source</span>
+        </header>
+
+        <div class="content">
+          <p class="eyebrow">Privacy-first entertainment</p>
+          <h1 id="page-title">Your screen.<br /><em>Your rules.</em></h1>
+          <p class="lede">
+            A private, self-hosted home for movies, television, anime, manga, live TV, and sports.
+            No ads. No tracking. No accounts here.
           </p>
-          <div class="hero-actions">
-            <a class="button button-primary" href="#self-host"
-              >Build your Flyx <span aria-hidden="true">→</span></a
-            ><a
-              class="button button-quiet"
+
+          <nav class="actions" aria-label="Flyx links">
+            <a
+              class="button primary"
               href="https://github.com/Vynx-Velvet/Flyx-main"
               target="_blank"
               rel="noopener noreferrer"
-              ><svg viewBox="0 0 24 24" aria-hidden="true">
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path
                   d="M12 .7a11.5 11.5 0 0 0-3.64 22.4c.58.1.79-.25.79-.56v-2.23c-3.22.7-3.9-1.36-3.9-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.78 1.2 1.78 1.2 1.04 1.77 2.72 1.26 3.38.96.1-.75.4-1.26.74-1.55-2.57-.3-5.28-1.29-5.28-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.16 1.18a10.94 10.94 0 0 1 5.76 0c2.19-1.49 3.16-1.18 3.16-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.71 5.39-5.29 5.68.42.36.79 1.07.79 2.15v3.19c0 .31.21.67.79.56A11.5 11.5 0 0 0 12 .7Z"
-                /></svg
-              >Explore the source</a
-            >
-          </div>
-          <div class="trust-row" aria-label="Project qualities">
-            <span>Open source</span><i></i><span>MIT licensed</span><i></i><span>Self-hosted</span>
-          </div>
-        </div>
-        <div class="stage" aria-label="Flyx interface preview">
-          <div class="stage-orbit orbit-one"></div>
-          <div class="stage-orbit orbit-two"></div>
-          <div class="app-window">
-            <div class="window-bar">
-              <div class="mini-brand"><span class="mini-mark"></span>FLYX</div>
-              <div class="window-nav">
-                <b>Home</b><span>Movies</span><span>TV</span><span>Live</span>
-              </div>
-              <div class="avatar"></div>
-            </div>
-            <div class="featured">
-              <div class="featured-copy">
-                <span class="featured-kicker">FLYX ORIGINAL EXPERIENCE</span>
-                <h2>Everything worth<br />watching. <i>Together.</i></h2>
-                <p>A singular home for every kind of story.</p>
-                <span class="mock-button">▶ &nbsp;Start watching</span>
-              </div>
-              <div class="planet" aria-hidden="true"><span></span></div>
-            </div>
-            <div class="rail">
-              <div class="rail-heading"><b>Continue watching</b><span>See all →</span></div>
-              <div class="posters">
-                <div class="poster poster-a">
-                  <span>NEON<br />CITY</span>
-                </div>
-                <div class="poster poster-b">
-                  <span>THE<br />DEEP</span>
-                </div>
-                <div class="poster poster-c"><span>ORBIT</span></div>
-                <div class="poster poster-d">
-                  <span>AFTER<br />DARK</span>
-                </div>
-                <div class="poster poster-e"><span>WILD</span></div>
-              </div>
-            </div>
-          </div>
-          <div class="floating-pill pill-left"><span>850+</span> live channels</div>
-          <div class="floating-pill pill-right">
-            <span class="privacy-icon">✓</span> Private by design
-          </div>
-        </div>
-      </section>
-      <section class="manifesto" id="experience">
-        <p class="section-tag">One home for everything</p>
-        <h2>All the entertainment.<br /><span>None of the noise.</span></h2>
-        <p class="section-intro">
-          Flyx strips the modern streaming experience back to what matters: finding something great
-          and pressing play.
-        </p>
-        <div class="feature-grid">
-          <article class="feature feature-wide">
-            <div>
-              <span class="feature-number">01</span>
-              <h3>Every kind of story</h3>
-              <p>
-                Move naturally between films, series, anime, manga, live channels, and game
-                day—without moving between apps.
-              </p>
-            </div>
-            <div class="format-stack" aria-hidden="true">
-              <span class="format-card fc-1">FILM</span><span class="format-card fc-2">ANIME</span
-              ><span class="format-card fc-3">LIVE</span><span class="format-card fc-4">MANGA</span>
-            </div>
-          </article>
-          <article class="feature">
-            <span class="feature-number">02</span>
-            <div class="line-icon" aria-hidden="true">✓</div>
-            <h3>Private by default</h3>
-            <p>
-              No advertising profile. No analytics trail. No business model built on watching you
-              watch.
-            </p>
-          </article>
-          <article class="feature feature-accent">
-            <span class="feature-number">03</span>
-            <div class="signal" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
-            <h3>Resilient sources</h3>
-            <p>
-              Flyx can move through multiple providers when one is unavailable, so the experience
-              stays smooth.
-            </p>
-          </article>
-          <article class="feature feature-wide feature-code">
-            <div>
-              <span class="feature-number">04</span>
-              <h3>Yours, all the way down</h3>
-              <p>
-                Run it locally, with Docker, or on Cloudflare. Your instance, your data, your access
-                rules.
-              </p>
-            </div>
-            <div class="terminal" aria-label="Terminal setup example">
-              <div class="terminal-top">
-                <span></span><span></span><span></span><b>flyx — setup</b>
-              </div>
-              <code
-                ><i>$</i> flyx setup<br /><span>✓</span> Configuration saved<br /><span>✓</span>
-                Your private instance is ready<br /><br /><i>$</i> flyx start<span
-                  class="cursor"
-                ></span
-              ></code>
-            </div>
-          </article>
-        </div>
-      </section>
-      <section class="architecture" id="inside">
-        <div class="architecture-copy">
-          <p class="section-tag">Inside Flyx</p>
-          <h2>A clean path<br />from search to play.</h2>
-          <p>
-            Flyx 3.0 is a ground-up rebuild with clear package boundaries, one extraction pipeline,
-            unified caching, and a proxy that keeps upstream services at arm’s length.
-          </p>
-          <a
-            class="text-link"
-            href="https://github.com/Vynx-Velvet/Flyx-main"
-            target="_blank"
-            rel="noopener noreferrer"
-            >Read the architecture <span>↗</span></a
-          >
-        </div>
-        <ol class="pipeline">
-          <li>
-            <span>01</span>
-            <div><b>Discover</b><small>Search across a registry of providers.</small></div>
-            <i>→</i>
-          </li>
-          <li>
-            <span>02</span>
-            <div><b>Extract</b><small>Resolve sources through one auditable path.</small></div>
-            <i>→</i>
-          </li>
-          <li>
-            <span>03</span>
-            <div><b>Protect</b><small>Proxy requests and keep your IP private.</small></div>
-            <i>→</i>
-          </li>
-          <li>
-            <span>04</span>
-            <div><b>Play</b><small>Enjoy clean, focused playback.</small></div>
-          </li>
-        </ol>
-      </section>
-      <section class="self-host" id="self-host">
-        <div class="self-host-inner">
-          <div class="setup-copy">
-            <p class="section-tag">Make it yours</p>
-            <h2>From zero to Flyx<br />in a few commands.</h2>
-            <p>
-              Node.js 20+ is all you need. The guided setup handles configuration, creates your
-              first account, and gets out of the way.
-            </p>
-          </div>
-          <div class="setup-card">
-            <div class="setup-card-head"><span>Quick start</span><b>~5 min</b></div>
-            <div class="command">
-              <span>01</span><code>git clone https://github.com/Vynx-Velvet/Flyx-main.git</code>
-            </div>
-            <div class="command"><span>02</span><code>cd Flyx-main && npm install</code></div>
-            <div class="command"><span>03</span><code>npm run cli:link && flyx setup</code></div>
-            <div class="command"><span>04</span><code>flyx start</code></div>
+                />
+              </svg>
+              View on GitHub
+              <span aria-hidden="true">↗</span>
+            </a>
             <a
-              class="button button-primary setup-button"
-              href="https://github.com/Vynx-Velvet/Flyx-main#readme"
+              class="button secondary"
+              href="https://discord.gg/flyx"
               target="_blank"
               rel="noopener noreferrer"
-              >Open the full guide <span>↗</span></a
             >
-          </div>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M19.5 5.34A16.3 16.3 0 0 0 15.44 4l-.5 1.02a15.04 15.04 0 0 0-5.86 0L8.56 4A16.6 16.6 0 0 0 4.5 5.35C1.93 9.18 1.23 12.9 1.58 16.57a16.4 16.4 0 0 0 4.98 2.51l1.2-1.64a10.8 10.8 0 0 1-1.88-.9l.46-.35a11.7 11.7 0 0 0 11.32 0l.47.35c-.6.35-1.24.65-1.89.9l1.2 1.64a16.3 16.3 0 0 0 4.98-2.51c.41-4.25-.7-7.94-2.92-11.23ZM8.52 14.34c-1 0-1.82-.92-1.82-2.04s.8-2.04 1.82-2.04c1.02 0 1.84.92 1.82 2.04 0 1.12-.8 2.04-1.82 2.04Zm6.96 0c-1 0-1.82-.92-1.82-2.04s.8-2.04 1.82-2.04c1.02 0 1.84.92 1.82 2.04 0 1.12-.8 2.04-1.82 2.04Z"
+                />
+              </svg>
+              Join Discord
+              <span aria-hidden="true">↗</span>
+            </a>
+          </nav>
         </div>
-      </section>
-      <section class="final-cta">
-        <div class="final-glow" aria-hidden="true"></div>
-        <span class="brand-mark large" aria-hidden="true"><span></span></span>
-        <p class="section-tag">Open source. Open screen.</p>
-        <h2>Entertainment should<br /><em>belong to you.</em></h2>
-        <p>Build your own private streaming home with Flyx.</p>
-        <div class="hero-actions">
-          <a
-            class="button button-primary"
-            href="https://github.com/Vynx-Velvet/Flyx-main"
-            target="_blank"
-            rel="noopener noreferrer"
-            >Get Flyx on GitHub <span>↗</span></a
-          ><a
-            class="button button-quiet"
-            href="https://discord.gg/flyx"
-            target="_blank"
-            rel="noopener noreferrer"
-            >Join the community</a
-          >
-        </div>
+
+        <footer>
+          <span>Flyx 3.0</span>
+          <span>MIT licensed</span>
+          <span>Built in the open</span>
+        </footer>
       </section>
     </main>
-    <footer>
-      <a class="brand" href="#top"
-        ><span class="brand-mark" aria-hidden="true"><span></span></span><span>FLYX</span></a
-      >
-      <p>Privacy-first entertainment, built in the open.</p>
-      <div>
-        <a href="https://github.com/Vynx-Velvet/Flyx-main" target="_blank" rel="noopener noreferrer"
-          >GitHub</a
-        ><a href="https://discord.gg/flyx" target="_blank" rel="noopener noreferrer">Discord</a
-        ><span>MIT License</span>
-      </div>
-    </footer>
   </body>
 </html>
