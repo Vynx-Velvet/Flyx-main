@@ -1,7 +1,5 @@
-# Root configuration for Cloudflare Workers Builds.
-# The connected Worker name is supplied by Cloudflare through
-# WRANGLER_CI_OVERRIDE_NAME; locally this defaults to flyx-landing.
-name = "flyx-landing"
+# Root configuration for the flyx-main Cloudflare Workers Build.
+name = "flyx-main"
 compatibility_date = "2026-08-07"
 
 [assets]
