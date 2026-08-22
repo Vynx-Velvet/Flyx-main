@@ -77,5 +77,10 @@
   "dependencies": {
     "jose": "^6.2.4",
     "lucide-react": "^1.25.0"
+  },
+  "optionalDependencies": {
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.3.3",
+    "@turbo/linux-64": "^2.10.8",
+    "lightningcss-linux-x64-gnu": "^1.32.0"
   }
 }
