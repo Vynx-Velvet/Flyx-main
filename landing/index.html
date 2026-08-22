@@ -70,7 +70,7 @@
               </a>
               <a
                 class="button secondary"
-                href="https://discord.gg/flyx"
+                href="https://discord.gg/CUG5p8B3vq"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -279,38 +279,77 @@
         </section>
 
         <section class="self-host" id="self-host" aria-labelledby="self-host-title">
-          <div class="setup-copy">
-            <p class="section-label">04 · Make it yours</p>
-            <h2 id="self-host-title">The source is the product.</h2>
+          <div class="setup-heading">
+            <div>
+              <p class="section-label">04 · Make it yours</p>
+              <h2 id="self-host-title">Choose your level of control.</h2>
+            </div>
             <p>
-              No subscription and no hosted account to trust. Clone the repository, run the guided
-              setup, and keep the complete stack under your control.
+              Flyx is the same self-hosted stack either way. Run every part from the command line,
+              or let the desktop app manage the server and setup for you. No subscription and no
+              hosted account to trust.
             </p>
-            <div class="actions">
+          </div>
+
+          <div class="setup-paths">
+            <article class="setup-path desktop-path">
+              <div class="path-kicker">
+                <span>Desktop app</span>
+                <b>Recommended</b>
+              </div>
+              <h3>Everything managed for you.</h3>
+              <p>
+                Best for anyone who wants ownership without living in a terminal. Download Flyx,
+                open it, and follow the guided first-launch setup.
+              </p>
+              <ul class="path-list">
+                <li>No Node.js, npm, or Git required</li>
+                <li>Embedded server starts and stops with the app</li>
+                <li>Visual account, network, environment, and update controls</li>
+                <li>Windows, macOS, and Linux builds</li>
+              </ul>
               <a
-                class="button primary"
-                href="https://github.com/Vynx-Velvet/Flyx-main#readme"
+                class="button primary path-button"
+                href="https://github.com/Vynx-Velvet/Flyx-main/releases/latest"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Open the setup guide <span aria-hidden="true">↗</span>
+                Download the desktop app <span aria-hidden="true">↗</span>
               </a>
-            </div>
-          </div>
+            </article>
 
-          <div class="terminal" aria-label="Flyx setup commands">
-            <div class="terminal-head">
-              <span></span><span></span><span></span><b>flyx / setup</b>
-            </div>
-            <code>
-              <span><i>$</i> git clone https://github.com/Vynx-Velvet/Flyx-main.git</span>
-              <span><i>$</i> cd Flyx-main &amp;&amp; npm install</span>
-              <span><i>$</i> npm run cli:link</span>
-              <span><i>$</i> flyx setup</span>
-              <span class="success">✓ configuration saved</span>
-              <span class="success">✓ your instance is ready</span>
-              <span><i>$</i> flyx start<b class="cursor"></b></span>
-            </code>
+            <article class="setup-path cli-path">
+              <div class="path-kicker">
+                <span>Command line</span>
+                <b>Full control</b>
+              </div>
+              <h3>Pure CLI, end to end.</h3>
+              <p>
+                Best for developers, servers, and automation. Configure, start, stop, update,
+                inspect logs, and manage accounts entirely with the <code>flyx</code> command.
+              </p>
+              <div class="terminal" aria-label="Flyx CLI setup commands">
+                <div class="terminal-head">
+                  <span></span><span></span><span></span><b>flyx / setup</b>
+                </div>
+                <code>
+                  <span><i>$</i> git clone https://github.com/Vynx-Velvet/Flyx-main.git</span>
+                  <span><i>$</i> cd Flyx-main &amp;&amp; npm install</span>
+                  <span><i>$</i> npm run cli:link</span>
+                  <span><i>$</i> flyx setup</span>
+                  <span class="success">✓ your instance is ready</span>
+                  <span><i>$</i> flyx start<b class="cursor"></b></span>
+                </code>
+              </div>
+              <a
+                class="button secondary path-button"
+                href="https://github.com/Vynx-Velvet/Flyx-main#quick-start"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Read the CLI guide <span aria-hidden="true">↗</span>
+              </a>
+            </article>
           </div>
         </section>
 
@@ -333,7 +372,7 @@
             </a>
             <a
               class="button secondary"
-              href="https://discord.gg/flyx"
+              href="https://discord.gg/CUG5p8B3vq"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -356,7 +395,9 @@
             rel="noopener noreferrer"
             >GitHub</a
           >
-          <a href="https://discord.gg/flyx" target="_blank" rel="noopener noreferrer">Discord</a>
+          <a href="https://discord.gg/CUG5p8B3vq" target="_blank" rel="noopener noreferrer"
+            >Discord</a
+          >
           <span>MIT License</span>
         </div>
       </footer>

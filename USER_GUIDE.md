@@ -334,7 +334,7 @@ Want to back up Flyx? Copy the `flyx-data` folder. Want to start fresh? Delete i
 ## Getting Help 💬
 
 - **In-app help:** Click **Help** in the sidebar for detailed guides and tips
-- **Discord:** Join the [Flyx Discord server](https://discord.gg/flyx) for
+- **Discord:** Join the [Flyx Discord server](https://discord.gg/CUG5p8B3vq) for
   community help
 - **GitHub:** Report bugs or suggest features at
   [github.com/Vynx-Velvet/Flyx-main](https://github.com/Vynx-Velvet/Flyx-main)

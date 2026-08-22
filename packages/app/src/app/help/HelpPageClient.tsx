@@ -116,7 +116,6 @@ export default function HelpPageClient() {
     </div>
   );
 }
-
 // ── Welcome ────────────────────────────────────────────────────────
 
 function WelcomeGuide() {
@@ -1059,7 +1058,7 @@ function TroubleshootingGuide() {
           <ul className={styles.bulletList}>
             <li>
               <strong>Discord:</strong> Join the{" "}
-              <a href="https://discord.gg/flyx" target="_blank" rel="noopener noreferrer">
+              <a href="https://discord.gg/CUG5p8B3vq" target="_blank" rel="noopener noreferrer">
                 Flyx Discord server
               </a>{" "}
               — the fastest way to get help from the community and developers.
