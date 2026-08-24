@@ -104,12 +104,43 @@ cp .env.example .env
 |---|---|---|
 | `TMDB_API_KEY` | Yes | TMDB API key for metadata, posters, and search |
 | `JWT_SECRET` | Yes | Secret for signing auth tokens (min 32 characters) |
-| `HOST_KEY` | Optional | Secret key for creating accounts. Required to enable registration. |
+| `HOST_KEY` | Required for registration | Secret key for creating accounts. The setup wizard generates it automatically; users who register from the login page must enter it. |
 | `DATABASE_URL` | Optional | Database connection string. Defaults to local SQLite. |
 | `CLOUDFLARE_ACCOUNT_ID` | Optional | Cloudflare account ID for Workers/D1 deployment |
 | `CLOUDFLARE_API_TOKEN` | Optional | Cloudflare API token for Workers and D1 |
 | `HOSTNAME` | Optional | Hostname to bind to. Default: `127.0.0.1`. Use `0.0.0.0` for network access. |
 | `PORT` | Optional | Port to listen on. Default: `3891`. |
+
+### Finding the host key
+
+If you use the login page to create an account, Flyx asks for a host key. The host key is generated during setup and stored as `HOST_KEY` in Flyx's data `.env` file.
+
+Use the CLI to show it:
+
+```bash
+flyx config --show-secrets
+```
+
+If the global `flyx` command is not linked, run the CLI from the repo instead:
+
+```bash
+node packages/cli/cli.js config --show-secrets
+```
+
+You can also read it directly from the data directory:
+
+```bash
+# macOS
+grep '^HOST_KEY=' "$HOME/Library/Application Support/flyx/.env"
+
+# Linux
+grep '^HOST_KEY=' "$HOME/.local/share/flyx/.env"
+
+# Windows PowerShell
+Select-String '^HOST_KEY=' "$env:LOCALAPPDATA\flyx\.env"
+```
+
+Anyone with this key can create an account on your Flyx instance, so only share it with people you want to allow onto your server.
 
 ## Deploy to Cloudflare (optional)
 
