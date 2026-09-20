@@ -94,6 +94,69 @@ async function fetchHTML(
 // ── M3U8 extraction ─────────────────────────────────────────────────────────
 
 /**
+ * Decrypt the `window._econfig` blob used by the tiestep/assetrage player.
+ *
+ * The blob is base64 → split into 4 chunks → each chunk loses its 4th char
+ * and is base64-decoded → chunks are reordered [2,0,3,1] → joined and
+ * base64-decoded → JSON containing the signed M3U8 URL.
+ */
+const ECONFIG_RE = /window\._econfig\s*=\s*'([^']+)'/;
+const ECONFIG_ORDER = [2, 0, 3, 1] as const;
+const ECONFIG_PARTS = 4;
+
+interface EconfigStream {
+  stream_url?: string;
+  stream_url_nop2p?: string;
+  url_nop2p?: boolean;
+  p2p?: boolean;
+}
+
+function atobBinary(value: string): string {
+  return Buffer.from(value, "base64").toString("binary");
+}
+
+function decryptEconfig(b64: string): EconfigStream | null {
+  if (!b64) return null;
+  const raw = atobBinary(b64);
+  const chunkSize = Math.ceil(raw.length / ECONFIG_PARTS);
+  const reordered: string[] = [];
+  for (let i = 0, offset = 0; i < ECONFIG_PARTS; i++, offset += chunkSize) {
+    const piece = raw.slice(offset, offset + chunkSize);
+    reordered[ECONFIG_ORDER[i]!] = atobBinary(piece.slice(0, 3) + piece.slice(4));
+  }
+  try {
+    const config = JSON.parse(
+      Buffer.from(reordered.join(""), "base64").toString("utf8"),
+    ) as EconfigStream;
+    if (!config || typeof config !== "object") return null;
+    if (
+      (config.stream_url !== undefined && typeof config.stream_url !== "string") ||
+      (config.stream_url_nop2p !== undefined && typeof config.stream_url_nop2p !== "string") ||
+      (config.url_nop2p !== undefined && typeof config.url_nop2p !== "boolean") ||
+      (config.p2p !== undefined && typeof config.p2p !== "boolean")
+    ) {
+      return null;
+    }
+    if (!config.stream_url && !config.stream_url_nop2p) return null;
+    return config;
+  } catch {
+    return null;
+  }
+}
+
+function extractEconfigM3U8(html: string): string | null {
+  const b64 = html.match(ECONFIG_RE)?.[1];
+  if (!b64) return null;
+  const config = decryptEconfig(b64);
+  if (!config) return null;
+  const url =
+    config.p2p === false || config.url_nop2p
+      ? config.stream_url_nop2p || config.stream_url
+      : config.stream_url || config.stream_url_nop2p;
+  return url?.includes(".m3u8") ? url : null;
+}
+
+/**
  * Extract the base64-encoded M3U8 URL from a Clappr player source page.
  *
  * The M3U8 is embedded in the JS as:
@@ -139,6 +202,7 @@ function buildResult(
   quality: string,
   chId: string,
   cookies?: string,
+  cdnReferer = "https://hamis.romponalis.st",
 ): ExtractionResult {
   return {
     sources: [{
@@ -146,8 +210,8 @@ function buildResult(
       quality,
       type: "hls" as const,
       title: `DLHD ${chId}`,
-      referer: "https://hamis.romponalis.st",
-      origin: "https://hamis.romponalis.st",
+      referer: cdnReferer,
+      origin: cdnReferer,
       requiresSegmentProxy: true,
     }],
     subtitles: [],
@@ -186,22 +250,39 @@ export async function extractDLHD(
       ?? streamResult.html.match(/iframe\s+src='([^']+)'/i);
 
     let m3u8Url: string | null = null;
+    // The tiestep/assetrage CDN allowlists referer domains for segments —
+    // hamis.romponalis.st is rejected, tiestep.top is accepted.
+    let cdnReferer = "https://hamis.romponalis.st";
 
     if (iframeMatch?.[1]) {
-      // Fetch the iframe source page (Clappr player)
-      const iframeResult = await fetchHTML(iframeMatch[1], streamUrl, 10000);
-      if (iframeResult.cookies) {
-        // Merge cookies: the iframe page may set additional session cookies
-        allCookies = allCookies
-          ? `${allCookies}; ${iframeResult.cookies}`
-          : iframeResult.cookies;
+      try {
+        // Fetch the iframe source page (Clappr player / _econfig)
+        const iframeResult = await fetchHTML(iframeMatch[1], streamUrl, 10000);
+        if (iframeResult.cookies) {
+          // Merge cookies: the iframe page may set additional session cookies
+          allCookies = allCookies
+            ? `${allCookies}; ${iframeResult.cookies}`
+            : iframeResult.cookies;
+        }
+        m3u8Url = extractEconfigM3U8(iframeResult.html);
+        if (m3u8Url) {
+          cdnReferer = "https://tiestep.top/";
+        } else {
+          m3u8Url = extractM3U8FromSource(iframeResult.html);
+        }
+      } catch {
+        // Iframe fetch failed — fall through to other extraction paths
       }
-      m3u8Url = extractM3U8FromSource(iframeResult.html);
     }
 
     // Also try extracting from the stream page itself (backup)
     if (!m3u8Url) {
-      m3u8Url = extractM3U8FromSource(streamResult.html);
+      m3u8Url = extractEconfigM3U8(streamResult.html);
+      if (m3u8Url) {
+        cdnReferer = "https://tiestep.top/";
+      } else {
+        m3u8Url = extractM3U8FromSource(streamResult.html);
+      }
     }
 
     // Step 3: If both failed, try the direct daddy5.php shortcut
@@ -214,11 +295,15 @@ export async function extractDLHD(
           : daddyResult.cookies;
       }
       m3u8Url = extractM3U8FromSource(daddyResult.html);
+      if (!m3u8Url) {
+        m3u8Url = extractEconfigM3U8(daddyResult.html);
+        if (m3u8Url) cdnReferer = "https://tiestep.top/";
+      }
     }
 
     if (m3u8Url) {
       console.log(`[DLHD] Extracted M3U8 URL (cookies: ${allCookies ? allCookies.substring(0, 50) + "..." : "none"})`);
-      return buildResult(m3u8Url, "Auto", channelId, allCookies || undefined);
+      return buildResult(m3u8Url, "Auto", channelId, allCookies || undefined, cdnReferer);
     }
     console.warn(`[DLHD] Could not extract M3U8 URL from any source`);
     return { sources: [], subtitles: [] };
