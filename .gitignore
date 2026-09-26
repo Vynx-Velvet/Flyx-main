@@ -58,3 +58,6 @@ probe*.mjs
 
 # Git Bash crash dumps
 bash.exe.stackdump
+
+# Local-only notes (announcements, drafts)
+local/

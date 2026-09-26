@@ -14,9 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { ExtractionPipeline } from "@flyx/extractors";
-import { providerRegistry } from "@flyx/providers";
-import "@flyx/providers/providers";
+import { pipeline } from "@/lib/extraction";
 import type { StreamSource } from "@flyx/core";
 import { parseDownloadItem } from "@/lib/downloads/stream-request";
 import { fetchVariants, isGenericQuality } from "@/lib/downloads/hls-variants";
@@ -24,8 +22,6 @@ import { qualityScore } from "@/lib/downloads/source-picker";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const pipeline = new ExtractionPipeline(providerRegistry);
 
 export async function GET(request: NextRequest) {
   let item;

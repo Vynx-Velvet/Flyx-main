@@ -6,19 +6,15 @@
  */
 
 import { createWriteStream } from "node:fs";
+import { pipeline } from "@/lib/extraction";
 import { Readable } from "node:stream";
 import type { ExtractionRequest, StreamSource } from "@flyx/core";
-import { ExtractionPipeline } from "@flyx/extractors";
-import { providerRegistry } from "@flyx/providers";
-import "@flyx/providers/providers";
 import { remuxWithFfmpeg } from "./ffmpeg";
 import { pickBestSource } from "./source-picker";
 import { resolveSourceForQuality } from "./hls-variants";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-
-const pipeline = new ExtractionPipeline(providerRegistry);
 
 export interface VideoDownloadRequest {
   tmdbId: number;

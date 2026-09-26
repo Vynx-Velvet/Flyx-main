@@ -21,9 +21,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { ExtractionPipeline } from "@flyx/extractors";
-import { providerRegistry } from "@flyx/providers";
-import "@flyx/providers/providers";
+import { pipeline } from "@/lib/extraction";
 import type { StreamSource } from "@flyx/core";
 import { requestOrigin } from "@/lib/request-origin";
 import { parseDownloadItem } from "@/lib/downloads/stream-request";
@@ -37,8 +35,6 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const pipeline = new ExtractionPipeline(providerRegistry);
 
 interface Resolved {
   source: StreamSource | { url: string; referer?: string; origin?: string; quality?: string };

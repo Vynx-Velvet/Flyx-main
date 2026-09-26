@@ -13,11 +13,44 @@
  */
 
 import type { StreamSource } from "@flyx/core";
-import { relaxedFetch } from "@flyx/core/utils";
 import { qualityScore } from "./source-picker";
 
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+/** Standard tiers a variant is labelled with, by the larger of height and 16:9-width-height. */
+const TIERS = [2160, 1440, 1080, 720, 480, 360, 240];
+
+/**
+ * "1080p"-style label for a variant. Cinema-ratio streams (1920x800) are
+ * labelled by width so they read as the tier viewers expect (1080p), not
+ * "800p".
+ */
+export function tierLabel(width: number, height: number): string {
+  const effective = Math.max(height, Math.round((width * 9) / 16));
+  if (!effective) return "Auto";
+  let best = TIERS[TIERS.length - 1]!;
+  for (const t of TIERS) {
+    if (effective >= t * 0.9) {
+      best = t;
+      break;
+    }
+  }
+  return `${best}p`;
+}
+
+/**
+ * The stream proxy rewrites playlist URIs to /api/stream/proxy?...&url=<abs>;
+ * recover the absolute upstream URL from such a line (or resolve it as-is).
+ */
+export function unwrapProxiedUri(uri: string, baseUrl: string): string {
+  if (uri.includes("/api/stream/proxy?")) {
+    try {
+      const q = new URL(uri, "http://localhost").searchParams.get("url");
+      if (q) return q;
+    } catch {
+      /* fall through */
+    }
+  }
+  return new URL(uri, baseUrl).href;
+}
 
 export interface HlsVariant {
   /** Absolute media-playlist URL. */
@@ -58,18 +91,19 @@ export function parseMasterVariants(text: string, baseUrl: string): HlsVariant[]
     const [w, h] = (a.RESOLUTION || "").split("x").map((n) => parseInt(n, 10));
     const bandwidth = parseInt(a.BANDWIDTH || "0", 10) || 0;
     const height = Number.isFinite(h) ? h! : 0;
+    const width = Number.isFinite(w) ? w! : 0;
     let url: string;
     try {
-      url = new URL(uri, baseUrl).href;
+      url = unwrapProxiedUri(uri, baseUrl);
     } catch {
       continue;
     }
     variants.push({
       url,
-      width: Number.isFinite(w) ? w! : 0,
+      width,
       height,
       bandwidth,
-      label: height > 0 ? `${height}p` : bandwidth > 0 ? `${Math.round(bandwidth / 1000)} kbps` : "Auto",
+      label: height > 0 || width > 0 ? tierLabel(width, height) : bandwidth > 0 ? `${Math.round(bandwidth / 1000)} kbps` : "Auto",
     });
     i = j;
   }
@@ -90,30 +124,41 @@ export function pickVariant(variants: HlsVariant[], quality: string | undefined)
   if (exact) return exact;
   const target = qualityScore(quality);
   if (!target) return variants[0]!;
+  // Compare by tier (the label), not raw pixel height — a 1920x800 stream is
+  // the "1080p" option and should win a 1080p request over a 1280x534 one.
+  const tier = (v: HlsVariant) => qualityScore(v.label) || v.height;
   return [...variants].sort(
-    (a, b) => Math.abs(a.height - target) - Math.abs(b.height - target) || b.bandwidth - a.bandwidth,
+    (a, b) => Math.abs(tier(a) - target) - Math.abs(tier(b) - target) || b.bandwidth - a.bandwidth,
   )[0]!;
 }
 
-function sourceHeaders(source: StreamSource): Record<string, string> {
-  const h: Record<string, string> = { "User-Agent": source.userAgent || UA, Accept: "*/*" };
-  if (source.referer) h.Referer = source.referer;
-  if (source.origin) h.Origin = source.origin;
-  return h;
+/**
+ * The master must be fetched exactly like the player fetches it: through our
+ * own stream proxy, which adds provider tokens (VidSrc's IP-bound `token=`),
+ * Referer/Origin and relaxed TLS. A direct fetch gets "401 no token" and the
+ * dialog would fall back to "Auto".
+ */
+function localProxyUrl(source: StreamSource): string {
+  const port = process.env.PORT || "3891";
+  const params = new URLSearchParams();
+  params.set("url", source.url);
+  if (source.referer) params.set("referer", source.referer);
+  if (source.origin) params.set("origin", source.origin);
+  return `http://127.0.0.1:${port}/api/stream/proxy?${params.toString()}`;
 }
 
 /** Fetch and parse a master playlist. Empty array on any failure or for media playlists. */
-export async function fetchVariants(source: StreamSource, timeoutMs = 8000): Promise<HlsVariant[]> {
+export async function fetchVariants(source: StreamSource, timeoutMs = 10000): Promise<HlsVariant[]> {
   if (source.type === "mp4") return [];
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), timeoutMs);
-    const r = await relaxedFetch(source.url, { headers: sourceHeaders(source), signal: c.signal });
+    const r = await fetch(localProxyUrl(source), { signal: c.signal, cache: "no-store" });
     clearTimeout(t);
     if (!r.ok) return [];
     const text = await r.text();
     if (!text.trim().startsWith("#EXTM3U")) return [];
-    return parseMasterVariants(text, r.url || source.url);
+    return parseMasterVariants(text, source.url);
   } catch {
     return [];
   }

@@ -14,16 +14,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { pipeline } from "@/lib/extraction";
 import type { ExtractionRequest, MediaType } from "@flyx/core";
 import { AllProvidersFailedError, ExtractionAbortedError, MissingParameterError, InvalidMediaTypeError } from "@flyx/core";
-import { ExtractionPipeline } from "@flyx/extractors";
-import { providerRegistry } from "@flyx/providers";
 
 // Auto-register all providers
-import "@flyx/providers/providers";
 
 // Single pipeline instance (reused across requests)
-const pipeline = new ExtractionPipeline(providerRegistry);
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);

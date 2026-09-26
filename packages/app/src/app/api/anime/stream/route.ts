@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { pipeline } from "@/lib/extraction";
 import type { ExtractionRequest } from '@flyx/core';
 import { ExtractionPipeline } from '@flyx/extractors';
 import { providerRegistry } from '@flyx/providers';
@@ -18,7 +19,6 @@ import { addLog } from '@/lib/log-store';
 import '@flyx/providers/providers';
 
 // Single pipeline instance (reused across requests)
-const pipeline = new ExtractionPipeline(providerRegistry);
 
 // Simple in-memory title cache (TTL ~10 min, resets on restart)
 const titleCache = new Map<number, { title: string; ts: number }>();

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isGenericQuality, parseMasterVariants, pickVariant } from "./hls-variants";
+import { isGenericQuality, parseMasterVariants, pickVariant, tierLabel, unwrapProxiedUri } from "./hls-variants";
 
 const MASTER = `#EXTM3U
 #EXT-X-VERSION:3
@@ -16,7 +16,7 @@ dupe/index.m3u8
 describe("parseMasterVariants", () => {
   it("lists variants highest first with absolute URLs and 'Np' labels", () => {
     const v = parseMasterVariants(MASTER, "https://cdn.example/pl/abc/master.m3u8");
-    expect(v.map((x) => x.label)).toEqual(["800p", "534p", "266p"]);
+    expect(v.map((x) => x.label)).toEqual(["1080p", "720p", "360p"]);
     expect(v[0]).toMatchObject({ url: "https://cdn.example/pl/abc/high/index.m3u8", bandwidth: 4462464, width: 1920 });
     expect(v[1]!.url).toBe("https://cdn.example/pl/abc/mid/index.m3u8");
     expect(v[2]!.url).toBe("https://cdn.example/pl/abc/low/index.m3u8?token=1");
@@ -35,14 +35,35 @@ describe("parseMasterVariants", () => {
 describe("pickVariant", () => {
   const v = parseMasterVariants(MASTER, "https://cdn.example/pl/abc/master.m3u8");
   it("returns the best for generic requests", () => {
-    expect(pickVariant(v, undefined)!.label).toBe("800p");
-    expect(pickVariant(v, "Auto")!.label).toBe("800p");
+    expect(pickVariant(v, undefined)!.label).toBe("1080p");
+    expect(pickVariant(v, "Auto")!.label).toBe("1080p");
   });
   it("matches an exact label, else the closest height", () => {
-    expect(pickVariant(v, "534p")!.label).toBe("534p");
-    expect(pickVariant(v, "720p")!.label).toBe("800p");
-    expect(pickVariant(v, "360p")!.label).toBe("266p");
+    expect(pickVariant(v, "720p")!.label).toBe("720p");
+    expect(pickVariant(v, "480p")!.label).toBe("360p");
+    expect(pickVariant(v, "4K")!.label).toBe("1080p");
     expect(pickVariant([], "720p")).toBeNull();
+  });
+});
+
+describe("tierLabel / unwrapProxiedUri", () => {
+  it("labels cinema-ratio and portrait sizes by the familiar tier", () => {
+    expect(tierLabel(1920, 800)).toBe("1080p");
+    expect(tierLabel(1280, 534)).toBe("720p");
+    expect(tierLabel(3840, 1600)).toBe("2160p");
+    expect(tierLabel(0, 480)).toBe("480p");
+    expect(tierLabel(0, 0)).toBe("Auto");
+  });
+  it("recovers the upstream URL from a proxy-rewritten playlist line", () => {
+    const line = "/api/stream/proxy?referer=https%3A%2F%2Fr%2F&url=https%3A%2F%2Fcdn%2Fpl%2Fx%2Fhigh%2Findex.m3u8%3Ftoken%3Dabc";
+    expect(unwrapProxiedUri(line, "https://cdn/pl/x/master.m3u8")).toBe("https://cdn/pl/x/high/index.m3u8?token=abc");
+    expect(unwrapProxiedUri("mid/index.m3u8", "https://cdn/pl/x/master.m3u8")).toBe("https://cdn/pl/x/mid/index.m3u8");
+  });
+  it("parses a proxy-rewritten master", () => {
+    const text = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=4000000,RESOLUTION=1920x800\n/api/stream/proxy?url=https%3A%2F%2Fcdn%2Fhigh.m3u8\n";
+    const v = parseMasterVariants(text, "https://cdn/master.m3u8");
+    expect(v).toHaveLength(1);
+    expect(v[0]).toMatchObject({ url: "https://cdn/high.m3u8", label: "1080p" });
   });
 });
 

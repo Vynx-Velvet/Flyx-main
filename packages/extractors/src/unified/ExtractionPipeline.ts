@@ -129,10 +129,21 @@ export class ExtractionPipeline {
       try {
         const cacheKey = this.requestCacheKey(provider.name, request);
 
+        // Only successful, non-empty results may enter the cache. A provider
+        // that momentarily returns nothing must not poison the next 15 min
+        // for every caller sharing this pipeline (it did: the download
+        // dialog kept showing "Auto" after one flaky extraction).
+        const load = async (): Promise<ExtractionResult> => {
+          const r = await provider.extract(request);
+          if (!r || !r.success || r.sources.length === 0) {
+            throw new Error(r?.error ?? "No sources returned");
+          }
+          return r;
+        };
         const result = options.cache !== false
           ? await this.cache.get<ExtractionResult>(
               cacheKey,
-              () => provider.extract(request),
+              load,
               {
                 ttl: options.cacheTtl ?? 15 * 60 * 1000,
                 staleWhileRevalidate: 5 * 60 * 1000,

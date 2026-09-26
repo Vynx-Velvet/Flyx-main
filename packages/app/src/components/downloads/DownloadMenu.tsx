@@ -119,10 +119,13 @@ export default function DownloadMenu({
     ? sources.filter((source) => (source.language || "sub") === audio)
     : sources;
   const eligibleSources = taggedAudio ? audioSources : sources;
+  // Real tiers only — "Auto" is what a provider says when it hasn't told us,
+  // and "Best available" above already covers that case.
+  const isGeneric = (q: string) => ["auto", "hls", "default", "best", ""].includes(q.trim().toLowerCase());
   const qualityOptions = [
     ...new Set(
       eligibleSources
-        .filter((source) => source.url && source.quality)
+        .filter((source) => source.url && source.quality && !isGeneric(source.quality))
         .map((source) => source.quality as string),
     ),
   ].sort((first, second) => qualityScore(second) - qualityScore(first));

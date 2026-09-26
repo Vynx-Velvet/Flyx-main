@@ -2,6 +2,13 @@
 
 All notable changes to Flyx are documented in this file.
 
+## [3.2.1] - 2026-09-26
+
+### Fixed
+
+- **Download dialog now lists real qualities.** The variant lookup fetched the provider's master playlist directly, which for VidSrc answers "401 no token" (the playlist needs the IP-bound token our stream proxy adds), so the dialog fell back to "Best available / Auto". The lookup now goes through the local stream proxy exactly like the player does and reads the variants from the rewritten playlist. Labels use standard tiers (a 1920×800 cinema-ratio stream is "1080p", not "800p") and generic "Auto" entries are hidden.
+- **One extraction pipeline for the whole app.** Every API route built its own pipeline with its own 15-minute cache, and a provider's empty answer was cached as if it were a result — so one flaky extraction could pin the download dialog (and the VLC and downloader routes) to "no sources" for 15 minutes while the player happily played the same title. Routes now share a single pipeline, and empty or failed provider results are never cached.
+
 ## [3.2.0] - 2026-09-26
 
 ### Added

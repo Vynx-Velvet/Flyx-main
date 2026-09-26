@@ -14,6 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { pipeline } from "@/lib/extraction";
 import { Readable } from "node:stream";
 import { getSession } from "@/lib/auth/get-session";
 import type { DownloadItemInput } from "@/lib/downloads/types";
@@ -22,9 +23,6 @@ import {
   parseDownloadItem,
   streamFilename,
 } from "@/lib/downloads/stream-request";
-import { ExtractionPipeline } from "@flyx/extractors";
-import { providerRegistry } from "@flyx/providers";
-import "@flyx/providers/providers";
 import type { StreamSource } from "@flyx/core";
 import { pickBestSource } from "@/lib/downloads/source-picker";
 import { resolveSourceForQuality } from "@/lib/downloads/hls-variants";
@@ -37,8 +35,6 @@ export const dynamic = "force-dynamic";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-
-const pipeline = new ExtractionPipeline(providerRegistry);
 
 function proxyUrl(source: StreamSource): string {
   const port = process.env.PORT || "3891";
