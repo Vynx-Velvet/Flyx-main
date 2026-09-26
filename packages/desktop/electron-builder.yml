@@ -47,10 +47,23 @@ nsis:
 portable:
   artifactName: Flyx-Portable-${version}.${ext}
 
+# Build hooks (see build/*.cjs):
+#  - afterPack: ad-hoc code-sign the macOS app and force executable bits on
+#    the launcher + bundled ffmpeg (macOS/Linux). Without a signature Apple
+#    silicon refuses the app as "damaged" after every update.
+#  - afterAllArtifactBuild: executable bit on the published AppImage.
+afterPack: build/after-pack.cjs
+afterAllArtifactBuild: build/after-artifacts.cjs
+
 mac:
   target: [dmg]
   icon: build/icon.png
   category: public.app-category.entertainment
+  # No Apple developer identity: let electron-builder skip its own signing
+  # (it would only log a warning) — the afterPack hook ad-hoc signs instead.
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
 
 dmg:
   artifactName: Flyx-${version}.${ext}

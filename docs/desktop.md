@@ -195,10 +195,24 @@ The **desktop package version must bump in lockstep** with the app (tag +
 
 ## Code signing & OS warnings
 
-v1 ships unsigned: Windows SmartScreen and macOS Gatekeeper will warn on first
-launch. Also expect the **Windows firewall prompt** the first time the server
-binds `0.0.0.0` — allow it on **private networks** (LAN sharing needs it;
-public networks stay blocked).
+Flyx ships without an Apple or Microsoft code-signing identity.
+
+- **macOS**: the `.app` is **ad-hoc signed** at build time (`build/after-pack.cjs`
+  runs `codesign --deep --sign -`). Without that, Apple silicon refuses a
+  fully unsigned app as "damaged" and users had to clear quarantine flags in
+  Terminal after every update. With the ad-hoc signature, Gatekeeper shows
+  the normal "unidentified developer" dialog: right-click → **Open** once per
+  version. Updates pulled by the in-app updater are written by Flyx itself,
+  so they carry no quarantine flag at all.
+- **Linux**: the launcher, the bundled ffmpeg and the published AppImage carry
+  the executable bit (`after-pack.cjs` / `after-artifacts.cjs`). A browser
+  download still drops the bit — that is how browsers work — so a manually
+  downloaded AppImage needs `chmod +x` once; the in-app updater chmods what it
+  downloads, and the `.deb` needs nothing.
+- **Windows**: SmartScreen warns on first launch ("More info → Run anyway").
+  Also expect the **Windows firewall prompt** the first time the server binds
+  `0.0.0.0` — allow it on **private networks** (LAN sharing needs it; public
+  networks stay blocked).
 
 ## Known limitations
 

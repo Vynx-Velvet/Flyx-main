@@ -2,6 +2,12 @@
 
 All notable changes to Flyx are documented in this file.
 
+## [3.2.2] - 2026-09-26
+
+### Fixed
+
+- **macOS and Linux builds are runnable out of the box.** The macOS app is now ad-hoc code-signed at build time; a fully unsigned app was refused on Apple silicon as "damaged", so people had to clear quarantine flags and fix permissions in Terminal after every update. Gatekeeper now offers the normal right-click → Open path once per version, and updates pulled by the in-app updater carry no quarantine flag at all. On Linux the launcher, the bundled ffmpeg and the published AppImage carry the executable bit (a browser download still drops it once; the in-app updater and the `.deb` need nothing).
+
 ## [3.2.1] - 2026-09-26
 
 ### Fixed
