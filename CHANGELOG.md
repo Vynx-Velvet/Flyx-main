@@ -2,7 +2,7 @@
 
 All notable changes to Flyx are documented in this file.
 
-## [Unreleased]
+## [3.2.3] - 2026-09-26
 
 ### Fixed
 
