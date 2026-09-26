@@ -2,6 +2,12 @@
 
 All notable changes to Flyx are documented in this file.
 
+## [3.2.4] - 2026-09-26
+
+### Fixed
+
+- **macOS app starts again.** Since 3.2.0 the embedded server has run in an Electron utility process on macOS (the fix for the second Dock icon), but it was still handed `ELECTRON_RUN_AS_NODE=1`. Electron's helper honours that variable before anything else, boots as plain Node, rejects Chromium's own `--type=utility` flags and exits with code 9 — shown as "The embedded server exited immediately (code 2304)" on every launch of 3.2.0–3.2.3. The flag is now stripped for the utility process (the child-process fallback still sets it), and raw POSIX exit statuses are decoded so the log and error dialog report the real exit code.
+
 ## [3.2.3] - 2026-09-26
 
 ### Fixed

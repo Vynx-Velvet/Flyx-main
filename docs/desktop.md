@@ -151,6 +151,24 @@ next to Flyx. `server-manager.js` therefore hosts the server in an Electron
 **utility process** (`utilityProcess.fork`) on macOS: same script, same env,
 same log tee, but inside Flyx's own process tree with no Dock presence.
 
+Two things differ from the child-process mode, and both matter:
+
+- **`ELECTRON_RUN_AS_NODE` must not be in the utility process's env.** The
+  helper binary checks that variable before anything else and boots as plain
+  Node, which rejects Chromium's own flags (`bad option: --type=utility`) and
+  exits with code 9. `forkUtilityProcess()` strips it; the child-process
+  fallback adds it back. Flyx 3.2.0–3.2.3 shipped with the flag set on macOS
+  and every launch died with "The embedded server exited immediately
+  (code 2304)".
+- **The `'exit'` code is a raw `waitpid()` status on POSIX** (Electron
+  documents this): a normal `exit(9)` arrives as 2304 (9 × 256), a signal
+  death keeps the signal number in the low bits. `decodeUtilityExitCode()`
+  normalises it so logs and dialogs show the real exit code.
+
+The utility-process path can be exercised on Windows/Linux with
+`FLYX_SERVER_HOST=utility` — do that before a macOS release, since the
+unit tests stub Electron and cannot see this class of failure.
+
 The utility process is wrapped in a small child_process-like adapter
 (`pid`, `exitCode`, `stdout`/`stderr`, `kill()`, `'exit'`) so `main.js` and
 `stopServer()` do not care which mode is active. `FLYX_SERVER_HOST=child`

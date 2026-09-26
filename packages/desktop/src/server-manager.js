@@ -102,6 +102,23 @@ function shouldUseUtilityProcess(platform = process.platform, env = process.env)
 }
 
 /**
+ * Electron's utilityProcess 'exit' event carries the raw waitpid() status on
+ * POSIX (and the plain exit code on Windows). A normal exit stores the code
+ * in bits 8–15 — exit(9) arrives as 2304 — while a signal death keeps the
+ * signal number in the low 7 bits. Normalise to the exit code the rest of
+ * the shell (logs, error dialogs, crash counting) expects.
+ *
+ * @param {number|null|undefined} code
+ * @param {string} [platform]
+ */
+function decodeUtilityExitCode(code, platform = process.platform) {
+  if (typeof code !== "number") return 0;
+  if (platform === "win32" || code < 256) return code;
+  if ((code & 0x7f) === 0) return (code >> 8) & 0xff; // WIFEXITED → WEXITSTATUS
+  return code;
+}
+
+/**
  * Fork `script` via electron.utilityProcess and wrap it in the small
  * child_process-like surface the rest of the shell relies on
  * (pid / exitCode / signalCode / stdout / stderr / kill / 'exit').
@@ -124,14 +141,24 @@ function forkUtilityProcess(script, { cwd, env, fork } = {}) {
     log("utilityProcess unavailable — falling back to child process");
     return spawn(process.execPath, [script], {
       cwd,
-      env,
+      env: { ...env, ELECTRON_RUN_AS_NODE: "1" },
       stdio: ["ignore", "pipe", "pipe"],
     });
   }
 
+  // ELECTRON_RUN_AS_NODE must never reach a utility process. Electron's
+  // helper binary honours that variable before anything else: it boots as
+  // plain Node, rejects Chromium's own flags ("bad option: --type=utility",
+  // "--utility-sub-type=node.mojom.NodeService", …) and exits with code 9 —
+  // which macOS reports as waitpid status 2304 ("The embedded server exited
+  // immediately (code 2304)"). A utility process already is a Node
+  // environment; it needs no flag.
+  const utilityEnv = { ...env };
+  delete utilityEnv.ELECTRON_RUN_AS_NODE;
+
   const proc = forkImpl(script, [], {
     cwd,
-    env,
+    env: utilityEnv,
     stdio: "pipe",
     serviceName: "Flyx Server",
   });
@@ -156,7 +183,10 @@ function forkUtilityProcess(script, { cwd, env, fork } = {}) {
       adapter.emit("spawn");
     });
     proc.on("exit", (code) => {
-      adapter.exitCode = typeof code === "number" ? code : 0;
+      adapter.exitCode = decodeUtilityExitCode(code);
+      if (adapter.exitCode !== code) {
+        log(`utility process raw exit status ${code} → exit code ${adapter.exitCode}`);
+      }
       adapter.emit("exit", adapter.exitCode);
     });
   }
@@ -230,7 +260,9 @@ function spawnServer({ port, hostname, onExit } = {}) {
     FLYX_DATA_DIR: DATA_DIR,
     FLYX_DESKTOP: "true",
     ...(fs.existsSync(bundledFfmpeg) ? { FLYX_FFMPEG_PATH: bundledFfmpeg } : {}),
-    // Electron's bundled Node runs the server (ELECTRON_RUN_AS_NODE=1)
+    // Child-process mode runs the app binary as Node (ELECTRON_RUN_AS_NODE=1).
+    // forkUtilityProcess() strips this again for a utility process — there
+    // it turns the helper into plain Node and kills the server at boot.
     ELECTRON_RUN_AS_NODE: "1",
     HOSTNAME: filteredEnv.HOSTNAME || env.HOSTNAME || h,
     PORT: String(p),
@@ -370,5 +402,6 @@ module.exports = {
   log,
   shouldUseUtilityProcess,
   forkUtilityProcess,
+  decodeUtilityExitCode,
   HEALTH_TIMEOUT_MS,
 };

@@ -80,6 +80,42 @@ describe("forkUtilityProcess", () => {
     expect(onExit).toHaveBeenCalledWith(3);
   });
 
+  it("never hands ELECTRON_RUN_AS_NODE to the utility process", async () => {
+    // With the flag set, Electron's helper boots as plain Node, rejects
+    // Chromium's "--type=utility" flags and exits with code 9 (waitpid
+    // status 2304 on macOS) — the 3.2.x "exited immediately" startup failure.
+    const sm = await import("../src/server-manager.js");
+    const fork = vi.fn(() => fakeUtility());
+
+    sm.forkUtilityProcess("/srv/server.js", {
+      cwd: "/srv",
+      env: { ELECTRON_RUN_AS_NODE: "1", PORT: "3891", FLYX_DESKTOP: "true" },
+      fork,
+    });
+
+    const [, , opts] = fork.mock.calls[0];
+    expect(opts.env).toEqual({ PORT: "3891", FLYX_DESKTOP: "true" });
+    expect("ELECTRON_RUN_AS_NODE" in opts.env).toBe(false);
+  });
+
+  it("decodes a raw POSIX wait status into the exit code", async () => {
+    const sm = await import("../src/server-manager.js");
+    expect(sm.decodeUtilityExitCode(2304, "darwin")).toBe(9); // exit(9)
+    expect(sm.decodeUtilityExitCode(256, "linux")).toBe(1); // exit(1)
+    expect(sm.decodeUtilityExitCode(9, "darwin")).toBe(9); // SIGKILL — left alone
+    expect(sm.decodeUtilityExitCode(0, "darwin")).toBe(0);
+    expect(sm.decodeUtilityExitCode(2304, "win32")).toBe(2304); // Windows: plain code
+    expect(sm.decodeUtilityExitCode(null, "darwin")).toBe(0);
+
+    const proc = fakeUtility();
+    const child = sm.forkUtilityProcess("/srv/server.js", { cwd: "/srv", env: {}, fork: () => proc });
+    const onExit = vi.fn();
+    child.on("exit", onExit);
+    proc.emit("exit", process.platform === "win32" ? 9 : 2304);
+    expect(child.exitCode).toBe(9);
+    expect(onExit).toHaveBeenCalledWith(9);
+  });
+
   it("falls back to a plain child process when utilityProcess is unavailable", async () => {
     const fake = new EventEmitter();
     fake.stdout = new PassThrough();
@@ -92,6 +128,11 @@ describe("forkUtilityProcess", () => {
     const child = sm.forkUtilityProcess("/srv/server.js", { cwd: "/srv", env: {} });
     expect(child).toBe(fake);
     expect(spawnSpy).toHaveBeenCalledTimes(1);
+    // The fallback re-runs the app binary, which DOES need the Node flag.
+    const [cmd, args, opts] = spawnSpy.mock.calls[0];
+    expect(cmd).toBe(process.execPath);
+    expect(args).toEqual(["/srv/server.js"]);
+    expect(opts.env.ELECTRON_RUN_AS_NODE).toBe("1");
   });
 });
 
