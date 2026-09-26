@@ -33,6 +33,8 @@ import PlayerHelpModal, {
   detectHelpPlatform,
 } from './PlayerHelpModal';
 import { CastButton, CastOverlay, CastErrorBanner, IconHelp, IconCast } from './CastUI';
+import { IconVlc } from './VlcButton';
+import { usePlaybackRecovery } from './usePlaybackRecovery';
 
 export interface MobileVideoPlayerProps {
   tmdbId: string;
@@ -69,6 +71,14 @@ export interface MobileVideoPlayerProps {
   loadingProvider?: boolean;
   skipIntro?: [number, number];
   skipOutro?: [number, number];
+  /**
+   * Hand the current source to VLC on this device (stream served by the
+   * host). Receives the current position; absent when the preference is off.
+   */
+  onOpenExternal?: (
+    currentTime: number,
+    action: 'vlc' | 'copy' | 'playlist',
+  ) => void | Promise<void>;
 }
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
@@ -97,6 +107,7 @@ export default function MobileVideoPlayer({
   mediaType,
   season,
   episode,
+  onOpenExternal,
 }: MobileVideoPlayerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -190,6 +201,41 @@ export default function MobileVideoPlayer({
     bump();
   }, [isPlaying, bump]);
 
+  // Stall / error recovery: skip past a stuck spot instead of failing the
+  // whole stream (which used to surface as "Playback failed" and a restart
+  // from zero on retry). Give-up -> onError so the watch page can move on.
+  const [recoveryNote, setRecoveryNote] = useState<string | null>(null);
+  const giveUpsRef = useRef(0);
+  const recovery = usePlaybackRecovery({
+    videoRef,
+    hlsRef,
+    active: !!streamUrl && !loadError,
+    sourceKey: streamUrl,
+    onSkip: (plan) => {
+      setIsBuffering(false);
+      setRecoveryNote(
+        plan.reason === 'hole'
+          ? 'Skipped a gap'
+          : `Skipped a stuck spot (+${Math.round(plan.target - plan.from)}s)`,
+      );
+      window.setTimeout(() => setRecoveryNote(null), 1800);
+    },
+    onGiveUp: (resumeAt) => {
+      // Fail over to the next source at the same position, like the desktop
+      // player. Once every source has been tried, surface the error.
+      const count = availableSources?.length ?? 0;
+      giveUpsRef.current += 1;
+      if (count > 1 && onSourceChange && giveUpsRef.current < count) {
+        const next = (currentSourceIndex + 1) % count;
+        onSourceChange(next, resumeAt);
+        return;
+      }
+      const msg = 'This source keeps stalling - try another source';
+      setLoadError(msg);
+      onError?.(msg);
+    },
+  });
+
   // HLS load
   useEffect(() => {
     const video = videoRef.current;
@@ -218,7 +264,12 @@ export default function MobileVideoPlayer({
       const hls = new Hls({
         enableWorker: true,
         maxBufferLength: 24,
-        fragLoadingMaxRetry: 5,
+        // Fail a bad fragment fast so recovery can skip past it.
+        fragLoadingMaxRetry: 3,
+        fragLoadingRetryDelay: 500,
+        fragLoadingMaxRetryTimeout: 4000,
+        maxBufferHole: 0.5,
+        nudgeMaxRetry: 3,
       });
       hlsRef.current = hls;
       hls.loadSource(streamUrl);
@@ -228,11 +279,10 @@ export default function MobileVideoPlayer({
         tryPlay();
       });
       hls.on(Hls.Events.ERROR, (_e, data) => {
-        if (data.fatal) {
-          const msg = 'Playback failed — try another source';
-          setLoadError(msg);
-          onError?.(msg);
-        }
+        if (!data.fatal) return;
+        // Skip forward / resume in place; only a hopeless source ends up in
+        // onGiveUp (-> loadError), and the retry resumes at position.
+        recovery.handleHlsError(hls, data);
       });
     } else {
       video.src = streamUrl;
@@ -258,7 +308,7 @@ export default function MobileVideoPlayer({
         hlsRef.current = null;
       }
     };
-  }, [streamUrl, initialTime, onError]);
+  }, [streamUrl, initialTime, onError, recovery]);
 
   useEffect(() => {
     if (videoRef.current) videoRef.current.playbackRate = speed;
@@ -714,6 +764,13 @@ export default function MobileVideoPlayer({
         platform={detectHelpPlatform()}
       />
 
+      {/* Automatic stall-skip notice */}
+      {recoveryNote && (
+        <div className={styles.recoveryNote} role="status">
+          {recoveryNote}
+        </div>
+      )}
+
       {/* Sheets */}
       {sheet !== 'none' && (
         <>
@@ -798,6 +855,52 @@ export default function MobileVideoPlayer({
                     </button>
                   ))}
                 </div>
+                {onOpenExternal && (
+                  <>
+                    <h3 className={styles.sheetTitle} style={{ marginTop: 14 }}>
+                      External player
+                    </h3>
+                    <div className={styles.sheetList}>
+                      <button
+                        type="button"
+                        className={styles.sheetItem}
+                        onClick={() => {
+                          const at = videoRef.current?.currentTime ?? 0;
+                          try {
+                            videoRef.current?.pause();
+                          } catch {
+                            /* ignore */
+                          }
+                          setSheet('none');
+                          void onOpenExternal(at, 'vlc');
+                        }}
+                      >
+                        <span>Open in VLC</span>
+                        <IconVlc size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.sheetItem}
+                        onClick={() => {
+                          setSheet('none');
+                          void onOpenExternal(videoRef.current?.currentTime ?? 0, 'copy');
+                        }}
+                      >
+                        <span>Copy stream link</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.sheetItem}
+                        onClick={() => {
+                          setSheet('none');
+                          void onOpenExternal(videoRef.current?.currentTime ?? 0, 'playlist');
+                        }}
+                      >
+                        <span>Download playlist (.m3u)</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>

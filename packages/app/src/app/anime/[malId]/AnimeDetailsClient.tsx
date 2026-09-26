@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef, type CSSProperties } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ExtensionGate } from "@/components/ExtensionGate";
@@ -533,27 +533,14 @@ function HeroBanner({
 
 // ─── Episodes ───────────────────────────────────────────────────────────────
 
-const EP_DL_BTN: CSSProperties = {
-  background: "transparent",
-  border: "1px solid rgba(255,255,255,0.15)",
-  borderRadius: 8,
-  color: "rgba(255,255,255,0.8)",
-  fontSize: "0.8rem",
-  padding: "0.35rem 0.5rem",
-  cursor: "pointer",
-  flexShrink: 0,
-};
-
-const EP_DL_CELL: CSSProperties = {
-  background: "rgba(0,0,0,0.72)",
-  border: "1px solid rgba(255,255,255,0.18)",
-  borderRadius: 6,
-  color: "rgba(255,255,255,0.85)",
-  fontSize: "0.72rem",
-  padding: "0.2rem 0.4rem",
-  cursor: "pointer",
-  backdropFilter: "blur(6px)",
-};
+const EPISODE_DOWNLOAD_LABEL = (
+  <>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" />
+    </svg>
+    <span>Download</span>
+  </>
+);
 
 function EpisodesTab({
   episodes,
@@ -584,11 +571,11 @@ function EpisodesTab({
           <h3>Feature film</h3>
           <p>No episode list — stream the full movie.</p>
         </div>
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+        <div className="anime-ep-movie-actions">
           <DownloadMenu
             item={{ kind: "video", tmdbId: 0, mediaType: "movie", malId, title }}
-            label="⬇ Download"
-            queuedLabel="✓ Queued"
+            label={EPISODE_DOWNLOAD_LABEL}
+            queuedLabel="Queued"
             className="btn-secondary shrink-0 !px-4 !py-2.5 text-sm"
           />
           <button type="button" onClick={onWatchMovie} className="btn-primary shrink-0">
@@ -624,11 +611,15 @@ function EpisodesTab({
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 0.75rem" }}>
+      <div className="anime-episode-toolbar">
+        <div>
+          <strong>Episode library</strong>
+          <span>{epNumbers.length} episodes available</span>
+        </div>
         <DownloadMenu
           items={allItems}
           menuAlign="right"
-          label={`Download All (${epNumbers.length})`}
+          label={`Download all (${epNumbers.length})`}
           className="btn-secondary !px-4 !py-2 text-sm"
         />
       </div>
@@ -638,15 +629,11 @@ function EpisodesTab({
           {episodes.map((ep, i) => {
             const epNum = ep.mal_id || i + 1;
             return (
-              <div
-                key={`ep-${epNum}-${i}`}
-                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-              >
+              <div key={`ep-${epNum}-${i}`} className="anime-episode-item">
                 <button
                   type="button"
                   onClick={() => onPlay(epNum)}
                   className="anime-ep-row"
-                  style={{ flex: 1, minWidth: 0 }}
                 >
                   <div className="anime-ep-thumb">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -686,10 +673,10 @@ function EpisodesTab({
                     title,
                   }}
                   menuAlign="right"
-                  label="⬇"
-                  queuedLabel="✓"
+                  label={EPISODE_DOWNLOAD_LABEL}
+                  queuedLabel="Queued"
                   title={`Download Episode ${epNum}`}
-                  style={EP_DL_BTN}
+                  className="anime-episode-download"
                 />
               </div>
             );
@@ -698,16 +685,15 @@ function EpisodesTab({
       ) : (
         <div className="anime-ep-grid">
           {epNumbers.map((epNum) => (
-            <div key={epNum} style={{ position: "relative" }}>
+            <div key={epNum} className="anime-episode-cell-wrap">
               <button
                 type="button"
                 onClick={() => onPlay(epNum)}
                 className="anime-ep-cell"
-                style={{ width: "100%" }}
               >
                 {epNum}
               </button>
-              <div style={{ position: "absolute", right: 6, bottom: 6 }}>
+              <div className="anime-episode-cell-download">
                 <DownloadMenu
                   item={{
                     kind: "video",
@@ -718,10 +704,10 @@ function EpisodesTab({
                     malId,
                     title,
                   }}
-                  label="⬇"
-                  queuedLabel="✓"
+                  label={EPISODE_DOWNLOAD_LABEL}
+                  queuedLabel="Queued"
                   title={`Download Episode ${epNum}`}
-                  style={EP_DL_CELL}
+                  className="anime-episode-download is-compact"
                 />
               </div>
             </div>

@@ -36,6 +36,7 @@ const server = require("./src/server-manager");
 const { getLANURLs, getLocalURL, isPortInUse } = require("./src/network");
 const updater = require("./src/updater");
 const ghUpdater = require("./src/github-updater");
+const vlc = require("./src/vlc");
 
 app.setName("Flyx");
 
@@ -705,6 +706,16 @@ function registerIpc() {
     });
   });
   ipcMain.handle("flyx:download-update", () => downloadGithubUpdate());
+  // Open a host stream URL in VLC on this machine. The renderer passes an
+  // absolute /api/stream/proxy URL on our own server, so VLC pulls the
+  // stream through the host exactly like the in-app player does.
+  ipcMain.handle("flyx:open-in-vlc", (_event, payload) =>
+    vlc.launch(payload || {}, {
+      log: (msg) => server.log(msg),
+      openPath: (file) => require("electron").shell.openPath(file),
+      tempDir: app.getPath("temp"),
+    }),
+  );
 }
 
 // ── App lifecycle ────────────────────────────────────────────────
@@ -728,6 +739,11 @@ app.on("will-quit", () => {
   server.stopServer(); // graceful attempt (SIGTERM → SIGKILL)
   // Synchronous guarantee the child doesn't outlive us on Windows:
   try {
+    // A utility-process host dies with Electron; ask it to stop and move on.
+    if (currentChild && currentChild.utility) {
+      try { currentChild.kill(); } catch {}
+      return;
+    }
     const pid = currentChild && currentChild.pid;
     if (!pid) return;
     if (process.platform === "win32") {

@@ -40,6 +40,21 @@ import {
 } from "@/lib/subtitles/srt";
 import type { SubtitleTrack } from "@flyx/core";
 import DownloadMenu from "@/components/downloads/DownloadMenu";
+import { getPlayerPreferences } from "@/lib/utils/player-preferences";
+import { openInVlc, copyStreamUrl } from "@/lib/external-player-client";
+import {
+  buildVlcPlaylist,
+  handoffTitle,
+  hostStreamUrl,
+  playlistFilename,
+} from "@/lib/external-player";
+import { usePlaybackRecovery } from "@/components/player/usePlaybackRecovery";
+import { IconVlc } from "@/components/player/VlcButton";
+import {
+  getWatchProgress,
+  resumeSeconds,
+  updateWatchProgress,
+} from "@/lib/watch-progress";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p";
 
@@ -422,6 +437,15 @@ function WatchInner() {
    *  match SSR — localStorage preference is synced in a useEffect below. */
   const [audioMode, setAudioMode] = useState<AnimeAudioMode>("sub");
   const resumeAfterSwitchRef = useRef<number | null>(null);
+  /** `t=` from a Resume link — consumed once by the first episode load. */
+  const urlResumeRef = useRef<number | null>(Number(searchParams.get("t")) || null);
+  /** Identity of what is playing, for the progress store (assigned each render). */
+  const progressIdentityRef = useRef<() => {
+    contentId: string;
+    contentType: "movie" | "tv";
+    seasonNumber?: number;
+    episodeNumber?: number;
+  }>(() => ({ contentId: "", contentType: "movie" }));
   const loadStartRef = useRef(0);
   const probeGenRef = useRef(0);
   const consecutiveFailuresRef = useRef(0);
@@ -912,6 +936,84 @@ function WatchInner() {
     [handleSubtitleFile, showToast],
   );
 
+  // ── External player (VLC / any player on the LAN) ─────────────────
+  // The raw CDN source behind `activeUrl`, wrapped as an absolute
+  // /api/stream/proxy URL on this host — playable by VLC, mpv, Kodi, …
+  const externalEnabled = getPlayerPreferences().externalPlayer !== "off";
+  const [showExternal, setShowExternal] = useState(false);
+  const currentRawSource = useMemo(() => {
+    if (!activeUrl) return null;
+    for (const list of Object.values(sourcesCache)) {
+      const found = list.find((s) => s.url === activeUrl);
+      if (found) return { url: found.url, referer: found.referer, origin: found.origin };
+    }
+    return { url: activeUrl };
+  }, [activeUrl, sourcesCache]);
+  const externalTitle = handoffTitle({
+    title,
+    mediaType: malId ? "tv" : mediaType,
+    season: malId ? undefined : mediaType === "tv" ? Number(season) : undefined,
+    episode: mediaType === "tv" || malId ? Number(episode) : undefined,
+  });
+  const handleExternal = useCallback(
+    async (action: "vlc" | "copy" | "playlist") => {
+      setShowExternal(false);
+      if (!currentRawSource) {
+        showToast("Stream not ready yet");
+        return;
+      }
+      const url = hostStreamUrl(window.location.origin, currentRawSource);
+      const at = videoRef.current?.currentTime || 0;
+      if (action === "copy") {
+        const ok = await copyStreamUrl(url);
+        if (!ok) console.info("[Watch] stream link:", url);
+        showToast(ok ? "Stream link copied" : "Could not copy — link printed to console");
+        return;
+      }
+      if (action === "playlist") {
+        const body = buildVlcPlaylist({ title: externalTitle, url, startTime: at });
+        const objectUrl = URL.createObjectURL(new Blob([body], { type: "audio/x-mpegurl" }));
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = playlistFilename(externalTitle);
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+        showToast("Playlist downloaded — open it with your player");
+        return;
+      }
+      try {
+        videoRef.current?.pause();
+      } catch {
+        /* ignore */
+      }
+      const result = await openInVlc({ absoluteUrl: url, title: externalTitle, startTime: at });
+      showToast(result.message);
+    },
+    [currentRawSource, externalTitle, showToast],
+  );
+
+  // ── Stall / fatal-error recovery ──────────────────────────────────
+  // Skips past a stuck spot (escalating) instead of retrying the same bytes;
+  // only after repeated failures hands over to this page's own source
+  // fail-over (recoverPlayback, captured via ref inside loadSource).
+  const recoverRef = useRef<(() => void) | null>(null);
+  const recovery = usePlaybackRecovery({
+    videoRef,
+    hlsRef,
+    active: status === "ready" && !!activeUrl,
+    sourceKey: activeUrl ?? "",
+    onSkip: (plan) =>
+      showToast(
+        plan.reason === "hole"
+          ? "Skipped a gap in the stream"
+          : `Skipped a stuck spot (+${Math.round(plan.target - plan.from)}s)`,
+      ),
+    onGiveUp: () => recoverRef.current?.(),
+  });
+
   const cast = useCast({
     videoRef,
     streamUrl: activeUrl,
@@ -1283,7 +1385,22 @@ function WatchInner() {
     setProviderState({});
     setProviderErrors({});
     setLoadingProvider(false);
-    resumeAfterSwitchRef.current = null;
+    // Resume where the viewer left off: an explicit `t=` in the URL (from a
+    // Resume button) wins once, otherwise the saved progress for this exact
+    // movie / episode. Applied by applyResumeAndPlay when the timeline is known.
+    {
+      let at = 0;
+      const fromUrl = urlResumeRef.current;
+      urlResumeRef.current = null; // one-shot: episode changes start fresh
+      if (fromUrl && fromUrl > 2) {
+        at = fromUrl;
+      } else {
+        const saved = getWatchProgress(progressIdentityRef.current());
+        at = resumeSeconds(saved);
+      }
+      resumeAfterSwitchRef.current = at > 2 ? at : null;
+      if (at > 2) console.log(`[Watch] ⏮️ resuming at ${at}s`);
+    }
 
     (async () => {
       // Use auto mode to combine sources from multiple providers.
@@ -1826,7 +1943,10 @@ function WatchInner() {
         setErrorMsg("All streams failed to load. Try a different episode or check back later.");
       };
 
-const sourceReferer = currentSource?.referer;
+      // Expose this load's fail-over to the stall-recovery hook (give-up path).
+      recoverRef.current = recoverPlayback;
+
+      const sourceReferer = currentSource?.referer;
       const sourceOrigin = currentSource?.origin;
 
       // Browser <video>/XHR cannot set Referer (forbidden header). Any CDN
@@ -2001,7 +2121,10 @@ const sourceReferer = currentSource?.referer;
             hls.on(
               Hls.Events.ERROR,
               (_e: unknown, data: { fatal?: boolean }) => {
-                if (data?.fatal) recoverPlayback();
+                // Stall → seek past it; bad fragment → skip it; media error →
+                // recover in place. Only a hopeless source reaches
+                // recoverPlayback (via recoverRef) and fails over.
+                if (data?.fatal) recovery.handleHlsError(hls, data as never);
               },
             );
             return;
@@ -2489,6 +2612,7 @@ const sourceReferer = currentSource?.referer;
       const q = new URLSearchParams(searchParams.toString());
       q.set("season", s);
       q.set("episode", e);
+      q.delete("t"); // a resume position belongs to the episode it came from
       window.history.replaceState(null, "", `/watch?${q.toString()}`);
       setSeason(s);
       setEpisode(e);
@@ -2507,6 +2631,7 @@ const sourceReferer = currentSource?.referer;
     (ep: number) => {
       const q = new URLSearchParams(searchParams.toString());
       q.set("episode", String(ep));
+      q.delete("t");
       window.history.replaceState(null, "", `/watch?${q.toString()}`);
       setEpisode(String(ep));
       setShowEpisodes(false);
@@ -2552,6 +2677,132 @@ const sourceReferer = currentSource?.referer;
     season,
     seasonsCount,
   ]);
+
+  // ── Watch progress (exact-second resume) ───────────────────────
+  const progressContentId = tmdbId || malId;
+  progressIdentityRef.current = () => ({
+    contentId: progressContentId,
+    contentType: malId || mediaType === "tv" ? "tv" : "movie",
+    seasonNumber: malId ? 1 : mediaType === "tv" ? Number(season) || 1 : undefined,
+    episodeNumber: malId || mediaType === "tv" ? Number(episode) || 1 : undefined,
+  });
+  const saveProgress = useCallback(
+    (opts: { completed?: boolean } = {}) => {
+      const video = videoRef.current;
+      if (!video || !progressContentId) return;
+      const dur = Number.isFinite(video.duration) ? video.duration : 0;
+      updateWatchProgress({
+        ...progressIdentityRef.current(),
+        currentTime: video.currentTime || 0,
+        duration: dur,
+        title,
+        posterPath: details?.poster_path ?? (animePoster || undefined),
+        backdropPath: details?.backdrop_path ?? undefined,
+        malId: malId ? Number(malId) : undefined,
+        completed: opts.completed,
+      });
+    },
+    [progressContentId, title, details?.poster_path, details?.backdrop_path, animePoster, malId],
+  );
+  const saveProgressRef = useRef(saveProgress);
+  saveProgressRef.current = saveProgress;
+
+  // Save every 5 s while playing, plus on pause / hide / leave.
+  useEffect(() => {
+    if (status !== "ready" || !activeUrl) return;
+    const video = videoRef.current;
+    if (!video) return;
+    const tick = () => {
+      if (!video.paused && !video.ended) saveProgressRef.current();
+    };
+    const id = window.setInterval(tick, 5000);
+    const onPause = () => saveProgressRef.current();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") saveProgressRef.current();
+    };
+    const onLeave = () => saveProgressRef.current();
+    video.addEventListener("pause", onPause);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onLeave);
+    window.addEventListener("beforeunload", onLeave);
+    return () => {
+      window.clearInterval(id);
+      video.removeEventListener("pause", onPause);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onLeave);
+      window.removeEventListener("beforeunload", onLeave);
+      saveProgressRef.current(); // episode switch / unmount
+    };
+  }, [status, activeUrl]);
+
+  // ── Auto-next ──────────────────────────────────────────────────
+  // Preferences are read at mount like the other player settings.
+  const playbackPrefs = useRef(getPlayerPreferences());
+  const [upNextCountdown, setUpNextCountdown] = useState<number | null>(null);
+  const [upNextDismissed, setUpNextDismissed] = useState(false);
+  const upNextTotalRef = useRef(10);
+  const nextEpisodeLabel = nextEpisode
+    ? nextEpisode.kind === "anime"
+      ? `Episode ${nextEpisode.episode}`
+      : `Season ${nextEpisode.season} · Episode ${nextEpisode.episode}`
+    : "";
+  const playNextEpisode = useCallback(() => {
+    if (!nextEpisode) return;
+    setUpNextCountdown(null);
+    setUpNextDismissed(false);
+    saveProgressRef.current({ completed: true });
+    if (nextEpisode.kind === "anime") goToAnimeEpisode(Number(nextEpisode.episode));
+    else goToEpisode(nextEpisode.season, nextEpisode.episode);
+  }, [nextEpisode, goToAnimeEpisode, goToEpisode]);
+  const playNextRef = useRef(playNextEpisode);
+  playNextRef.current = playNextEpisode;
+
+  // Reset the up-next UI whenever the episode changes.
+  useEffect(() => {
+    setUpNextCountdown(null);
+    setUpNextDismissed(false);
+  }, [season, episode, activeUrl]);
+
+  // `ended` → mark finished and start the countdown (or just stop when
+  // auto-play is off / nothing follows).
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const onEnded = () => {
+      saveProgressRef.current({ completed: true });
+      if (!nextEpisode) return;
+      if (!playbackPrefs.current.autoPlayNextEpisode) {
+        setUpNextDismissed(false);
+        return;
+      }
+      const secs = Math.max(3, Number(playbackPrefs.current.autoPlayCountdown) || 10);
+      upNextTotalRef.current = secs;
+      setUpNextCountdown(secs);
+    };
+    video.addEventListener("ended", onEnded);
+    return () => video.removeEventListener("ended", onEnded);
+  }, [nextEpisode, activeUrl]);
+
+  // Countdown ticker.
+  useEffect(() => {
+    if (upNextCountdown == null) return;
+    if (upNextCountdown <= 0) {
+      playNextRef.current();
+      return;
+    }
+    const id = window.setTimeout(() => setUpNextCountdown((c) => (c == null ? null : c - 1)), 1000);
+    return () => window.clearTimeout(id);
+  }, [upNextCountdown]);
+
+  // "Up next" chip before the end (Settings → Playback → show before end).
+  const upNextLead = Math.max(10, Number(playbackPrefs.current.showNextEpisodeBeforeEnd) || 60);
+  const showUpNextChip =
+    !!nextEpisode &&
+    upNextCountdown == null &&
+    !upNextDismissed &&
+    duration > 0 &&
+    duration - currentTime <= upNextLead &&
+    duration - currentTime > 0.5;
 
   const detailsHref = malId
     ? `/anime/${malId}`
@@ -2846,6 +3097,45 @@ const sourceReferer = currentSource?.referer;
               {cast.isCasting || cast.isConnected ? "Casting" : "Cast"}
             </span>
           </button>
+          {externalEnabled && (
+            <div className="cinema-ext-wrap">
+              <button
+                type="button"
+                className={`cinema-btn${showExternal ? " is-on" : ""}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowExternal((s) => !s);
+                  setChromeVisible(true);
+                }}
+                aria-label="External player"
+                title="Play this stream in VLC or any other player (served by your Flyx host)"
+              >
+                <IconVlc size={16} />
+                <span>External</span>
+              </button>
+              {showExternal && (
+                <div
+                  className="cinema-ext-menu"
+                  onClick={(e) => e.stopPropagation()}
+                  role="menu"
+                >
+                  <p className="cinema-speed-menu-label">External player</p>
+                  <button type="button" className="cinema-speed-option" onClick={() => void handleExternal("vlc")}>
+                    Open in VLC
+                  </button>
+                  <button type="button" className="cinema-speed-option" onClick={() => void handleExternal("copy")}>
+                    Copy stream link
+                  </button>
+                  <button type="button" className="cinema-speed-option" onClick={() => void handleExternal("playlist")}>
+                    Download playlist (.m3u)
+                  </button>
+                  <p className="cinema-ext-note">
+                    The link is served by this Flyx host and works in any player on your network.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
           <DownloadMenu
             item={{
               kind: "video",
@@ -3672,6 +3962,63 @@ const sourceReferer = currentSource?.referer;
       )}
 
       {/* Cast overlay */}
+      {/* Up next: countdown card after the episode ends */}
+      {upNextCountdown != null && nextEpisode && (
+        <div
+          className="cinema-upnext"
+          role="dialog"
+          aria-live="polite"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="cinema-upnext-kicker">Up next</p>
+          <h3 className="cinema-upnext-title">{nextEpisodeLabel}</h3>
+          <p className="cinema-upnext-sub">
+            {upNextCountdown > 0
+              ? `Starting in ${upNextCountdown}s`
+              : "Starting…"}
+          </p>
+          <div className="cinema-upnext-bar" aria-hidden>
+            <div
+              className="cinema-upnext-fill"
+              style={{
+                width: `${Math.max(0, Math.min(100, ((upNextTotalRef.current - upNextCountdown) / upNextTotalRef.current) * 100))}%`,
+              }}
+            />
+          </div>
+          <div className="cinema-upnext-actions">
+            <button type="button" className="cinema-upnext-play" onClick={playNextEpisode}>
+              Play now
+            </button>
+            <button
+              type="button"
+              className="cinema-upnext-cancel"
+              onClick={() => {
+                setUpNextCountdown(null);
+                setUpNextDismissed(true);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Up next: early chip in the last minute */}
+      {showUpNextChip && (
+        <button
+          type="button"
+          className="cinema-upnext-chip"
+          onClick={(e) => {
+            e.stopPropagation();
+            playNextEpisode();
+          }}
+          title={nextEpisodeLabel}
+        >
+          <NextIcon />
+          <span>Up next · {nextEpisodeLabel}</span>
+        </button>
+      )}
+
       {castOverlay && (cast.isCasting || cast.isConnected) && (
         <CastOverlay
           title={title}

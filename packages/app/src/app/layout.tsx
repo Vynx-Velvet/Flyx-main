@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Outfit } from "next/font/google";
 import Sidebar from "@/components/layout/Sidebar";
 import BottomTabs from "@/components/layout/BottomTabs";
+import MobileHeader from "@/components/layout/MobileHeader";
+import DesktopHeader from "@/components/layout/DesktopHeader";
 import SetupGate from "@/components/SetupGate";
 import { AppProvider } from "./providers";
 import "./globals.css";
@@ -45,10 +47,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       data-scroll-behavior="smooth"
     >
       <body className="min-h-screen font-sans antialiased">
+        <a className="skip-link" href="#main-content">
+          Skip to content
+        </a>
         <SetupGate />
         <AppProvider>
           <Sidebar />
-          <div className="app-shell">
+          <MobileHeader />
+          <div id="main-content" className="app-shell" tabIndex={-1}>
+            <DesktopHeader />
             {children}
           </div>
           <BottomTabs />

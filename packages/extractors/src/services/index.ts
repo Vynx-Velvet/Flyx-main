@@ -31,7 +31,7 @@ export {
 } from "./weebcentral";
 
 // Live TV Extractors
-export { extractDLHD } from "./dlhd";
+export { extractDLHD, probeDLHDEdge } from "./dlhd";
 
 // Subtitle Extractors
 export { extractOpenSubtitles } from "./opensubtitles";
@@ -53,3 +53,6 @@ export type {
 
 // VidSrc Token Registry (shared with stream proxy)
 export { registerTokenUrls, getTokenUrl, clearTokenRegistry } from "./vidsrc-token-registry";
+
+// DLHD segment unwrapping (segments are disguised as images since 2026-09)
+export { unwrapDLHDSegment, looksLikeTS } from "./dlhd-unwrap";

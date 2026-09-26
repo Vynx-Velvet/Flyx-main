@@ -354,6 +354,33 @@
   opacity: 0.65;
 }
 
+.episodeToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 0.9rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.episodeToolbar > div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.episodeToolbar strong {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.84rem;
+}
+
+.episodeToolbar span {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.72rem;
+}
+
 /* Episode cards */
 .epGrid {
   display: grid;
@@ -383,6 +410,90 @@
   color: inherit;
   min-height: 5.5rem;
   transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.epLink {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.epActions {
+  display: flex;
+  align-items: center;
+  padding: 0.4rem 0.45rem 0.4rem 0;
+  flex-shrink: 0;
+}
+
+/* Compact icon-only download button: the label used to eat ~5rem of a
+   narrow card and forced every episode title into an ellipsis. */
+.epDownload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 2.1rem;
+  height: 2.1rem;
+  min-height: 0;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.65rem;
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.epDownload svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Icon only at every width — the tooltip (title=) carries the label. */
+.epDownload span {
+  display: none;
+}
+
+.epDownload:hover {
+  border-color: rgba(0, 229, 191, 0.38);
+  background: rgba(0, 229, 191, 0.1);
+  color: #a7f3e7;
+}
+
+@media (max-width: 600px) {
+  .episodeToolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .episodeToolbar > button,
+  .episodeToolbar > a {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .epStill {
+    width: 5.75rem;
+  }
+
+  .epActions {
+    padding: 0.45rem;
+  }
+
+  .epDownload {
+    min-width: 2.6rem;
+    min-height: 2.6rem;
+    padding-inline: 0.65rem;
+  }
+
+  .epDownload span {
+    display: none;
+  }
 }
 
 .epCard:hover {
@@ -467,9 +578,12 @@
   font-size: 0.8125rem;
   font-weight: 600;
   color: #fff;
-  white-space: nowrap;
+  line-height: 1.25;
+  /* Two lines before clipping — a nowrap title clipped on almost every card. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .epCard:hover .epTitle {

@@ -12,6 +12,9 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import Hls from 'hls.js';
 import { LiveEvent, TVChannel } from '../hooks/useLiveTVData';
 import { getTvPlaylistUrl, getAvailableBackends } from '@/app/lib/proxy-config';
+import { getPlayerPreferences } from '@/lib/utils/player-preferences';
+import { copyStreamUrl, openInVlc } from '@/lib/external-player-client';
+import { buildVlcPlaylist, playlistFilename } from '@/lib/external-player';
 import styles from './VideoPlayer.module.css';
 
 interface VideoPlayerProps {
@@ -79,8 +82,68 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
   const [showBackendMenu, setShowBackendMenu] = useState(false);
   const [loadingBackends, setLoadingBackends] = useState(false);
 
+  // External player: the host-served playlist URL for this channel
+  // (/api/livetv/playlist?…), which any player on the LAN can open directly.
+  const [resolvedStreamUrl, setResolvedStreamUrl] = useState<string | null>(null);
+  const [showExternalMenu, setShowExternalMenu] = useState(false);
+  const [externalNote, setExternalNote] = useState<string | null>(null);
+  const getTitleRef = useRef<() => string>(() => 'Live TV');
+  const externalEnabled = getPlayerPreferences().externalPlayer !== 'off';
+
+  const noteExternal = useCallback((msg: string) => {
+    setExternalNote(msg);
+    window.setTimeout(() => setExternalNote(null), 2500);
+  }, []);
+
+  const handleExternal = useCallback(async (action: 'vlc' | 'copy' | 'playlist') => {
+    setShowExternalMenu(false);
+    if (!resolvedStreamUrl) {
+      noteExternal('Stream not ready yet');
+      return;
+    }
+    const title = getTitleRef.current();
+    const absolute = `${window.location.origin}${resolvedStreamUrl}`;
+    if (action === 'copy') {
+      const ok = await copyStreamUrl(absolute);
+      if (!ok) console.info('[LiveTV] stream link:', absolute);
+      noteExternal(ok ? 'Stream link copied' : 'Could not copy — link printed to console');
+      return;
+    }
+    if (action === 'playlist') {
+      const body = buildVlcPlaylist({ title, url: absolute });
+      const objectUrl = URL.createObjectURL(new Blob([body], { type: 'audio/x-mpegurl' }));
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = playlistFilename(title);
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+      noteExternal('Playlist downloaded — open it with your player');
+      return;
+    }
+    try {
+      videoRef.current?.pause();
+    } catch {
+      /* ignore */
+    }
+    const result = await openInVlc({ absoluteUrl: absolute, title });
+    noteExternal(result.message);
+  }, [resolvedStreamUrl, noteExternal]);
+
   // Get current channel from event
   const currentEventChannel = event?.channels?.[selectedChannelIndex];
+
+  // Offline failover state, readable from inside long-lived hls callbacks.
+  const eventChannelsRef = useRef<Array<{ name: string; channelId: string }>>([]);
+  eventChannelsRef.current = (event?.channels ?? []) as Array<{ name: string; channelId: string }>;
+  const selectedChannelIndexRef = useRef(0);
+  selectedChannelIndexRef.current = selectedChannelIndex;
+  const offlineTriedRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    offlineTriedRef.current = new Set();
+  }, [event?.id, channel?.id]);
 
   // Get stream URL — routes to correct provider extractor
   const getStreamUrl = useCallback((): string | null => {
@@ -145,13 +208,15 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
         liveSyncDurationCount: 4,
         liveMaxLatencyDurationCount: 12,
         liveDurationInfinity: true,
-        // Very aggressive retries — never give up easily
-        manifestLoadingMaxRetry: 20,
-        manifestLoadingRetryDelay: 800,
-        manifestLoadingMaxRetryTimeout: 60000,
-        levelLoadingMaxRetry: 20,
-        levelLoadingRetryDelay: 800,
-        levelLoadingMaxRetryTimeout: 60000,
+        // Playlists: fail fast so a channel that is offline upstream (404)
+        // reaches our error handler in ~2 s instead of ~20 retries. Fragment
+        // retries below stay generous — those are transient.
+        manifestLoadingMaxRetry: 2,
+        manifestLoadingRetryDelay: 600,
+        manifestLoadingMaxRetryTimeout: 4000,
+        levelLoadingMaxRetry: 2,
+        levelLoadingRetryDelay: 600,
+        levelLoadingMaxRetryTimeout: 4000,
         fragLoadingMaxRetry: 30,
         fragLoadingRetryDelay: 500,
         fragLoadingMaxRetryTimeout: 60000,
@@ -221,6 +286,47 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
         }
 
         if (data.fatal) {
+          // Definitive "this stream is not on air": the playlist itself came
+          // back 404 (upstream edge has no such channel right now) or 502/504
+          // (our proxy exhausted every strategy). Retrying the same URL for
+          // minutes is what used to look like "live events never load".
+          const isPlaylistError =
+            data.details === 'manifestLoadError' ||
+            data.details === 'levelLoadError' ||
+            data.details === 'manifestLoadTimeOut';
+          const code = (data as { response?: { code?: number } }).response?.code ?? 0;
+          if (isPlaylistError && (code === 404 || code === 410 || code === 502 || code === 504)) {
+            const channels = eventChannelsRef.current;
+            const idx = selectedChannelIndexRef.current;
+            offlineTriedRef.current.add(idx);
+            const next = channels.findIndex((_, i) => !offlineTriedRef.current.has(i));
+            if (channels.length > 1 && next !== -1) {
+              const label = channels[next]?.name || `stream ${next + 1}`;
+              console.warn(`[VideoPlayer] stream ${idx + 1} offline (${code}) — switching to ${label}`);
+              setRecoveryStatus(`That stream is offline — trying ${label}…`);
+              setSelectedChannelIndex(next);
+              setRetryCount(0);
+              setSelectedBackend(undefined);
+              setAvailableBackends([]);
+              stallCountRef.current = 0;
+              return;
+            }
+            const msg =
+              channels.length > 1
+                ? 'All streams for this event are offline right now. Try again closer to kick-off or pick another event.'
+                : 'This channel is offline right now. Event channels only go live while the event is on.';
+            setError(msg);
+            errorRef.current = msg;
+            setIsLoading(false);
+            isLoadingRef.current = false;
+            setRecoveryStatus(null);
+            if (loadingTimeoutRef.current) {
+              clearTimeout(loadingTimeoutRef.current);
+              loadingTimeoutRef.current = null;
+            }
+            return;
+          }
+
           // NETWORK errors — always try to recover, never give up
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
             setRetryCount(prev => {
@@ -385,13 +491,31 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
         const response = await fetch(streamUrl);
         const data = await response.json();
         if (data.streamUrl) {
+          setResolvedStreamUrl(data.streamUrl);
           loadHlsStream(video, data.streamUrl);
         } else {
-          const msg = data.error || 'Failed to get stream from API';
+          // Resolve failed (off air / unsupported embed). For an event with
+          // several streams, move on to the next one before giving up.
+          const channels = eventChannelsRef.current;
+          const idx = selectedChannelIndexRef.current;
+          offlineTriedRef.current.add(idx);
+          const next = channels.findIndex((_, i) => !offlineTriedRef.current.has(i));
+          if (channels.length > 1 && next !== -1) {
+            const label = channels[next]?.name || `stream ${next + 1}`;
+            console.warn(`[VideoPlayer] stream ${idx + 1} unavailable (${data.reason || 'no stream'}) — trying ${label}`);
+            setRecoveryStatus(`${data.error || 'That stream is unavailable'} Trying ${label}…`);
+            setSelectedChannelIndex(next);
+            return;
+          }
+          const msg =
+            channels.length > 1
+              ? 'None of the streams for this event are available right now.'
+              : data.error || 'Failed to get stream from API';
           setError(msg);
           errorRef.current = msg;
           setIsLoading(false);
           isLoadingRef.current = false;
+          setRecoveryStatus(null);
         }
       } catch (err) {
         console.error('[VideoPlayer] API fetch error:', err);
@@ -481,16 +605,25 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
   // selectedChannelIndex/selectedBackend — that both called initPlayer(),
   // causing the player to double-init on first open and tear itself down
   // before MANIFEST_PARSED fired (the user saw an infinite spinner).
+  // Reset per-stream state ONLY when a different event/channel is opened.
+  // This must not live in the init effect below: that effect re-runs on every
+  // channel-index change, and resetting the index to 0 there snapped every
+  // channel switch (manual or offline-failover) straight back to channel 1
+  // in a ~150 ms loop.
   useEffect(() => {
-    if (!isOpen || (!event && !channel)) return;
-
+    if (!isOpen) return;
     setSelectedChannelIndex(0);
     setRetryCount(0);
     setRecoveryStatus(null);
     stallCountRef.current = 0;
-    setSelectedBackend(undefined); // Reset backend when opening new channel
-    setAvailableBackends([]); // Clear cached backends
-    initPlayer();
+    setSelectedBackend(undefined);
+    setAvailableBackends([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, event?.id, channel?.id]);
+
+  useEffect(() => {
+    if (!isOpen || (!event && !channel)) return;
+    initPlayerRef.current();
 
     return () => {
       // Set destroying flag FIRST — prevents ERROR/FRAG_BUFFERED
@@ -510,7 +643,8 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
         loadingTimeoutRef.current = null;
       }
     };
-  }, [isOpen, event, channel, selectedChannelIndex, selectedBackend]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, event?.id, channel?.id, selectedChannelIndex, selectedBackend]);
 
   // Video event handlers - sync play/pause/volume state with video element
   useEffect(() => {
@@ -674,6 +808,7 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
     }
     return 'Live TV';
   };
+  getTitleRef.current = getTitle;
 
   if (!isOpen) return null;
 
@@ -700,6 +835,10 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
             <div className={styles.spinner} />
             <p>{recoveryStatus || 'Loading stream...'}</p>
           </div>
+        )}
+
+        {externalNote && (
+          <div className={styles.externalNote} role="status">{externalNote}</div>
         )}
 
         {!isLoading && recoveryStatus && !error && (
@@ -914,6 +1053,48 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
                         {q.height}p
                       </button>
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* External player — hand the host-served stream to VLC or any player */}
+            {externalEnabled && (
+              <div className={styles.externalSelector}>
+                <button
+                  onClick={() => {
+                    setShowExternalMenu(!showExternalMenu);
+                    setShowQualityMenu(false);
+                    setShowChannelMenu(false);
+                    setShowBackendMenu(false);
+                  }}
+                  className={styles.controlButton}
+                  title="External player"
+                  aria-label="External player"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M14 4h6v6" />
+                    <path d="M20 4 10 14" />
+                    <path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6" />
+                  </svg>
+                  <span className={styles.externalLabel}>External</span>
+                </button>
+
+                {showExternalMenu && (
+                  <div className={styles.externalMenu}>
+                    <p className={styles.externalMenuTitle}>Play this channel elsewhere</p>
+                    <button onClick={() => void handleExternal('vlc')} className={styles.externalOption}>
+                      Open in VLC
+                    </button>
+                    <button onClick={() => void handleExternal('copy')} className={styles.externalOption}>
+                      Copy stream link
+                    </button>
+                    <button onClick={() => void handleExternal('playlist')} className={styles.externalOption}>
+                      Download playlist (.m3u)
+                    </button>
+                    <p className={styles.externalHint}>
+                      The link is served by this Flyx host and works in any player on your network.
+                    </p>
                   </div>
                 )}
               </div>

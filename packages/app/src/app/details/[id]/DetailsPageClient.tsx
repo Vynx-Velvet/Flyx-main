@@ -497,7 +497,13 @@ export default function DetailsPageClient({
               </p>
             ) : (
               <>
-                <div style={{ display: "flex", justifyContent: "flex-end", margin: "0 0 0.75rem" }}>
+                <div className={styles.episodeToolbar}>
+                  <div>
+                    <strong>Season {selectedSeason}</strong>
+                    <span>
+                      {episodes.length} episode{episodes.length === 1 ? "" : "s"} available
+                    </span>
+                  </div>
                   <DownloadMenu
                     items={episodes.map((ep) => ({
                       kind: "video",
@@ -509,7 +515,7 @@ export default function DetailsPageClient({
                       durationSec: ep.runtime ? ep.runtime * 60 : undefined,
                     }))}
                     menuAlign="right"
-                    label={`Download Season ${selectedSeason} (${episodes.length})`}
+                    label={`Download season (${episodes.length})`}
                     className="btn-secondary !px-4 !py-2 text-sm"
                   />
                 </div>
@@ -518,13 +524,7 @@ export default function DetailsPageClient({
                     <div key={ep.id} className={styles.epCard}>
                       <Link
                         href={playHref(ep.season_number, ep.episode_number)}
-                        style={{
-                          display: "flex",
-                          flex: 1,
-                          minWidth: 0,
-                          textDecoration: "none",
-                          color: "inherit",
-                        }}
+                        className={styles.epLink}
                       >
                         <div className={styles.epStill}>
                           {ep.still_path ? (
@@ -572,13 +572,7 @@ export default function DetailsPageClient({
                           </div>
                         </div>
                       </Link>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          padding: "0 0.6rem",
-                        }}
-                      >
+                      <div className={styles.epActions}>
                         <DownloadMenu
                           item={{
                             kind: "video",
@@ -590,18 +584,17 @@ export default function DetailsPageClient({
                             durationSec: ep.runtime ? ep.runtime * 60 : undefined,
                           }}
                           menuAlign="right"
-                          label="⬇"
-                          queuedLabel="✓"
+                          label={
+                            <>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                                <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" />
+                              </svg>
+                              <span>Download</span>
+                            </>
+                          }
+                          queuedLabel="Queued"
                           title={`Download S${ep.season_number} E${ep.episode_number}`}
-                          style={{
-                            background: "transparent",
-                            border: "1px solid rgba(255,255,255,0.15)",
-                            borderRadius: 8,
-                            color: "rgba(255,255,255,0.8)",
-                            fontSize: "0.8rem",
-                            padding: "0.3rem 0.5rem",
-                            cursor: "pointer",
-                          }}
+                          className={styles.epDownload}
                         />
                       </div>
                     </div>

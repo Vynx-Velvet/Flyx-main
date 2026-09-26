@@ -55,3 +55,6 @@ probe*.mjs
 
 # Misc
 *.pem
+
+# Git Bash crash dumps
+bash.exe.stackdump

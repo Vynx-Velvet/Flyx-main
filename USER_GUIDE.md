@@ -203,7 +203,7 @@ Once you start watching, here's how to control playback:
 - **−10s / +10s buttons** — Skip back or forward
 - **Drag the timeline bar** — Scrub to any point
 - **Servers button** — Switch video sources
-- **Settings button** — Change playback speed
+- **Settings button** — Change playback speed, or **Open in VLC**
 - **Cast icon** — Send to Chromecast or AirPlay
 
 ### Player features
@@ -213,10 +213,43 @@ Once you start watching, here's how to control playback:
 - **Speed:** Watch at 1.25×, 1.5×, or 2× speed without changing the pitch.
 - **Subtitles:** Click the subtitle icon to turn on captions or change language.
   Customize how they look in **Settings → Subtitles**.
-- **Next Episode:** An "Up Next" button appears near the end of each episode.
+- **Next Episode:** An "Up Next" chip appears near the end of each episode.
   You can set when it shows in **Settings → Playback**.
-- **Auto-play:** Turn on in **Settings → Playback** to automatically start the
-  next episode.
+- **Auto-play:** When an episode ends, an "Up next" card counts down and starts
+  the next episode (or the first episode of the next season). Press **Play now**
+  to skip the wait or **Cancel** to stay. Turn it off or change the countdown in
+  **Settings → Playback**.
+- **Resume where you left off:** Flyx remembers your position in every movie
+  and episode, to the second. Reopen a title and it picks up where you stopped.
+  Your **Watchlist** shows a progress bar on each card with a **Resume** pill
+  ("Resume 1:02:15", or "S2 E4 · 23 min left" for series), and **Continue
+  Watching** on the home screen does the same. Finished titles drop out on
+  their own.
+- **External player:** the **External** button in the top bar offers
+  **Open in VLC**, **Copy stream link** and **Download playlist (.m3u)** — see
+  "Watching in VLC" below. Live TV channels have the same menu.
+
+### Watching in VLC 🎬
+
+Prefer VLC media player? Flyx can hand playback to VLC while your Flyx host
+keeps serving the stream — so it works on the host PC *and* on phones or
+laptops connected to it.
+
+- **Desktop player:** click the **VLC** button in the top bar. VLC opens at
+  the point you were watching. The desktop app finds VLC automatically; if it
+  is installed somewhere unusual, set the `FLYX_VLC_PATH` environment
+  variable to the VLC executable.
+- **Phone / tablet:** tap **Settings → Open in VLC** in the player. Android
+  and iOS open the VLC app directly (install it from the app store first).
+- **Other browsers:** a small `.m3u` playlist downloads — open it with VLC.
+  You can also use **Copy stream link** and paste it into VLC → Media →
+  Open Network Stream.
+- **Always use VLC:** in **Settings → Playback → Open in VLC** choose
+  *Always open in VLC* and every title skips the Flyx player. Choose *Off* to
+  hide the option.
+
+Subtitles, "Up Next" and progress tracking are features of the Flyx player,
+so they don't follow the video into VLC.
 
 ---
 
@@ -263,7 +296,7 @@ Found under **Settings** in the sidebar:
 |-----|-------------|
 | 🔄 **Sync** | Cross-device sync — access your watchlist and progress from any device |
 | 📡 **Providers** | Manage streaming sources — enable, disable, or reorder them |
-| ▶️ **Playback** | Auto-play next episode, countdown timer, "Up Next" timing |
+| ▶️ **Playback** | Auto-play next episode, countdown timer, "Up Next" timing, Open in VLC |
 | 💬 **Subtitles** | Language, font size, background, position — with live preview |
 | 🔒 **Security** | Account management and access control |
 

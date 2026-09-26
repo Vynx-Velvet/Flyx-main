@@ -6,6 +6,15 @@ import dynamic from 'next/dynamic';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { getProviderSettings, saveProviderSettings, SYNC_DATA_CHANGED_EVENT } from '@/lib/sync';
 import { ExtensionGate } from '@/components/ExtensionGate';
+import { getPlayerPreferences } from '@/lib/utils/player-preferences';
+import { openInVlc, copyStreamUrl } from '@/lib/external-player-client';
+import {
+  buildVlcPlaylist,
+  handoffTitle,
+  hostStreamUrl,
+  playlistFilename,
+  type ExternalPlayerMode,
+} from '@/lib/external-player';
 import styles from './WatchPage.module.css';
 
 // Proxy source URLs for mobile player — mirrors applyStreamProxy in VideoPlayer.tsx
@@ -62,6 +71,12 @@ const MobileVideoPlayer = dynamic(
       </div>
     )
   }
+);
+
+// "Always open in VLC" hand-off panel (replaces both players)
+const ExternalPlayerHandoff = dynamic(
+  () => import('@/components/player/ExternalPlayerHandoff'),
+  { ssr: false },
 );
 
 interface NextEpisodeInfo {
@@ -151,11 +166,20 @@ function WatchContent() {
 
   // Mobile player state
   const [mobileStreamUrl, setMobileStreamUrl] = useState<string | null>(null);
-  const [mobileSources, setMobileSources] = useState<Array<{ title: string; url: string; quality?: string; provider?: string; skipIntro?: [number, number]; skipOutro?: [number, number] }>>([]);
+  const [mobileSources, setMobileSources] = useState<Array<{ title: string; url: string; quality?: string; provider?: string; skipIntro?: [number, number]; skipOutro?: [number, number]; rawUrl?: string; referer?: string; origin?: string }>>([]);
   const [mobileSourceIndex, setMobileSourceIndex] = useState(0);
   const [mobileLoading, setMobileLoading] = useState(true);
   const [mobileError, setMobileError] = useState<string | null>(null);
   const [mobileResumeTime, setMobileResumeTime] = useState(0); // Saved playback time for source/audio changes
+
+  // VLC hand-off preference (read once per watch session, like the player
+  // does). "auto" replaces the in-app player with the hand-off panel until
+  // the viewer picks "Play in Flyx instead" for this page load.
+  const [externalMode] = useState<ExternalPlayerMode>(() => getPlayerPreferences().externalPlayer);
+  const [playHereOverride, setPlayHereOverride] = useState(false);
+  const useExternalHandoff = externalMode === 'auto' && !playHereOverride;
+  const [mobileVlcMessage, setMobileVlcMessage] = useState<string | null>(null);
+
 
   // Provider state for mobile player
   const [currentProvider, setCurrentProvider] = useState<'videasy' | 'vidsrc' | 'multiembed' | 'animex' | undefined>(undefined);
@@ -502,6 +526,9 @@ function WatchContent() {
               provider: provider,
               skipIntro: s.skipIntro,
               skipOutro: s.skipOutro,
+              rawUrl: s.url,
+              referer: s.referer,
+              origin: s.origin,
             }));
 
             setMobileSources(sources);
@@ -620,6 +647,9 @@ function WatchContent() {
           provider: provider,
           skipIntro: s.skipIntro,
           skipOutro: s.skipOutro,
+          rawUrl: s.url,
+          referer: s.referer,
+          origin: s.origin,
         }));
 
         setMobileSources(sources);
@@ -660,7 +690,7 @@ function WatchContent() {
   useEffect(() => {
     const contentKey = `${contentId}-${seasonId}-${episodeId}`;
 
-    if (useMobilePlayer && lastFetchedContentRef.current !== contentKey) {
+    if (useMobilePlayer && !useExternalHandoff && lastFetchedContentRef.current !== contentKey) {
       console.log('[WatchPage] Initial mobile stream fetch for:', contentKey);
       lastFetchedContentRef.current = contentKey;
       hasFetchedStreamRef.current = false;
@@ -672,7 +702,7 @@ function WatchContent() {
 
       fetchMobileStream();
     }
-  }, [useMobilePlayer, contentId, seasonId, episodeId, fetchMobileStream]);
+  }, [useMobilePlayer, useExternalHandoff, contentId, seasonId, episodeId, fetchMobileStream]);
 
   // Handle mobile source change
   const handleMobileSourceChange = useCallback((index: number, currentTime: number = 0) => {
@@ -692,6 +722,50 @@ function WatchContent() {
   useEffect(() => {
     console.log('[WatchPage] nextEpisode state updated:', nextEpisode);
   }, [nextEpisode]);
+
+  const handleMobileOpenInVlc = useCallback(async (
+    currentTime: number,
+    action: 'vlc' | 'copy' | 'playlist' = 'vlc',
+  ) => {
+    const current = mobileSources[mobileSourceIndex];
+    if (!current) return;
+    const source = { url: current.rawUrl || current.url, referer: current.referer, origin: current.origin };
+    const note = (msg: string) => {
+      setMobileVlcMessage(msg);
+      window.setTimeout(() => setMobileVlcMessage(null), 3500);
+    };
+    if (action === 'copy' || action === 'playlist') {
+      const url = hostStreamUrl(window.location.origin, source);
+      if (action === 'copy') {
+        const ok = await copyStreamUrl(url);
+        if (!ok) console.info('[WatchPage] stream link:', url);
+        note(ok ? 'Stream link copied' : 'Could not copy — link printed to console');
+        return;
+      }
+      const label = handoffTitle({ title, mediaType, season: seasonId, episode: episodeId });
+      const body = buildVlcPlaylist({ title: label, url, startTime: currentTime });
+      const objectUrl = URL.createObjectURL(new Blob([body], { type: 'audio/x-mpegurl' }));
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = playlistFilename(label);
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+      note('Playlist downloaded — open it with your player');
+      return;
+    }
+    const result = await openInVlc({
+      source,
+      title,
+      mediaType,
+      season: seasonId,
+      episode: episodeId,
+      startTime: currentTime,
+    });
+    note(result.message);
+  }, [mobileSources, mobileSourceIndex, title, mediaType, seasonId, episodeId]);
 
   const handleBack = () => {
     if (mediaType === 'tv' && seasonId) {
@@ -771,6 +845,31 @@ function WatchContent() {
     title: nextEpisode.title,
     isNextSeason: nextEpisode.isNextSeason,
   } : null;
+
+  // "Always open in VLC": the host resolves a stream and this device
+  // launches VLC — no in-app player is mounted at all.
+  if (useExternalHandoff) {
+    return (
+      <div className={styles.container} data-tv-skip-navigation="true">
+        <div className={styles.playerWrapper}>
+          <ExternalPlayerHandoff
+            key={`vlc-${contentId}-${seasonId}-${episodeId}`}
+            item={{
+              tmdbId: Number(contentId),
+              mediaType,
+              season: seasonId,
+              episode: episodeId,
+              malId: malId ? Number(malId) : undefined,
+              title: title !== 'Loading...' ? title : undefined,
+            }}
+            title={title}
+            onBack={handleBack}
+            onPlayHere={() => setPlayHereOverride(true)}
+          />
+        </div>
+      </div>
+    );
+  }
 
   // Mobile player rendering
   if (useMobilePlayer) {
@@ -852,7 +951,13 @@ function WatchContent() {
             loadingProvider={loadingProvider}
             skipIntro={mobileSources[mobileSourceIndex]?.skipIntro}
             skipOutro={mobileSources[mobileSourceIndex]?.skipOutro}
+            onOpenExternal={externalMode !== 'off' ? handleMobileOpenInVlc : undefined}
           />
+          {mobileVlcMessage && (
+            <div className={styles.vlcToast} role="status">
+              {mobileVlcMessage}
+            </div>
+          )}
         </div>
       </div>
     );

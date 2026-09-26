@@ -66,6 +66,14 @@ export type PlayerSource = {
   skipIntro?: [number, number] | { start: number; end: number };
   skipOutro?: [number, number] | { start: number; end: number };
   requiresSegmentProxy?: boolean;
+  /**
+   * The un-proxied CDN URL + headers as returned by the provider. Kept so
+   * the VLC hand-off can build a host-served /api/stream/proxy URL
+   * regardless of which proxy the in-app player ended up using.
+   */
+  rawUrl?: string;
+  referer?: string;
+  origin?: string;
 };
 
 export function normalizeSkip(

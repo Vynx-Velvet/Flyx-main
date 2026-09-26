@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAnalytics } from "@/components/analytics/AnalyticsProvider";
 import { SYNC_DATA_CHANGED_EVENT, useSyncContext } from "@/lib/sync";
 import type { WatchProgress } from "@/lib/services/user-tracking";
+import { resumeHref, type ProgressEntry } from "@/lib/watch-progress";
 
 interface ContentMetadata {
   id: string;
@@ -129,18 +130,8 @@ export default function ContinueWatching() {
         progress: item.completionPercentage,
       });
 
-      const params = new URLSearchParams({
-        tmdbId: item.contentId,
-        mediaType: item.contentType,
-      });
-      if (item.contentType === "tv" && item.seasonNumber && item.episodeNumber) {
-        params.set("season", String(item.seasonNumber));
-        params.set("episode", String(item.episodeNumber));
-      }
-      if (item.metadata?.title) {
-        params.set("title", item.metadata.title);
-      }
-      router.push(`/watch?${params.toString()}`);
+      // Exact-second resume (adds `t=`; handles anime via malId).
+      router.push(resumeHref(item as ProgressEntry, { title: item.metadata?.title ?? item.title }));
     },
     [router, trackEvent],
   );

@@ -142,6 +142,40 @@ Always test the packaged exe, not just the repo copy.
 Artifacts land in `packages/desktop/dist/`:
 `Flyx-Setup-<version>.exe`, `Flyx-Portable-<version>.exe`, `.dmg`, `.AppImage`, `.deb`.
 
+## Server host process (macOS Dock icon)
+
+On Windows and Linux the embedded server is a plain child process: the app
+binary re-run as Node (`ELECTRON_RUN_AS_NODE=1`). On macOS that child is its
+own application to the OS, so a second, generic icon appeared in the Dock
+next to Flyx. `server-manager.js` therefore hosts the server in an Electron
+**utility process** (`utilityProcess.fork`) on macOS: same script, same env,
+same log tee, but inside Flyx's own process tree with no Dock presence.
+
+The utility process is wrapped in a small child_process-like adapter
+(`pid`, `exitCode`, `stdout`/`stderr`, `kill()`, `'exit'`) so `main.js` and
+`stopServer()` do not care which mode is active. `FLYX_SERVER_HOST=child`
+forces the old child-process mode on macOS; `FLYX_SERVER_HOST=utility`
+enables the utility process elsewhere.
+
+## VLC hand-off
+
+The renderer can ask the main process to open a stream in VLC
+(`window.flyxDesktop.openInVlc({ url, title, startTime })` →
+`flyx:open-in-vlc` → `src/vlc.js`). The URL is always an absolute
+`/api/stream/proxy` URL on the embedded server, so VLC pulls the stream
+through the host exactly like the in-app player (headers injected, HLS
+playlists rewritten, no cookie needed — `/api/stream` is public).
+
+Lookup order for the binary: `FLYX_VLC_PATH` → `vlc` on PATH → the usual
+install locations (Program Files, `/Applications/VLC.app`, `/usr/bin`,
+snap, flatpak). VLC is spawned detached with `--meta-title`, `--start-time`
+and `--network-caching`. When no binary is found, an extended `.m3u` is
+written to the temp dir and handed to `shell.openPath`, i.e. the OS default
+playlist handler. The IPC resolves `{ ok, method: "spawn" | "playlist", path?, error? }`.
+
+Non-desktop viewers (LAN phones/browsers) never hit this IPC — they use
+`/api/stream/vlc` (see `packages/app/src/lib/external-player-client.ts`).
+
 ## Auto-updates
 
 `electron-updater` checks GitHub Releases ~10s after startup and downloads

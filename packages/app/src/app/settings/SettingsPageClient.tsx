@@ -1,44 +1,48 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import SyncSettings from '@/components/settings/SyncSettings';
-import ProviderSettings from '@/components/settings/ProviderSettings';
-import NetworkSettings from '@/components/settings/NetworkSettings';
-import SecuritySettings from '@/components/settings/SecuritySettings';
-import EnvSettings from '@/components/settings/EnvSettings';
-import UpdatesSettings from '@/components/settings/UpdatesSettings';
-import DownloadsSettings from '@/components/settings/DownloadsSettings';
+import { useState, useEffect } from "react";
+import SyncSettings from "@/components/settings/SyncSettings";
+import ProviderSettings from "@/components/settings/ProviderSettings";
+import NetworkSettings from "@/components/settings/NetworkSettings";
+import SecuritySettings from "@/components/settings/SecuritySettings";
+import EnvSettings from "@/components/settings/EnvSettings";
+import UpdatesSettings from "@/components/settings/UpdatesSettings";
+import DownloadsSettings from "@/components/settings/DownloadsSettings";
 import {
   getPlayerPreferences,
   savePlayerPreferences,
   type PlayerPreferences,
-} from '@/lib/utils/player-preferences';
+} from "@/lib/utils/player-preferences";
+import {
+  EXTERNAL_PLAYER_MODES,
+  normalizeExternalPlayerMode,
+} from "@/lib/external-player";
 import {
   getSubtitlePreferences,
   saveSubtitlePreferences,
   type SubtitlePreferences,
   type SubtitleStyle,
-} from '@/lib/utils/subtitle-preferences';
-import styles from './SettingsPage.module.css';
+} from "@/lib/utils/subtitle-preferences";
+import styles from "./SettingsPage.module.css";
 
 type SettingsTab =
-  | 'sync'
-  | 'providers'
-  | 'playback'
-  | 'subtitles'
-  | 'network'
-  | 'security'
-  | 'environment'
-  | 'updates'
-  | 'downloads';
+  | "sync"
+  | "providers"
+  | "playback"
+  | "subtitles"
+  | "network"
+  | "security"
+  | "environment"
+  | "updates"
+  | "downloads";
 
 export default function SettingsPageClient() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('sync');
+  const [activeTab, setActiveTab] = useState<SettingsTab>("network");
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     {
-      id: 'sync',
-      label: 'Sync',
+      id: "sync",
+      label: "Sync",
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9" />
@@ -46,8 +50,8 @@ export default function SettingsPageClient() {
       ),
     },
     {
-      id: 'providers',
-      label: 'Providers',
+      id: "providers",
+      label: "Providers",
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <circle cx="12" cy="12" r="3" />
@@ -56,8 +60,8 @@ export default function SettingsPageClient() {
       ),
     },
     {
-      id: 'playback',
-      label: 'Playback',
+      id: "playback",
+      label: "Playback",
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polygon points="5 3 19 12 5 21 5 3" />
@@ -65,8 +69,8 @@ export default function SettingsPageClient() {
       ),
     },
     {
-      id: 'subtitles',
-      label: 'Subtitles',
+      id: "subtitles",
+      label: "Subtitles",
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <rect x="2" y="4" width="20" height="16" rx="2" />
@@ -76,8 +80,8 @@ export default function SettingsPageClient() {
       ),
     },
     {
-      id: 'network',
-      label: 'Network',
+      id: "network",
+      label: "Connect Devices",
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0" />
@@ -86,8 +90,8 @@ export default function SettingsPageClient() {
       ),
     },
     {
-      id: 'security',
-      label: 'Security',
+      id: "security",
+      label: "Security",
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -96,8 +100,8 @@ export default function SettingsPageClient() {
       ),
     },
     {
-      id: 'environment',
-      label: 'Environment',
+      id: "environment",
+      label: "Environment",
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M4 17V7l8 5 8-5v10" />
@@ -106,8 +110,8 @@ export default function SettingsPageClient() {
       ),
     },
     {
-      id: 'updates',
-      label: 'Updates',
+      id: "updates",
+      label: "Updates",
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
@@ -117,8 +121,8 @@ export default function SettingsPageClient() {
       ),
     },
     {
-      id: 'downloads',
-      label: 'Downloads',
+      id: "downloads",
+      label: "Downloads",
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
@@ -129,23 +133,40 @@ export default function SettingsPageClient() {
     },
   ];
 
+  const tabOrder: SettingsTab[] = [
+    "network",
+    "playback",
+    "subtitles",
+    "downloads",
+    "providers",
+    "sync",
+    "security",
+    "updates",
+    "environment",
+  ];
+  const orderedTabs = [...tabs].sort(
+    (first, second) => tabOrder.indexOf(first.id) - tabOrder.indexOf(second.id),
+  );
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
+        <span className={styles.headerEyebrow}>Control center</span>
         <h1 className={styles.title}>Settings</h1>
         <p className={styles.subtitle}>
-          Customize providers, playback, sync, and subtitles
+          Connect devices, tune playback, and manage your Flyx server.
         </p>
       </div>
 
       <div className={styles.settingsLayout}>
         {/* Tab navigation - Sidebar */}
         <nav className={styles.tabNav}>
-          {tabs.map((tab) => (
+          {orderedTabs.map((tab) => (
             <button
               key={tab.id}
-              className={`${styles.tab} ${activeTab === tab.id ? styles.active : ''}`}
+              className={`${styles.tab} ${activeTab === tab.id ? styles.active : ""}`}
               onClick={() => setActiveTab(tab.id)}
+              aria-pressed={activeTab === tab.id}
             >
               {tab.icon}
               <span>{tab.label}</span>
@@ -155,15 +176,15 @@ export default function SettingsPageClient() {
 
         {/* Tab content */}
         <div className={styles.content}>
-          {activeTab === 'sync' && <SyncSettings />}
-          {activeTab === 'providers' && <ProviderSettings />}
-          {activeTab === 'playback' && <PlaybackSettings />}
-          {activeTab === 'subtitles' && <SubtitleSettingsPanel />}
-          {activeTab === 'network' && <NetworkSettings />}
-          {activeTab === 'security' && <SecuritySettings />}
-          {activeTab === 'environment' && <EnvSettings />}
-          {activeTab === 'updates' && <UpdatesSettings />}
-          {activeTab === 'downloads' && <DownloadsSettings />}
+          {activeTab === "sync" && <SyncSettings />}
+          {activeTab === "providers" && <ProviderSettings />}
+          {activeTab === "playback" && <PlaybackSettings />}
+          {activeTab === "subtitles" && <SubtitleSettingsPanel />}
+          {activeTab === "network" && <NetworkSettings />}
+          {activeTab === "security" && <SecuritySettings />}
+          {activeTab === "environment" && <EnvSettings />}
+          {activeTab === "updates" && <UpdatesSettings />}
+          {activeTab === "downloads" && <DownloadsSettings />}
         </div>
       </div>
     </div>
@@ -180,7 +201,7 @@ function PlaybackSettings() {
 
   const updatePreference = <K extends keyof PlayerPreferences>(
     key: K,
-    value: PlayerPreferences[K]
+    value: PlayerPreferences[K],
   ) => {
     if (!preferences) return;
     const updated = { ...preferences, [key]: value };
@@ -195,14 +216,17 @@ function PlaybackSettings() {
   return (
     <div className={styles.settingsCard}>
       <div className={styles.cardHeader}>
-        <div className={styles.cardIconWrapper} style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}>
+        <div
+          className={styles.cardIconWrapper}
+          style={{ background: "linear-gradient(135deg, #22c55e, #16a34a)" }}
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polygon points="5 3 19 12 5 21 5 3" />
           </svg>
         </div>
         <div>
           <h2 className={styles.cardTitle}>Playback Settings</h2>
-          <p className={styles.cardSubtitle}>Configure auto-play and episode navigation</p>
+          <p className={styles.cardSubtitle}>Auto-play, episode navigation and VLC hand-off</p>
         </div>
       </div>
 
@@ -210,11 +234,15 @@ function PlaybackSettings() {
         <div className={styles.settingItem}>
           <div className={styles.settingInfo}>
             <span className={styles.settingLabel}>Auto-play next episode</span>
-            <span className={styles.settingDesc}>Automatically play the next episode when one ends</span>
+            <span className={styles.settingDesc}>
+              Automatically play the next episode when one ends
+            </span>
           </div>
           <button
-            className={`${styles.toggle} ${preferences.autoPlayNextEpisode ? styles.on : ''}`}
-            onClick={() => updatePreference('autoPlayNextEpisode', !preferences.autoPlayNextEpisode)}
+            className={`${styles.toggle} ${preferences.autoPlayNextEpisode ? styles.on : ""}`}
+            onClick={() =>
+              updatePreference("autoPlayNextEpisode", !preferences.autoPlayNextEpisode)
+            }
           >
             <span className={styles.toggleKnob} />
           </button>
@@ -223,14 +251,42 @@ function PlaybackSettings() {
         <div className={styles.settingItem}>
           <div className={styles.settingInfo}>
             <span className={styles.settingLabel}>Show now playing</span>
-            <span className={styles.settingDesc}>Expose the watched title to Windows media controls and VRChat companion apps</span>
+            <span className={styles.settingDesc}>
+              Expose the watched title to Windows media controls and VRChat companion apps
+            </span>
           </div>
           <button
-            className={`${styles.toggle} ${preferences.showNowPlaying ? styles.on : ''}`}
-            onClick={() => updatePreference('showNowPlaying', !preferences.showNowPlaying)}
+            className={`${styles.toggle} ${preferences.showNowPlaying ? styles.on : ""}`}
+            onClick={() => updatePreference("showNowPlaying", !preferences.showNowPlaying)}
           >
             <span className={styles.toggleKnob} />
           </button>
+        </div>
+
+        <div className={styles.settingItem}>
+          <div className={styles.settingInfo}>
+            <span className={styles.settingLabel}>Open in VLC</span>
+            <span className={styles.settingDesc}>
+              Hand playback to VLC media player. The stream is always served by your
+              Flyx host, so this works on the host PC and on phones or laptops
+              connected to it. Desktop looks for VLC automatically (override with
+              FLYX_VLC_PATH); other devices open VLC directly or download a playlist.
+            </span>
+          </div>
+          <select
+            className={styles.select}
+            value={preferences.externalPlayer}
+            onChange={(e) =>
+              updatePreference("externalPlayer", normalizeExternalPlayerMode(e.target.value))
+            }
+            aria-label="Open in VLC"
+          >
+            {EXTERNAL_PLAYER_MODES.map((mode) => (
+              <option key={mode.value} value={mode.value}>
+                {mode.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {preferences.autoPlayNextEpisode && (
@@ -243,7 +299,7 @@ function PlaybackSettings() {
               <select
                 className={styles.select}
                 value={preferences.autoPlayCountdown}
-                onChange={(e) => updatePreference('autoPlayCountdown', Number(e.target.value))}
+                onChange={(e) => updatePreference("autoPlayCountdown", Number(e.target.value))}
               >
                 <option value={5}>5 seconds</option>
                 <option value={10}>10 seconds</option>
@@ -261,7 +317,9 @@ function PlaybackSettings() {
               <select
                 className={styles.select}
                 value={preferences.showNextEpisodeBeforeEnd}
-                onChange={(e) => updatePreference('showNextEpisodeBeforeEnd', Number(e.target.value))}
+                onChange={(e) =>
+                  updatePreference("showNextEpisodeBeforeEnd", Number(e.target.value))
+                }
               >
                 <option value={30}>30 seconds</option>
                 <option value={60}>1 minute</option>
@@ -287,7 +345,7 @@ function SubtitleSettingsPanel() {
 
   const updatePreference = <K extends keyof SubtitlePreferences>(
     key: K,
-    value: SubtitlePreferences[K]
+    value: SubtitlePreferences[K],
   ) => {
     if (!preferences) return;
     const updated = { ...preferences, [key]: value };
@@ -295,10 +353,7 @@ function SubtitleSettingsPanel() {
     saveSubtitlePreferences(updated);
   };
 
-  const updateStyle = <K extends keyof SubtitleStyle>(
-    key: K,
-    value: SubtitleStyle[K]
-  ) => {
+  const updateStyle = <K extends keyof SubtitleStyle>(key: K, value: SubtitleStyle[K]) => {
     if (!preferences) return;
     const updatedStyle = { ...preferences.style, [key]: value };
     const updated = { ...preferences, style: updatedStyle };
@@ -309,44 +364,48 @@ function SubtitleSettingsPanel() {
   const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
     const languageMap: Record<string, string> = {
-      eng: 'English',
-      spa: 'Spanish',
-      fra: 'French',
-      deu: 'German',
-      ita: 'Italian',
-      por: 'Portuguese',
-      'por-br': 'Portuguese (Brazil)',
-      jpn: 'Japanese',
-      kor: 'Korean',
-      zho: 'Chinese (Simplified)',
-      'zho-tw': 'Chinese (Traditional)',
-      ara: 'Arabic',
-      rus: 'Russian',
-      hin: 'Hindi',
-      tha: 'Thai',
-      vie: 'Vietnamese',
-      ind: 'Indonesian',
-      msa: 'Malay',
-      tur: 'Turkish',
-      pol: 'Polish',
-      nld: 'Dutch',
-      swe: 'Swedish',
-      nor: 'Norwegian',
-      dan: 'Danish',
-      fin: 'Finnish',
-      ces: 'Czech',
-      hun: 'Hungarian',
-      ron: 'Romanian',
-      ell: 'Greek',
-      heb: 'Hebrew',
-      ukr: 'Ukrainian',
-      ben: 'Bengali',
-      tam: 'Tamil',
-      tel: 'Telugu',
-      fil: 'Filipino',
+      eng: "English",
+      spa: "Spanish",
+      fra: "French",
+      deu: "German",
+      ita: "Italian",
+      por: "Portuguese",
+      "por-br": "Portuguese (Brazil)",
+      jpn: "Japanese",
+      kor: "Korean",
+      zho: "Chinese (Simplified)",
+      "zho-tw": "Chinese (Traditional)",
+      ara: "Arabic",
+      rus: "Russian",
+      hin: "Hindi",
+      tha: "Thai",
+      vie: "Vietnamese",
+      ind: "Indonesian",
+      msa: "Malay",
+      tur: "Turkish",
+      pol: "Polish",
+      nld: "Dutch",
+      swe: "Swedish",
+      nor: "Norwegian",
+      dan: "Danish",
+      fin: "Finnish",
+      ces: "Czech",
+      hun: "Hungarian",
+      ron: "Romanian",
+      ell: "Greek",
+      heb: "Hebrew",
+      ukr: "Ukrainian",
+      ben: "Bengali",
+      tam: "Tamil",
+      tel: "Telugu",
+      fil: "Filipino",
     };
     if (!preferences) return;
-    const updated = { ...preferences, languageCode: value, languageName: languageMap[value] || value };
+    const updated = {
+      ...preferences,
+      languageCode: value,
+      languageName: languageMap[value] || value,
+    };
     setPreferences(updated);
     saveSubtitlePreferences(updated);
   };
@@ -358,7 +417,10 @@ function SubtitleSettingsPanel() {
   return (
     <div className={styles.settingsCard}>
       <div className={styles.cardHeader}>
-        <div className={styles.cardIconWrapper} style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)' }}>
+        <div
+          className={styles.cardIconWrapper}
+          style={{ background: "linear-gradient(135deg, #3b82f6, #2563eb)" }}
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="2" y="4" width="20" height="16" rx="2" />
             <line x1="6" y1="12" x2="18" y2="12" />
@@ -378,8 +440,8 @@ function SubtitleSettingsPanel() {
             <span className={styles.settingDesc}>Automatically show subtitles when available</span>
           </div>
           <button
-            className={`${styles.toggle} ${preferences.enabled ? styles.on : ''}`}
-            onClick={() => updatePreference('enabled', !preferences.enabled)}
+            className={`${styles.toggle} ${preferences.enabled ? styles.on : ""}`}
+            onClick={() => updatePreference("enabled", !preferences.enabled)}
           >
             <span className={styles.toggleKnob} />
           </button>
@@ -452,7 +514,7 @@ function SubtitleSettingsPanel() {
             min={50}
             max={200}
             value={preferences.style.fontSize}
-            onChange={(e) => updateStyle('fontSize', Number(e.target.value))}
+            onChange={(e) => updateStyle("fontSize", Number(e.target.value))}
           />
         </div>
 
@@ -467,14 +529,16 @@ function SubtitleSettingsPanel() {
             min={0}
             max={100}
             value={preferences.style.backgroundOpacity}
-            onChange={(e) => updateStyle('backgroundOpacity', Number(e.target.value))}
+            onChange={(e) => updateStyle("backgroundOpacity", Number(e.target.value))}
           />
         </div>
 
         <div className={styles.settingItem}>
           <div className={styles.settingInfo}>
             <span className={styles.settingLabel}>Vertical position</span>
-            <span className={styles.settingDesc}>{preferences.style.verticalPosition}% from top</span>
+            <span className={styles.settingDesc}>
+              {preferences.style.verticalPosition}% from top
+            </span>
           </div>
           <input
             type="range"
@@ -482,7 +546,7 @@ function SubtitleSettingsPanel() {
             min={10}
             max={95}
             value={preferences.style.verticalPosition}
-            onChange={(e) => updateStyle('verticalPosition', Number(e.target.value))}
+            onChange={(e) => updateStyle("verticalPosition", Number(e.target.value))}
           />
         </div>
 

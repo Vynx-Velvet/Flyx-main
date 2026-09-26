@@ -6,6 +6,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useCommandPaletteOptional } from "@/components/search/CommandPalette";
 import { useIsApple } from "@/hooks/useIsApple";
 import { useAuth } from "@/hooks/useAuth";
+import { APP_VERSION_LABEL } from "@/lib/version";
 import styles from "./Sidebar.module.css";
 
 type Accent = "default" | "movies" | "tv" | "anime" | "live" | "secondary";
@@ -27,6 +28,13 @@ const DISCOVER: NavItem[] = [
     label: "Home",
     icon: "M3 10.5L12 3l9 7.5M5 9.5V20a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V9.5",
     match: (p) => p === "/",
+  },
+  {
+    href: "/search",
+    label: "Search",
+    icon: "M11 18a7 7 0 100-14 7 7 0 000 14zM20 20l-3.5-3.5",
+    commandPalette: true,
+    match: (p) => p === "/search" || p.startsWith("/search/"),
   },
   {
     href: "/browse?type=movie",
@@ -74,13 +82,6 @@ const DISCOVER: NavItem[] = [
     accent: "live",
     icon: "M4.9 19.1C1 15.2 1 8.8 4.9 4.9M7.8 16.2a6 6 0 010-8.5M12 14a2 2 0 100-4 2 2 0 000 4zM16.2 7.8a6 6 0 010 8.5M19.1 4.9C23 8.8 23 15.1 19.1 19",
     match: (p) => p === "/livetv" || p.startsWith("/livetv/"),
-  },
-  {
-    href: "/search",
-    label: "Search",
-    icon: "M11 18a7 7 0 100-14 7 7 0 000 14zM20 20l-3.5-3.5",
-    commandPalette: true,
-    match: (p) => p === "/search" || p.startsWith("/search/"),
   },
 ];
 
@@ -365,13 +366,15 @@ function SidebarInner() {
         {!collapsed && (
           <>
             <span className={styles.logoText}>Flyx</span>
-            <span className={styles.logoBadge}>3.0</span>
+            <span className={styles.logoBadge} title={`Flyx ${APP_VERSION_LABEL}`}>
+              {APP_VERSION_LABEL}
+            </span>
           </>
         )}
       </Link>
 
       <nav className={styles.nav}>
-        {!collapsed && <p className={styles.sectionLabel}>Discover</p>}
+        {!collapsed && <p className={styles.sectionLabel}>Explore</p>}
 
         {DISCOVER.map((item) => {
           // For browse items, pass resolved media type so Movies/TV toggle correctly
@@ -393,7 +396,7 @@ function SidebarInner() {
         <div className={styles.divider} />
 
         {!collapsed && (
-          <p className={`${styles.sectionLabel} ${styles.sectionLabelMuted}`}>Library</p>
+          <p className={`${styles.sectionLabel} ${styles.sectionLabelMuted}`}>Your stuff</p>
         )}
 
         {LIBRARY.map((item) => {
@@ -438,7 +441,7 @@ function SidebarInner() {
         {!collapsed && (
           <div className={styles.status}>
             <span className={styles.statusDot} aria-hidden />
-            <span className={styles.statusText}>Streaming ready</span>
+            <span className={styles.statusText}>Ready to stream</span>
           </div>
         )}
       </div>

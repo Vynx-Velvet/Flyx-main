@@ -5,8 +5,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
-      "@flyx/core": path.resolve(__dirname, "../core/src/index.ts"),
+      "@flyx/core/utils": path.resolve(__dirname, "../core/src/utils/index.ts"),
       "@flyx/core/types": path.resolve(__dirname, "../core/src/types/index.ts"),
+      "@flyx/core": path.resolve(__dirname, "../core/src/index.ts"),
       "@flyx/config": path.resolve(__dirname, "../config/src/index.ts"),
       "@flyx/providers": path.resolve(__dirname, "../providers/src/index.ts"),
       "@flyx/providers/providers": path.resolve(__dirname, "../providers/src/providers/index.ts"),

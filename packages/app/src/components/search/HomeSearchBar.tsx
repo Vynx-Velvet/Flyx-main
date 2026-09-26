@@ -31,9 +31,7 @@ export default function HomeSearchBar() {
 
       <div className="home-search-copy">
         <span className="home-search-title">Search the library</span>
-        <span className="home-search-sub">
-          Movies, shows, anime — find anything
-        </span>
+        <span className="home-search-sub">Movies, shows, anime — find anything</span>
       </div>
 
       <div className="home-search-chips" aria-hidden>
@@ -42,10 +40,7 @@ export default function HomeSearchBar() {
         <span className="home-search-chip home-search-chip-anime">Anime</span>
       </div>
 
-      <span
-        className="home-search-kbd"
-        aria-label={isApple ? "Command K" : "Control K"}
-      >
+      <span className="home-search-kbd" aria-label={isApple ? "Command K" : "Control K"}>
         <kbd>{isApple ? "⌘" : "Ctrl"}</kbd>
         <kbd>K</kbd>
       </span>

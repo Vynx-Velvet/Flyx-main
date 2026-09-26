@@ -42,6 +42,10 @@ import PlayerHelpModal, {
   markPlayerHelpSeen,
 } from './PlayerHelpModal';
 import { CastButton, CastOverlay, CastErrorBanner, IconHelp, IconCast } from './CastUI';
+import { openInVlc, copyStreamUrl } from '@/lib/external-player-client';
+import { buildVlcPlaylist, handoffTitle, hostStreamUrl, playlistFilename } from '@/lib/external-player';
+import { usePlaybackRecovery } from './usePlaybackRecovery';
+import { IconVlc } from './VlcButton';
 
 export interface VideoPlayerProps {
   tmdbId: string;
@@ -189,6 +193,35 @@ export default function VideoPlayer({
 
   const currentStreamUrl = sources[sourceIndex]?.url ?? null;
 
+  // Stall / error recovery: skips past a stuck spot (escalating on repeats)
+  // instead of retrying the same bytes and restarting the stream; on
+  // give-up, fails over to the next source at the current position.
+  const recovery = usePlaybackRecovery({
+    videoRef,
+    hlsRef,
+    active: status === 'ready' && !!currentStreamUrl,
+    sourceKey: `${currentStreamUrl ?? ''}#${sourceIndex}`,
+    onSkip: (plan) => {
+      setIsBuffering(false);
+      setToast(
+        plan.reason === 'hole'
+          ? 'Skipped a gap in the stream'
+          : `Skipped a stuck spot (+${Math.round(plan.target - plan.from)}s)`,
+      );
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setToast(null), 1800);
+    },
+    onGiveUp: (resumeAt) => {
+      if (failoverLockRef.current) return;
+      failoverLockRef.current = true;
+      pendingResumeRef.current = resumeAt;
+      setSourceIndex((i) => i + 1);
+      setTimeout(() => {
+        failoverLockRef.current = false;
+      }, 500);
+    },
+  });
+
   const cast = useCast({
     videoRef,
     streamUrl: currentStreamUrl,
@@ -245,6 +278,8 @@ export default function VideoPlayer({
               quality?: string;
               type?: string;
               requiresSegmentProxy?: boolean;
+              referer?: string;
+              origin?: string;
               skipIntro?: PlayerSource['skipIntro'];
               skipOutro?: PlayerSource['skipOutro'];
             }) => ({
@@ -256,6 +291,9 @@ export default function VideoPlayer({
               skipIntro: s.skipIntro,
               skipOutro: s.skipOutro,
               requiresSegmentProxy: s.requiresSegmentProxy,
+              rawUrl: s.url,
+              referer: s.referer,
+              origin: s.origin,
             }));
         }
       } catch {
@@ -263,7 +301,7 @@ export default function VideoPlayer({
       }
 
       if (!list.length) {
-        const clients: Array<{ name: string; run: () => Promise<Array<{ url: string; title?: string; quality?: string; skipIntro?: [number, number]; skipOutro?: [number, number]; requiresSegmentProxy?: boolean }>> }> = [];
+        const clients: Array<{ name: string; run: () => Promise<Array<{ url: string; title?: string; quality?: string; skipIntro?: [number, number]; skipOutro?: [number, number]; requiresSegmentProxy?: boolean; referer?: string; origin?: string }>> }> = [];
 
         // VOD: videasy + vidsrc + multiembed via unified extraction API
         for (const vp of ['videasy', 'vidsrc', 'multiembed']) {
@@ -306,6 +344,9 @@ export default function VideoPlayer({
                 type: 'hls' as const,
                 skipIntro: s.skipIntro,
                 skipOutro: s.skipOutro,
+                rawUrl: s.url,
+                referer: s.referer,
+                origin: s.origin,
               }));
               break;
             }
@@ -411,9 +452,16 @@ export default function VideoPlayer({
           backBufferLength: 90,
           maxBufferLength: 30,
           maxMaxBufferLength: 60,
-          fragLoadingMaxRetry: 6,
+          // Fail a bad fragment fast so recovery can skip past it instead of
+          // sitting through ~30s of retries at the same spot.
+          fragLoadingMaxRetry: 3,
+          fragLoadingRetryDelay: 500,
+          fragLoadingMaxRetryTimeout: 4000,
           manifestLoadingMaxRetry: 4,
           levelLoadingMaxRetry: 4,
+          // Let hls.js hop small holes itself; bigger ones are ours.
+          maxBufferHole: 0.5,
+          nudgeMaxRetry: 3,
         });
         hlsRef.current = hls;
         hls.loadSource(url);
@@ -424,21 +472,9 @@ export default function VideoPlayer({
         });
         hls.on(Hls.Events.ERROR, (_e, data) => {
           if (!data.fatal) return;
-          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            hls.startLoad();
-            return;
-          }
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            hls.recoverMediaError();
-            return;
-          }
-          // Fatal — fail over to next source once
-          if (failoverLockRef.current) return;
-          failoverLockRef.current = true;
-          setSourceIndex((i) => i + 1);
-          setTimeout(() => {
-            failoverLockRef.current = false;
-          }, 500);
+          // Skip forward / resume in place / fail over at position — never
+          // rebuild the pipeline at the stall point or restart from zero.
+          recovery.handleHlsError(hls, data);
         });
       } else if (video.canPlayType('application/vnd.apple.mpegurl') && isHls) {
         video.src = url;
@@ -451,7 +487,7 @@ export default function VideoPlayer({
         }, { once: true });
       }
     },
-    [autoplay, destroyHls],
+    [autoplay, destroyHls, recovery],
   );
 
   // Load when source changes; failover on bad index
@@ -462,7 +498,11 @@ export default function VideoPlayer({
       setErrorMsg('All sources failed. Try again in a moment.');
       return;
     }
-    const resume = videoRef.current?.currentTime || pendingResumeRef.current || 0;
+    // An explicit resume request (source switch, recovery give-up) wins over
+    // the element's current time — give-up hands us "stall spot + 1s".
+    const resume = pendingResumeRef.current > 0
+      ? pendingResumeRef.current
+      : videoRef.current?.currentTime || 0;
     loadSource(sources[sourceIndex], resume > 2 ? resume : 0);
     return () => destroyHls();
   }, [status, sources, sourceIndex, loadSource, destroyHls]);
@@ -748,6 +788,73 @@ export default function VideoPlayer({
     title,
     showToast,
   ]);
+
+  // ---------- VLC hand-off ----------
+  // The stream is served by the host instance (absolute /api/stream/proxy
+  // URL built from the raw CDN source), so VLC on this device pulls it
+  // through the host exactly like the in-app player. Pauses local playback
+  // and carries the current position across.
+  const vlcEnabled = prefs.current.externalPlayer !== 'off';
+  const [vlcBusy, setVlcBusy] = useState(false);
+  const [showExternal, setShowExternal] = useState(false);
+  // Absolute host URL for the current source — for "copy link" / playlist.
+  const currentHostUrl = useCallback((): string | null => {
+    const current = sources[sourceIndex];
+    if (!current) return null;
+    return hostStreamUrl(window.location.origin, {
+      url: current.rawUrl || current.url,
+      referer: current.referer,
+      origin: current.origin,
+    });
+  }, [sources, sourceIndex]);
+  const handleCopyStreamLink = useCallback(async () => {
+    setShowExternal(false);
+    const url = currentHostUrl();
+    if (!url) return;
+    const ok = await copyStreamUrl(url);
+    if (!ok) console.info('[player] stream link:', url);
+    showToast(ok ? 'Stream link copied' : 'Could not copy — link printed to console');
+  }, [currentHostUrl, showToast]);
+  const handleDownloadPlaylist = useCallback(() => {
+    setShowExternal(false);
+    const url = currentHostUrl();
+    if (!url) return;
+    const label = handoffTitle({ title, mediaType, season, episode });
+    const body = buildVlcPlaylist({ title: label, url, startTime: videoRef.current?.currentTime || 0 });
+    const objectUrl = URL.createObjectURL(new Blob([body], { type: 'audio/x-mpegurl' }));
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = playlistFilename(label);
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+    showToast('Playlist downloaded — open it with your player');
+  }, [currentHostUrl, title, mediaType, season, episode, showToast]);
+  const handleOpenInVlc = useCallback(async () => {
+    const current = sources[sourceIndex];
+    if (!current || vlcBusy) return;
+    setVlcBusy(true);
+    bumpChrome();
+    const video = videoRef.current;
+    const startTime = video?.currentTime || 0;
+    try {
+      video?.pause();
+    } catch {
+      /* ignore */
+    }
+    const result = await openInVlc({
+      source: { url: current.rawUrl || current.url, referer: current.referer, origin: current.origin },
+      title,
+      mediaType,
+      season,
+      episode,
+      startTime,
+    });
+    showToast(result.message);
+    setVlcBusy(false);
+  }, [sources, sourceIndex, vlcBusy, bumpChrome, title, mediaType, season, episode, showToast]);
 
   const switchSource = useCallback(
     (index: number) => {
@@ -1211,6 +1318,53 @@ export default function VideoPlayer({
             <IconCast active={cast.isCasting || cast.isConnected} size={16} />
             {cast.isCasting || cast.isConnected ? 'Casting' : 'Cast'}
           </button>
+          {vlcEnabled && (
+            <div className={styles.menuAnchor}>
+              <button
+                type="button"
+                className={`${styles.pill} ${showExternal ? styles.active : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowExternal((s) => !s);
+                  setShowServers(false);
+                  setShowSettings(false);
+                  bumpChrome();
+                }}
+                disabled={vlcBusy || !sources.length}
+                aria-label="External player"
+                title="Play this stream in VLC or any other player (served by your Flyx host)"
+              >
+                <IconVlc size={16} />
+                {vlcBusy ? 'Opening…' : 'External'}
+              </button>
+              {showExternal && (
+                <div className={`${styles.menu} ${styles.menuTop}`} onClick={(e) => e.stopPropagation()}>
+                  <div className={styles.menuHeader}>External player</div>
+                  <div className={styles.menuBody}>
+                    <button
+                      type="button"
+                      className={styles.menuItem}
+                      onClick={() => {
+                        setShowExternal(false);
+                        void handleOpenInVlc();
+                      }}
+                    >
+                      <span>Open in VLC</span>
+                    </button>
+                    <button type="button" className={styles.menuItem} onClick={() => void handleCopyStreamLink()}>
+                      <span>Copy stream link</span>
+                    </button>
+                    <button type="button" className={styles.menuItem} onClick={handleDownloadPlaylist}>
+                      <span>Download playlist (.m3u)</span>
+                    </button>
+                    <div className={styles.menuSectionLabel} style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>
+                      Served by this Flyx host — works in any player on your network.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {/* Subtitles selector */}
           {(subtitleTracks.length > 0 ||
             subtitleStatus === 'blocked' ||

@@ -13,17 +13,30 @@
 import type { StreamSource, SubtitleTrack } from "@flyx/core";
 import { relaxedFetch } from "@flyx/core/utils";
 
-const DLHD_BASE = "https://dlhd.st";
+/**
+ * Entry domains, tried in order. dlhd.st currently 301s to dlstreams.st and
+ * on to dlive.sx; relaxedFetch follows redirects, and the final URL is what
+ * we use as Referer for the player page so the chain keeps working when the
+ * front domain rotates again.
+ */
+const DLHD_BASES = ["https://dlhd.st", "https://dlive.sx", "https://dlstreams.st", "https://dlhd.pk"];
+const DLHD_BASE = DLHD_BASES[0]!;
+/** Player hosts seen so far (newest first). Only used for the daddy5.php shortcut. */
+const PLAYER_HOSTS = ["https://daddyliveplayer.st", "https://hamis.romponalis.st"];
 const UA =
   "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0";
 
 // ── Python microservice client ────────────────────────────────────────────────
 
-const SERVICE_URL = process.env.DLHD_SERVICE_URL ?? "http://127.0.0.1:9876";
+// Opt-in only. The old default (127.0.0.1:9876) meant every resolve first
+// waited on a port that, if anything else happened to own it, swallowed
+// the full 8 s timeout before the real extraction even started.
+const SERVICE_URL = (process.env.DLHD_SERVICE_URL || "").trim() || null;
 
 async function extractViaService(
   channelId: string,
 ): Promise<{ m3u8: string; quality: string } | null> {
+  if (!SERVICE_URL) return null;
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 8000);
@@ -48,6 +61,8 @@ interface FetchResult {
   html: string;
   /** Combined Set-Cookie headers from the response (semicolon-joined). */
   cookies: string;
+  /** Final URL after redirects (the front domain rotates: dlhd.st → dlive.sx …). */
+  url: string;
 }
 
 async function fetchHTML(
@@ -80,7 +95,7 @@ async function fetchHTML(
         .join("; ");
 
       const html = await r.text();
-      return { html, cookies };
+      return { html, cookies, url: r.url || url };
     } catch (e) {
       if (attempt === 1) throw e;
       await new Promise((r) => setTimeout(r, 500));
@@ -100,6 +115,11 @@ async function fetchHTML(
  *   source:window.atob('aHR0cHM6Ly94YW1lbGVvbi4u...')
  */
 function extractM3U8FromSource(html: string): string | null {
+  // 2026-09 player: the URL is a plain constant —
+  //   const SRC = "https://edge.<host>/premium51/index.m3u8";
+  const plain = html.match(/\b(?:const|let|var)\s+SRC\s*=\s*['"](https?:\/\/[^'"]+\.m3u8[^'"]*)['"]/);
+  if (plain?.[1]) return plain[1];
+
   // Pattern: source:window.atob('BASE64') or source: atob('BASE64')
   const matches = html.match(
     /source\s*:\s*(?:window\.)?atob\s*\(\s*['"]([^'"]{20,})['"]\s*\)/,
@@ -122,6 +142,10 @@ function extractM3U8FromSource(html: string): string | null {
     } catch { /* continue */ }
   }
 
+  // Last resort: any quoted absolute .m3u8 URL in the page.
+  const any = html.match(/['"](https?:\/\/[^'"\s]+\.m3u8[^'"\s]*)['"]/);
+  if (any?.[1]) return any[1];
+
   return null;
 }
 
@@ -132,6 +156,10 @@ export interface ExtractionResult {
   subtitles: SubtitleTrack[];
   /** Cookies captured during extraction — needed by the CDN to validate M3U8 tokens. */
   cookies?: string;
+  /** The stream page embeds a third-party player we have no extractor for (host). */
+  unsupportedEmbed?: string;
+  /** Why there are no sources, for the API/UI ("offline", "unsupported", "unreachable"). */
+  reason?: string;
 }
 
 function buildResult(
@@ -139,6 +167,7 @@ function buildResult(
   quality: string,
   chId: string,
   cookies?: string,
+  playerOrigin: string = PLAYER_HOSTS[0]!,
 ): ExtractionResult {
   return {
     sources: [{
@@ -146,8 +175,10 @@ function buildResult(
       quality,
       type: "hls" as const,
       title: `DLHD ${chId}`,
-      referer: "https://hamis.romponalis.st",
-      origin: "https://hamis.romponalis.st",
+      // The edge CDN's CORS/Referer policy is keyed to the player host that
+      // embedded the stream — pass along whichever one we actually saw.
+      referer: playerOrigin,
+      origin: playerOrigin,
       requiresSegmentProxy: true,
     }],
     subtitles: [],
@@ -155,12 +186,110 @@ function buildResult(
   };
 }
 
+function originOf(url: string, fallback: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return fallback;
+  }
+}
+
+// ── Resolution cache + edge shortcut ────────────────────────────────────────
+//
+// The playlist URL for a channel is static and token-less
+// (https://edge.<host>/premium{id}/index.m3u8), so re-opening a channel
+// should not re-scrape three pages. We remember each channel's result for a
+// while, and remember the edge host + player origin so *other* channels can
+// be probed directly with one small request before falling back to scraping.
+
+const RESOLVE_TTL_MS = 10 * 60 * 1000;
+const resolveCache = new Map<string, { result: ExtractionResult; at: number }>();
+let lastEdge: { origin: string; playerOrigin: string; at: number } | null = null;
+
+async function probeEdge(channelId: string): Promise<ExtractionResult | null> {
+  if (!lastEdge || Date.now() - lastEdge.at > 6 * 60 * 60 * 1000) return null;
+  const url = `${lastEdge.origin}/premium${channelId}/index.m3u8`;
+  try {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 4000);
+    const r = await relaxedFetch(`${url}?_=${Date.now()}`, {
+      headers: { "User-Agent": UA, Referer: `${lastEdge.playerOrigin}/`, Origin: lastEdge.playerOrigin, Accept: "*/*" },
+      signal: c.signal,
+    });
+    clearTimeout(t);
+    if (!r.ok) return null;
+    const text = await r.text();
+    if (!text.trim().startsWith("#EXTM3U")) return null;
+    console.log(`[DLHD] Edge shortcut hit for ${channelId} (${lastEdge.origin})`);
+    return buildResult(url, "Auto", channelId, undefined, lastEdge.playerOrigin);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fast availability probe for the Live TV page: one GET against the known
+ * edge host. "online" / "offline" when the edge is known (every channel we
+ * have seen lives on the same edge, so a 404 there means off air), null
+ * when we have not learned an edge yet (caller falls back to a full resolve).
+ */
+export async function probeDLHDEdge(channelId: string): Promise<"online" | "offline" | null> {
+  if (!lastEdge || Date.now() - lastEdge.at > 6 * 60 * 60 * 1000) return null;
+  const url = `${lastEdge.origin}/premium${channelId}/index.m3u8?_=${Date.now()}`;
+  try {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 4000);
+    const r = await relaxedFetch(url, {
+      headers: { "User-Agent": UA, Referer: `${lastEdge.playerOrigin}/`, Origin: lastEdge.playerOrigin, Accept: "*/*" },
+      signal: c.signal,
+    });
+    clearTimeout(t);
+    if (r.status === 404 || r.status === 410) return "offline";
+    if (!r.ok) return null;
+    const text = await r.text();
+    return text.trim().startsWith("#EXTM3U") ? "online" : "offline";
+  } catch {
+    return null;
+  }
+}
+
+function rememberEdge(result: ExtractionResult) {
+  const src = result.sources[0];
+  if (!src) return;
+  try {
+    lastEdge = { origin: new URL(src.url).origin, playerOrigin: src.origin || PLAYER_HOSTS[0]!, at: Date.now() };
+  } catch { /* ignore */ }
+}
+
 export async function extractDLHD(
   channelId: string,
 ): Promise<ExtractionResult> {
   if (!channelId) return { sources: [], subtitles: [] };
 
-  // Primary: Python microservice (warm session, sub-second)
+  const cached = resolveCache.get(channelId);
+  if (cached && Date.now() - cached.at < RESOLVE_TTL_MS) return cached.result;
+
+  const result = await extractDLHDUncached(channelId);
+  if (result.sources.length) {
+    resolveCache.set(channelId, { result, at: Date.now() });
+    rememberEdge(result);
+  }
+  return result;
+}
+
+/** Drop a channel's cached resolution (e.g. after its playlist 404s). */
+export function forgetDLHDChannel(channelId: string): void {
+  resolveCache.delete(channelId);
+}
+
+async function extractDLHDUncached(
+  channelId: string,
+): Promise<ExtractionResult> {
+  // Fastest: the known edge host answers directly for this channel.
+  const edge = await probeEdge(channelId);
+  if (edge) return edge;
+
+  // Optional Python microservice (only when DLHD_SERVICE_URL is set).
   const svcResult = await extractViaService(channelId);
   if (svcResult?.m3u8) return buildResult(svcResult.m3u8, svcResult.quality, channelId);
 
@@ -171,32 +300,66 @@ export async function extractDLHD(
   // so we collect them manually.
   try {
     let allCookies = "";
+    const mergeCookies = (c: string) => {
+      if (c) allCookies = allCookies ? `${allCookies}; ${c}` : c;
+    };
 
-    // Step 1: Visit the main DLHD stream page to capture session cookies.
-    // These cookies are required by the CDN to validate the M3U8 token.
-    const streamUrl = `${DLHD_BASE}/stream/stream-${channelId}.php`;
-    const streamResult = await fetchHTML(streamUrl, `${DLHD_BASE}/watch.php?id=${channelId}`, 10000);
-    if (streamResult.cookies) {
-      allCookies = streamResult.cookies;
-      console.log(`[DLHD] Got cookies from stream page: ${allCookies.substring(0, 60)}...`);
+    // Step 1: Visit the stream page (first entry domain that answers) to
+    // capture session cookies and learn the *final* domain after redirects.
+    let streamResult: FetchResult | null = null;
+    let streamUrl = "";
+    let lastErr: unknown = null;
+    for (const base of DLHD_BASES) {
+      const candidate = `${base}/stream/stream-${channelId}.php`;
+      try {
+        streamResult = await fetchHTML(candidate, `${base}/watch.php?id=${channelId}`, 10000);
+        streamUrl = streamResult.url || candidate;
+        break;
+      } catch (e) {
+        lastErr = e;
+        console.warn(`[DLHD] ${base} unreachable: ${(e as Error).message}`);
+      }
+    }
+    if (!streamResult) throw lastErr ?? new Error("all DLHD entry domains failed");
+    mergeCookies(streamResult.cookies);
+    if (streamUrl !== `${DLHD_BASE}/stream/stream-${channelId}.php`) {
+      console.log(`[DLHD] Stream page resolved to ${originOf(streamUrl, DLHD_BASE)}`);
     }
 
-    // Step 2: Extract iframe URL from stream page, then fetch it for the M3U8 URL
+    // Step 2: Extract the player iframe URL, fetch it for the M3U8 URL.
     const iframeMatch = streamResult.html.match(/iframe\s+src="([^"]+)"/i)
       ?? streamResult.html.match(/iframe\s+src='([^']+)'/i);
 
     let m3u8Url: string | null = null;
+    let playerOrigin = PLAYER_HOSTS[0]!;
+    let sawDaddyPlayer = false;
 
     if (iframeMatch?.[1]) {
-      // Fetch the iframe source page (Clappr player)
-      const iframeResult = await fetchHTML(iframeMatch[1], streamUrl, 10000);
-      if (iframeResult.cookies) {
-        // Merge cookies: the iframe page may set additional session cookies
-        allCookies = allCookies
-          ? `${allCookies}; ${iframeResult.cookies}`
-          : iframeResult.cookies;
+      const iframeUrl = iframeMatch[1].startsWith("http")
+        ? iframeMatch[1]
+        : new URL(iframeMatch[1], streamUrl).href;
+      // Some event slots embed other providers' players (wikisport, embedsports…)
+      // instead of the DLHD player. We have no extractor for those — say so
+      // instead of falling back to the old host's dead addresses.
+      const iframeHost = originOf(iframeUrl, "");
+      const isDaddyPlayer =
+        /daddyliveplayer|premiumtv\/daddy|romponalis/i.test(iframeUrl) ||
+        PLAYER_HOSTS.some((h) => iframeHost === h) ||
+        iframeHost === originOf(streamUrl, "");
+      if (!isDaddyPlayer && iframeHost) {
+        console.warn(`[DLHD] Channel ${channelId} embeds an unsupported player: ${iframeHost}`);
+        return { sources: [], subtitles: [], unsupportedEmbed: iframeHost, reason: "unsupported" };
       }
-      m3u8Url = extractM3U8FromSource(iframeResult.html);
+      sawDaddyPlayer = true;
+      try {
+        // Referer must be the page we were actually served from (post-redirect).
+        const iframeResult = await fetchHTML(iframeUrl, streamUrl, 10000);
+        mergeCookies(iframeResult.cookies);
+        m3u8Url = extractM3U8FromSource(iframeResult.html);
+        playerOrigin = originOf(iframeResult.url || iframeUrl, playerOrigin);
+      } catch (e) {
+        console.warn(`[DLHD] Player page failed: ${(e as Error).message}`);
+      }
     }
 
     // Also try extracting from the stream page itself (backup)
@@ -204,21 +367,35 @@ export async function extractDLHD(
       m3u8Url = extractM3U8FromSource(streamResult.html);
     }
 
-    // Step 3: If both failed, try the direct daddy5.php shortcut
+    // The current player answered but has no stream for this slot: the
+    // channel is off air. The old host's daddy5 fallback only ever returns
+    // stale, dead CDN addresses for these — don't hand those to the player.
+    if (!m3u8Url && sawDaddyPlayer) {
+      console.warn(`[DLHD] Channel ${channelId}: player has no stream (off air)`);
+      return { sources: [], subtitles: [], reason: "offline" };
+    }
+
+    // Step 3: Direct daddy5.php shortcut on known player hosts. A 403 here
+    // must not abort the whole extraction (the old host now rejects it).
     if (!m3u8Url) {
-      const daddyUrl = `https://hamis.romponalis.st/premiumtv/daddy5.php?id=${channelId}`;
-      const daddyResult = await fetchHTML(daddyUrl, streamUrl, 8000);
-      if (daddyResult.cookies) {
-        allCookies = allCookies
-          ? `${allCookies}; ${daddyResult.cookies}`
-          : daddyResult.cookies;
+      for (const host of PLAYER_HOSTS) {
+        try {
+          const daddyResult = await fetchHTML(`${host}/premiumtv/daddy5.php?id=${channelId}`, streamUrl, 8000);
+          mergeCookies(daddyResult.cookies);
+          m3u8Url = extractM3U8FromSource(daddyResult.html);
+          if (m3u8Url) {
+            playerOrigin = originOf(daddyResult.url || host, host);
+            break;
+          }
+        } catch (e) {
+          console.warn(`[DLHD] daddy5 on ${host} failed: ${(e as Error).message}`);
+        }
       }
-      m3u8Url = extractM3U8FromSource(daddyResult.html);
     }
 
     if (m3u8Url) {
-      console.log(`[DLHD] Extracted M3U8 URL (cookies: ${allCookies ? allCookies.substring(0, 50) + "..." : "none"})`);
-      return buildResult(m3u8Url, "Auto", channelId, allCookies || undefined);
+      console.log(`[DLHD] Extracted M3U8 URL via ${playerOrigin} (cookies: ${allCookies ? allCookies.substring(0, 50) + "..." : "none"})`);
+      return buildResult(m3u8Url, "Auto", channelId, allCookies || undefined, playerOrigin);
     }
     console.warn(`[DLHD] Could not extract M3U8 URL from any source`);
     return { sources: [], subtitles: [] };

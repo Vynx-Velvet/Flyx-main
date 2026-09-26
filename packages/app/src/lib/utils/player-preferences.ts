@@ -1,3 +1,8 @@
+import {
+  normalizeExternalPlayerMode,
+  type ExternalPlayerMode,
+} from "@/lib/external-player";
+
 export interface PlayerPreferences {
   autoPlayNextEpisode: boolean;
   autoPlayCountdown: number;
@@ -6,6 +11,12 @@ export interface PlayerPreferences {
   playbackSpeed: number;
   /** Publish now-playing metadata (Windows SMTC / window title) for VRChat companions. */
   showNowPlaying: boolean;
+  /**
+   * VLC hand-off: "off" hides it, "manual" shows a VLC button in the
+   * player, "auto" skips the in-app player and opens every title in VLC.
+   * The stream is always served by the host instance (see lib/external-player).
+   */
+  externalPlayer: ExternalPlayerMode;
 }
 
 const STORAGE_KEY = "flyx_player_prefs_v1";
@@ -17,6 +28,7 @@ const DEFAULTS: PlayerPreferences = {
   preferredQuality: "auto",
   playbackSpeed: 1,
   showNowPlaying: true,
+  externalPlayer: "manual",
 };
 
 export function getPlayerPreferences(): PlayerPreferences {
@@ -24,7 +36,9 @@ export function getPlayerPreferences(): PlayerPreferences {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULTS };
-    return { ...DEFAULTS, ...JSON.parse(raw) };
+    const merged = { ...DEFAULTS, ...JSON.parse(raw) } as PlayerPreferences;
+    merged.externalPlayer = normalizeExternalPlayerMode(merged.externalPlayer);
+    return merged;
   } catch {
     return { ...DEFAULTS };
   }

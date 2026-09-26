@@ -38,8 +38,7 @@ export default async function HomePageContent() {
   const trendingTV = tvTrending?.results ?? [];
   const nowPlaying = upcoming?.results ?? [];
 
-  const heroYear =
-    hero?.release_date?.slice(0, 4) ?? hero?.first_air_date?.slice(0, 4);
+  const heroYear = hero?.release_date?.slice(0, 4) ?? hero?.first_air_date?.slice(0, 4);
   const heroType = hero?.title ? "movie" : "tv";
 
   return (
@@ -86,10 +85,7 @@ export default async function HomePageContent() {
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="badge">
-                    <span
-                      className="inline-block h-1.5 w-1.5 rounded-full bg-[#00e5bf]"
-                      style={{ boxShadow: "0 0 8px #00e5bf" }}
-                    />
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#c8ff3d]" />
                     Featured
                   </span>
                   <span className="meta-chip uppercase tracking-wider">
@@ -130,10 +126,7 @@ export default async function HomePageContent() {
                   >
                     More Info
                   </Link>
-                  <Link
-                    href="/browse"
-                    className="btn-ghost hidden sm:inline-flex !py-3 text-sm"
-                  >
+                  <Link href="/browse" className="btn-ghost hidden sm:inline-flex !py-3 text-sm">
                     Browse catalog
                   </Link>
                 </div>
@@ -148,8 +141,7 @@ export default async function HomePageContent() {
                     className="w-full overflow-hidden rounded-2xl"
                     style={{
                       aspectRatio: "2/3",
-                      boxShadow:
-                        "0 24px 56px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.12)",
+                      boxShadow: "0 24px 56px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.12)",
                     }}
                   >
                     <img
@@ -198,7 +190,7 @@ export default async function HomePageContent() {
       )}
 
       <div className="home-main">
-        <section className="section" style={{ animationDelay: "0.03s" }}>
+        <section className="section home-search-section" style={{ animationDelay: "0.03s" }}>
           <HomeSearchBar />
         </section>
 
@@ -311,6 +303,13 @@ export default async function HomePageContent() {
         )}
 
         <section className="section home-quick-links">
+          <header className="home-quick-heading">
+            <div>
+              <span>Explore Flyx</span>
+              <h2>What do you want to watch?</h2>
+            </div>
+            <p>Jump directly into a library.</p>
+          </header>
           {[
             {
               href: "/browse?type=movie",

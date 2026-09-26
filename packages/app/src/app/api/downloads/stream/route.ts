@@ -27,6 +27,7 @@ import { providerRegistry } from "@flyx/providers";
 import "@flyx/providers/providers";
 import type { StreamSource } from "@flyx/core";
 import { pickBestSource } from "@/lib/downloads/source-picker";
+import { resolveSourceForQuality } from "@/lib/downloads/hls-variants";
 import { sourceNeedsReencode } from "@/lib/downloads/video";
 import { remuxToStream } from "@/lib/downloads/ffmpeg";
 import { buildMangaChapterCbz } from "@/lib/downloads/manga";
@@ -112,7 +113,9 @@ export async function GET(request: NextRequest) {
       }
       // Provider doesn't tag audio — fall through with all sources.
     }
-    const source = pickBestSource(candidates, item.quality);
+    const picked = pickBestSource(candidates, item.quality);
+    // A generic HLS master + a real quality request → use that variant.
+    const source = picked ? await resolveSourceForQuality(picked, item.quality) : null;
     if (!source) {
       return NextResponse.json(
         { ok: false, error: "No playable source found" },

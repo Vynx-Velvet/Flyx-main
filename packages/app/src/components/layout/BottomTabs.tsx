@@ -1,187 +1,235 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useCommandPaletteOptional } from "@/components/search/CommandPalette";
 
-const TABS = [
+const PRIMARY_TABS = [
   {
     href: "/",
     label: "Home",
-    match: (p: string) => p === "/",
-    icon: "M3 10.5L12 3l9 7.5M5 9.5V20a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V9.5",
+    match: (path: string) => path === "/",
+    icon: "M3 10.5 12 3l9 7.5M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5",
   },
   {
     href: "/browse",
-    label: "Browse",
-    match: (p: string) => p.startsWith("/browse"),
-    icon: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
+    label: "Explore",
+    match: (path: string) => path.startsWith("/browse") || path.startsWith("/details"),
+    icon: "M4 5.5h16M4 12h10M4 18.5h13",
   },
   {
     href: "/search",
     label: "Search",
-    match: (p: string) => p.startsWith("/search"),
+    match: (path: string) => path.startsWith("/search"),
     commandPalette: true,
-    icon: "M11 18a7 7 0 100-14 7 7 0 000 14zM20 20l-3.5-3.5",
+    icon: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Zm9 2-3.5-3.5",
   },
   {
-    href: "/livetv",
-    label: "Live",
-    match: (p: string) => p.startsWith("/livetv"),
-    icon: "M4.9 19.1C1 15.2 1 8.8 4.9 4.9M7.8 16.2a6 6 0 010-8.5M12 14a2 2 0 100-4 2 2 0 000 4zM16.2 7.8a6 6 0 010 8.5M19.1 4.9C23 8.8 23 15.1 19.1 19",
+    href: "/watchlist",
+    label: "Saved",
+    match: (path: string) => path.startsWith("/watchlist"),
+    icon: "M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16Z",
   },
+];
+
+const MORE_LINKS = [
   {
     href: "/anime",
     label: "Anime",
-    match: (p: string) => p.startsWith("/anime"),
-    icon: "M12 21a9 9 0 100-18 9 9 0 000 18zM8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01",
+    description: "Series and films",
+    icon: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9 10h.01M15 10h.01M9 15c2 1.5 4 1.5 6 0",
   },
   {
     href: "/manga",
     label: "Manga",
-    match: (p: string) => p.startsWith("/manga"),
-    icon: "M4 6h16M4 12h16M4 18h16",
+    description: "Read by chapter",
+    icon: "M4 5a2 2 0 0 1 2-2h5v18H6a2 2 0 0 1-2-2V5Zm16 0a2 2 0 0 0-2-2h-5v18h5a2 2 0 0 0 2-2V5Z",
+  },
+  {
+    href: "/livetv",
+    label: "Live TV",
+    description: "Sports and channels",
+    icon: "M8 6a7 7 0 0 0 0 12m8-12a7 7 0 0 1 0 12m-4-3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z",
   },
   {
     href: "/downloads",
     label: "Downloads",
-    match: (p: string) => p.startsWith("/downloads"),
-    icon: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3",
+    description: "Watch offline",
+    icon: "M12 3v12m0 0 5-5m-5 5-5-5M4 19h16",
+  },
+  {
+    href: "/settings",
+    label: "Settings",
+    description: "Playback and account",
+    icon: "M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21h-4v-.05a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.9.31l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15 1.7 1.7 0 0 0 3.05 14H3v-4h.05A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.33-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3h4v.05a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.9-.31l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.55 1H21v4h-.05a1.7 1.7 0 0 0-1.55 1Z",
   },
   {
     href: "/help",
     label: "Help",
-    match: (p: string) => p.startsWith("/help"),
-    icon: "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01",
+    description: "Guides and support",
+    icon: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm-3-13a3 3 0 0 1 5.8 1c0 2-2.8 2.4-2.8 4m0 3h.01",
   },
 ];
+
+function Icon({ path }: { path: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d={path} />
+    </svg>
+  );
+}
 
 export default function BottomTabs() {
   const pathname = usePathname();
   const palette = useCommandPaletteOptional();
-
-  // isLanding must be state-based to avoid SSR hydration mismatch
+  const [moreOpen, setMoreOpen] = useState(false);
   const [isLanding, setIsLanding] = useState(false);
+
+  useEffect(() => setMoreOpen(false), [pathname]);
+
   useEffect(() => {
-    if (pathname !== "/") return;
-    const el = document.documentElement;
-    const check = () => setIsLanding(el.getAttribute("data-landing") === "1");
-    check();
-    const observer = new MutationObserver(check);
-    observer.observe(el, { attributes: true, attributeFilter: ["data-landing"] });
+    if (!moreOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMoreOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [moreOpen]);
+
+  useEffect(() => {
+    if (pathname !== "/") {
+      setIsLanding(false);
+      return;
+    }
+    const root = document.documentElement;
+    const sync = () => setIsLanding(root.getAttribute("data-landing") === "1");
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributes: true, attributeFilter: ["data-landing"] });
     return () => observer.disconnect();
   }, [pathname]);
 
-  // Player only — do not hide on /watchlist
-  if (
+  const hidden =
     pathname === "/watch" ||
     pathname.startsWith("/watch/") ||
     pathname.startsWith("/admin") ||
     pathname === "/login" ||
     pathname === "/setup" ||
-    isLanding
-  ) {
-    return null;
-  }
+    isLanding;
+
+  if (hidden) return null;
+
+  const moreActive = MORE_LINKS.some((item) => pathname.startsWith(item.href));
 
   return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(0.55rem,env(safe-area-inset-bottom))] md:hidden"
-      aria-label="Mobile navigation"
-    >
-      <div
-        className="mx-auto flex h-[66px] max-w-lg items-center justify-around rounded-[24px] border px-1.5"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(14,14,22,0.94) 0%, rgba(6,6,12,0.96) 100%)",
-          backdropFilter: "blur(32px) saturate(1.5)",
-          WebkitBackdropFilter: "blur(32px) saturate(1.5)",
-          borderColor: "rgba(255,255,255,0.1)",
-          boxShadow:
-            "0 -8px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,229,191,0.04), inset 0 1px 0 rgba(255,255,255,0.08)",
-        }}
-      >
-        {TABS.map((tab) => {
-          const active = tab.match(pathname);
-          const className = `relative flex min-w-[48px] flex-col items-center gap-0.5 rounded-2xl px-1.5 py-1.5 text-[10px] font-semibold tracking-wide no-underline transition-all duration-250 active:scale-95 ${
-            active ? "text-[#00e5bf]" : "text-white/35 hover:text-white/55"
-          }`;
-
-          const content = (
-            <>
-              {active && (
-                <span
-                  className="absolute -top-0.5 h-[3px] w-8 rounded-full"
-                  style={{
-                    background: "linear-gradient(90deg, #00e5bf, #8b7cf0)",
-                    boxShadow: "0 0 14px rgba(0,229,191,0.65)",
-                  }}
-                  aria-hidden
-                />
-              )}
-              <span
-                className="flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-250"
-                style={
-                  active
-                    ? {
-                        background:
-                          "linear-gradient(135deg, rgba(0,229,191,0.18), rgba(139,124,240,0.12))",
-                        boxShadow:
-                          "0 0 16px rgba(0,229,191,0.2), inset 0 0 0 1px rgba(0,229,191,0.15)",
-                      }
-                    : undefined
-                }
-              >
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={
-                    active
-                      ? "drop-shadow-[0_0_6px_rgba(0,229,191,0.6)]"
-                      : undefined
-                  }
-                  aria-hidden
+    <>
+      {moreOpen && (
+        <div className="mobile-more-layer" role="presentation">
+          <button
+            className="mobile-more-backdrop"
+            type="button"
+            onClick={() => setMoreOpen(false)}
+            aria-label="Close menu"
+          />
+          <section
+            className="mobile-more-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="More destinations"
+          >
+            <div className="mobile-more-handle" aria-hidden />
+            <div className="mobile-more-head">
+              <div>
+                <span>Navigate</span>
+                <h2>More from Flyx</h2>
+              </div>
+              <button type="button" onClick={() => setMoreOpen(false)} aria-label="Close menu">
+                ×
+              </button>
+            </div>
+            <div className="mobile-more-grid">
+              {MORE_LINKS.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={pathname.startsWith(item.href) ? "active" : undefined}
                 >
-                  <path d={tab.icon} />
-                </svg>
-              </span>
-              <span>{tab.label}</span>
-            </>
-          );
+                  <span className="mobile-more-icon">
+                    <Icon path={item.icon} />
+                  </span>
+                  <span>
+                    <strong>{item.label}</strong>
+                    <small>{item.description}</small>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
 
-          if (tab.commandPalette && palette?.openPalette) {
+      <nav className="mobile-tabs" aria-label="Primary navigation">
+        <div className="mobile-tabs-inner">
+          {PRIMARY_TABS.map((tab) => {
+            const active = tab.match(pathname);
+            const content = (
+              <>
+                <span className="mobile-tab-icon">
+                  <Icon path={tab.icon} />
+                </span>
+                <span>{tab.label}</span>
+              </>
+            );
+            if (tab.commandPalette && palette?.openPalette) {
+              return (
+                <button
+                  key={tab.href}
+                  type="button"
+                  onClick={palette.openPalette}
+                  className={active ? "active" : undefined}
+                  aria-label="Open search"
+                >
+                  {content}
+                </button>
+              );
+            }
             return (
-              <button
+              <Link
                 key={tab.href}
-                type="button"
-                onClick={palette.openPalette}
-                className={className}
-                aria-label="Open search and quick actions"
+                href={tab.href}
+                className={active ? "active" : undefined}
+                aria-current={active ? "page" : undefined}
               >
                 {content}
-              </button>
+              </Link>
             );
-          }
-
-          return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={className}
-              aria-current={active ? "page" : undefined}
-            >
-              {content}
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+          })}
+          <button
+            type="button"
+            onClick={() => setMoreOpen(true)}
+            className={moreActive || moreOpen ? "active" : undefined}
+            aria-expanded={moreOpen}
+          >
+            <span className="mobile-tab-icon">
+              <Icon path="M5 12h.01M12 12h.01M19 12h.01" />
+            </span>
+            <span>More</span>
+          </button>
+        </div>
+      </nav>
+    </>
   );
 }

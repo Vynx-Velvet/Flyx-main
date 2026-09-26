@@ -606,3 +606,23 @@
   border: none;
   padding: 0;
 }
+
+/* Automatic stall-skip notice */
+.recoveryNote {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  z-index: 18;
+  max-width: calc(100% - 28px);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(12, 12, 18, 0.92);
+  border: 1px solid var(--m-border);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}

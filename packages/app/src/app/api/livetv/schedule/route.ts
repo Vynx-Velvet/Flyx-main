@@ -9,6 +9,31 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { relaxedFetch } from '@flyx/core/utils';
+import { isWithinLiveWindow, londonClockToDate, londonClockToIso } from '@/lib/livetv/uk-time';
+
+/** Decode the HTML entities the schedule markup uses in names (&#039; &amp; …). */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', ndash: '–', mdash: '—',
+  hellip: '…', rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', eacute: 'é',
+};
+function decodeEntities(text: string): string {
+  // The page double-encodes some names ("Texas A&amp;amp;M") — decode until stable.
+  let out = text;
+  for (let i = 0; i < 3; i++) {
+    const next = decodeEntitiesOnce(out);
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+function decodeEntitiesOnce(text: string): string {
+  return text
+    .replace(/&#x([0-9a-f]+);/gi, (_m, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_m, dec: string) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&([a-z]+);/gi, (m, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? m)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -65,26 +90,9 @@ function getIcon(name: string): string {
 function toISOTimestamp(time24: string): string {
   if (!time24) return '';
 
-  const match = time24.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return '';
-
-  const hours = parseInt(match[1], 10);
-  const minutes = parseInt(match[2], 10);
-
-  const now = new Date();
-  const eventDate = new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      hours,
-      minutes,
-      0,
-      0,
-    ),
-  );
-
-  return eventDate.toISOString();
+  // DLHD times are Europe/London wall clock (GMT in winter, BST in summer),
+  // not UTC — the old code treated them as UTC and was an hour off all summer.
+  return londonClockToIso(time24);
 }
 
 function isEventLive(
@@ -95,29 +103,22 @@ function isEventLive(
   if (htmlIndicatesLive) return true;
 
   try {
-    const now = new Date();
     let eventTime: Date | null = null;
 
     if (dataTime && /^\d+$/.test(dataTime)) {
-      eventTime = new Date(parseInt(dataTime) * 1000);
+      // Unix seconds — already an instant.
+      eventTime = new Date(parseInt(dataTime, 10) * 1000);
     } else if (dataTime && dataTime.includes('-')) {
-      eventTime = new Date(dataTime + ' GMT');
+      // "YYYY-MM-DD HH:MM" in London time.
+      const [, clock] = dataTime.split(' ');
+      eventTime = clock ? londonClockToDate(clock) : null;
     } else if (time24) {
-      const match = time24.match(/^(\d{1,2}):(\d{2})$/);
-      if (match) {
-        const hours = parseInt(match[1], 10);
-        const minutes = parseInt(match[2], 10);
-        eventTime = new Date();
-        eventTime.setUTCHours(hours, minutes, 0, 0);
-      }
+      eventTime = londonClockToDate(time24);
     }
 
     if (!eventTime) return false;
-
-    const diffMs = now.getTime() - eventTime.getTime();
-    const diffMinutes = diffMs / (1000 * 60);
-
-    return diffMinutes >= 0 && diffMinutes <= 60;
+    // Live from kick-off for a typical event length (the page has no end times).
+    return isWithinLiveWindow(eventTime.getTime());
   } catch {
     return false;
   }
@@ -155,7 +156,7 @@ function parseEvents(html: string): SportEvent[] {
       eventHtml.match(
         /class="[^"]*schedule__eventTitle[^"]*"[^>]*>([^<]*)</i,
       );
-    const title = titleMatch ? titleMatch[1].trim() : '';
+    const title = titleMatch ? decodeEntities(titleMatch[1]) : '';
 
     const htmlIndicatesLive =
       /is-live|class="[^"]*live[^"]*"|>LIVE</i.test(
@@ -181,7 +182,7 @@ function parseEvents(html: string): SportEvent[] {
         (chMatch = channelRegex.exec(channelsSection[1])) !== null
       ) {
         const href = chMatch[1];
-        const name = chMatch[2].trim();
+        const name = decodeEntities(chMatch[2]);
         const idMatch = href.match(/id=(\d+)/);
         if (name && name.length > 0) {
           channels.push({
@@ -241,7 +242,7 @@ function parseCategories(html: string): ScheduleCategory[] {
   while (
     (cardMetaMatch = cardMetaRegex.exec(html)) !== null
   ) {
-    const name = cardMetaMatch[1].trim();
+    const name = decodeEntities(cardMetaMatch[1]);
     if (name) {
       categoryPositions.push({
         name,
@@ -292,70 +293,76 @@ function parseCategories(html: string): ScheduleCategory[] {
   return categories;
 }
 
-const SCHEDULE_DOMAIN = 'dlhd.st';
+// Entry domains, tried in order. dlhd.st currently redirects to dlive.sx;
+// relaxedFetch follows redirects, and the next domain is tried if one
+// stops answering (the front domain rotates every few months).
+const SCHEDULE_DOMAINS = ['dlhd.st', 'dlive.sx', 'dlstreams.st', 'dlhd.pk'];
+const SCHEDULE_DOMAIN = SCHEDULE_DOMAINS[0]!;
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 async function fetchScheduleHTML(
   source?: string,
 ): Promise<string> {
-  // Method 1: Direct fetch
-  try {
-    const url = source
-      ? `https://${SCHEDULE_DOMAIN}/schedule-api.php?source=${encodeURIComponent(source)}`
-      : `https://${SCHEDULE_DOMAIN}/`;
-    console.log('[Schedule] Fetching from', SCHEDULE_DOMAIN);
+  // Method 1: Direct fetch, first entry domain that answers
+  for (const domain of SCHEDULE_DOMAINS) {
+    try {
+      const url = source
+        ? `https://${domain}/schedule-api.php?source=${encodeURIComponent(source)}`
+        : `https://${domain}/`;
+      console.log('[Schedule] Fetching from', domain);
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      15000,
-    );
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        15000,
+      );
 
-    const res = await relaxedFetch(url, {
-      headers: {
-        'User-Agent': USER_AGENT,
-        Accept: 'text/html,application/json',
-      },
-      signal: controller.signal,
-      timeout: 15000,
-    });
-    clearTimeout(timeoutId);
+      const res = await relaxedFetch(url, {
+        headers: {
+          'User-Agent': USER_AGENT,
+          Accept: 'text/html,application/json',
+        },
+        signal: controller.signal,
+        timeout: 15000,
+      });
+      clearTimeout(timeoutId);
 
-    if (res.ok) {
-      const text = await res.text();
+      if (res.ok) {
+        const text = await res.text();
 
-      if (source) {
-        try {
-          const json = JSON.parse(text);
-          if (json.success && json.html) {
-            console.log(
-              '[Schedule] Got schedule HTML from API:',
-              json.html.length,
-              'chars',
-            );
-            return json.html;
+        if (source) {
+          try {
+            const json = JSON.parse(text);
+            if (json.success && json.html) {
+              console.log(
+                '[Schedule] Got schedule HTML from API:',
+                json.html.length,
+                'chars',
+              );
+              return json.html;
+            }
+          } catch {
+            // Not JSON, might be raw HTML
           }
-        } catch {
-          // Not JSON, might be raw HTML
+        }
+
+        if (text.length > 1000) {
+          console.log(
+            '[Schedule] Got schedule HTML:',
+            text.length,
+            'chars',
+          );
+          return text;
         }
       }
-
-      if (text.length > 1000) {
-        console.log(
-          '[Schedule] Got schedule HTML:',
-          text.length,
-          'chars',
-        );
-        return text;
-      }
+      console.warn(
+        `[Schedule] ${domain} returned empty/short response, status:`,
+        res.status,
+      );
+    } catch (err) {
+      console.error(`[Schedule] ${domain} fetch error:`, (err as Error).message);
     }
-    console.warn(
-      '[Schedule] Direct fetch returned empty/short response, status:',
-      res.status,
-    );
-  } catch (err) {
-    console.error('[Schedule] Direct fetch error:', err);
   }
 
   // Method 2: Via RPI proxy (residential IP)

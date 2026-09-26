@@ -10,6 +10,7 @@
  */
 
 const { spawn } = require("child_process");
+const { EventEmitter } = require("events");
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
@@ -84,6 +85,82 @@ async function pollUntilReady(port, { onTick } = {}) {
     await new Promise((r) => setTimeout(r, HEALTH_POLL_MS));
   }
   return { ready: false, data: null, elapsed: Date.now() - start };
+}
+
+// ── Utility process (macOS Dock fix) ─────────────────────────────
+
+/**
+ * Whether to host the server in an Electron utility process instead of a
+ * separate OS-level child. Default: macOS only (the platform with the extra
+ * Dock icon). FLYX_SERVER_HOST=utility|child forces either mode anywhere.
+ */
+function shouldUseUtilityProcess(platform = process.platform, env = process.env) {
+  const forced = (env.FLYX_SERVER_HOST || "").trim().toLowerCase();
+  if (forced === "utility") return true;
+  if (forced === "child") return false;
+  return platform === "darwin";
+}
+
+/**
+ * Fork `script` via electron.utilityProcess and wrap it in the small
+ * child_process-like surface the rest of the shell relies on
+ * (pid / exitCode / signalCode / stdout / stderr / kill / 'exit').
+ * Falls back to a plain child process when utilityProcess is unavailable.
+ *
+ * @param {string} script
+ * @param {{cwd: string, env: Record<string,string>, fork?: Function}} opts
+ */
+function forkUtilityProcess(script, { cwd, env, fork } = {}) {
+  let forkImpl = fork;
+  if (!forkImpl) {
+    try {
+      const electron = require("electron");
+      forkImpl = electron && electron.utilityProcess && electron.utilityProcess.fork;
+    } catch {
+      forkImpl = null;
+    }
+  }
+  if (typeof forkImpl !== "function") {
+    log("utilityProcess unavailable — falling back to child process");
+    return spawn(process.execPath, [script], {
+      cwd,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  }
+
+  const proc = forkImpl(script, [], {
+    cwd,
+    env,
+    stdio: "pipe",
+    serviceName: "Flyx Server",
+  });
+
+  const adapter = new EventEmitter();
+  adapter.pid = proc.pid;
+  adapter.exitCode = null;
+  adapter.signalCode = null;
+  adapter.stdout = proc.stdout;
+  adapter.stderr = proc.stderr;
+  adapter.utility = proc;
+  adapter.kill = () => {
+    try {
+      return proc.kill();
+    } catch {
+      return false;
+    }
+  };
+  if (typeof proc.on === "function") {
+    proc.on("spawn", () => {
+      adapter.pid = proc.pid;
+      adapter.emit("spawn");
+    });
+    proc.on("exit", (code) => {
+      adapter.exitCode = typeof code === "number" ? code : 0;
+      adapter.emit("exit", adapter.exitCode);
+    });
+  }
+  return adapter;
 }
 
 // ── Server spawn ─────────────────────────────────────────────────
@@ -163,13 +240,20 @@ function spawnServer({ port, hostname, onExit } = {}) {
   const cwd = path.join(STANDALONE_DIR, "packages", "app");
   const logStream = fs.createWriteStream(serverLog, { flags: "a" });
 
-  log(`spawning server (port ${p}, hostname ${serverEnv.HOSTNAME})`);
+  const viaUtility = shouldUseUtilityProcess();
+  log(`spawning server (port ${p}, hostname ${serverEnv.HOSTNAME}, ${viaUtility ? "utility process" : "child process"})`);
 
-  const child = spawn(process.execPath, [SERVER_SCRIPT], {
-    cwd,
-    env: serverEnv,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  // macOS: a child spawned from the app binary (ELECTRON_RUN_AS_NODE) is
+  // its own app to the OS, so a second icon — the "terminal" one — appears
+  // in the Dock next to Flyx. Electron's utilityProcess runs the same
+  // script inside Flyx's own process tree with no Dock presence.
+  const child = viaUtility
+    ? forkUtilityProcess(SERVER_SCRIPT, { cwd, env: serverEnv })
+    : spawn(process.execPath, [SERVER_SCRIPT], {
+        cwd,
+        env: serverEnv,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
 
   activeChild = child;
   activeLogStream = logStream;
@@ -208,14 +292,25 @@ function isProcessAlive(pid) {
 
 function stopServer(child) {
   return new Promise((resolve) => {
-    const pid = child ? child.pid : activeChild && activeChild.pid;
+    const target = child || activeChild;
+    const pid = target && target.pid;
+    // A utility-process host that already reported exit needs no signal.
+    if (target && target.utility && target.exitCode !== null) {
+      resolve({ stopped: true, forced: false });
+      return;
+    }
     if (!pid || !isProcessAlive(pid)) {
       resolve({ stopped: true, forced: false });
       return;
     }
 
-    // SIGTERM first
-    try { process.kill(pid, "SIGTERM"); } catch {}
+    // SIGTERM first — through Electron for a utility process (it owns the
+    // handle), straight to the pid for a plain child.
+    if (target && target.utility) {
+      try { target.kill(); } catch {}
+    } else {
+      try { process.kill(pid, "SIGTERM"); } catch {}
+    }
 
     let forced = false;
     const grace = setTimeout(() => {
@@ -273,5 +368,7 @@ module.exports = {
   restart,
   ensureLogsDir,
   log,
+  shouldUseUtilityProcess,
+  forkUtilityProcess,
   HEALTH_TIMEOUT_MS,
 };

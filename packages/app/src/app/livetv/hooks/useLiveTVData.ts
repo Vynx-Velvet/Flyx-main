@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { isWithinLiveWindow } from "@/lib/livetv/uk-time";
 
 // ============================================================================
 // TYPES
@@ -11,6 +12,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 export type Provider = "dlhd";
 
 export type ContentCategory = "all" | "live-tv" | "live-sports";
+/** Can a channel play right now? Probed by /api/livetv/availability. */
+export type Availability = "online" | "offline" | "unsupported" | "unknown";
 
 export interface LiveEvent {
   id: string;
@@ -40,6 +43,8 @@ export interface TVChannel {
   category: string;
   country: string;
   countryName?: string;
+  /** Emoji flag from the channels API (when known). */
+  flag?: string;
   logo?: string;
   viewers?: number;
   source: Provider;
@@ -103,7 +108,7 @@ const CATEGORY_ICONS: Record<string, string> = {
 // HELPERS
 // ============================================================================
 
-function getSportIcon(sport: string): string {
+export function getSportIcon(sport: string): string {
   const lower = sport.toLowerCase();
   for (const [key, icon] of Object.entries(SPORT_ICONS)) {
     if (lower.includes(key)) return icon;
@@ -111,8 +116,27 @@ function getSportIcon(sport: string): string {
   return "\u{1F4FA}";
 }
 
-function getCategoryIcon(category: string): string {
+export function getCategoryIcon(category: string): string {
   return CATEGORY_ICONS[category.toLowerCase()] || "\u{1F4FA}";
+}
+
+/** "in 25 min" / "in 2 h 10 min" / "Tomorrow 8:00 PM" for an upcoming start. */
+export function formatStartsIn(startsAt: number, now = Date.now()): string {
+  const diff = startsAt - now;
+  if (diff <= 0) return "now";
+  const mins = Math.round(diff / 60000);
+  if (mins < 60) return `in ${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h < 12) return m ? `in ${h} h ${String(m).padStart(2, "0")} min` : `in ${h} h`;
+  const d = new Date(startsAt);
+  const today = new Date(now);
+  const sameDay = d.toDateString() === today.toDateString();
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  if (sameDay) return `Today ${time}`;
+  const tomorrow = new Date(now + 86400000);
+  if (d.toDateString() === tomorrow.toDateString()) return `Tomorrow ${time}`;
+  return `${d.toLocaleDateString("en-US", { weekday: "short" })} ${time}`;
 }
 
 function formatLocalTime(isoTime?: string, fallbackTime?: string): string {
@@ -142,6 +166,14 @@ export function useLiveTVData() {
 
   const [events, setEvents] = useState<LiveEvent[]>([]);
   const [channels, setChannels] = useState<TVChannel[]>([]);
+  /** channelId -> availability for the on-air events' channels. */
+  const [availability, setAvailability] = useState<Record<string, Availability>>({});
+  // Ticks once a minute so "live" / "in N min" stay right without refetching.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -159,6 +191,7 @@ export function useLiveTVData() {
       if (eventsRes.status === "fulfilled" && eventsRes.value.success && eventsRes.value.schedule?.categories) {
         for (const category of eventsRes.value.schedule.categories) {
           for (const event of category.events || []) {
+            const startsAt = event.isoTime ? Date.parse(event.isoTime) : NaN;
             newEvents.push({
               id: `dlhd-${event.id}`,
               title: event.title,
@@ -170,6 +203,8 @@ export function useLiveTVData() {
               isLive: event.isLive,
               source: "dlhd",
               channels: event.channels || [],
+              startsAt: Number.isFinite(startsAt) ? startsAt : undefined,
+              startsIn: Number.isFinite(startsAt) && !event.isLive ? formatStartsIn(startsAt) : undefined,
             });
           }
         }
@@ -184,6 +219,7 @@ export function useLiveTVData() {
             category: ch.category || "general",
             country: ch.country || "",
             countryName: ch.countryInfo?.name,
+            flag: ch.countryInfo?.flag,
             source: "dlhd",
             channelId: ch.id,
           });
@@ -207,8 +243,20 @@ export function useLiveTVData() {
 
   // ── Filtered data ──
 
+  // Server says isLive from the page markup; we also derive it from the start
+  // instant so long events stay live and countdowns update each minute.
+  const timedEvents = useMemo(
+    () =>
+      events.map((e) => {
+        const live = e.isLive || (e.startsAt != null && isWithinLiveWindow(e.startsAt, now));
+        const startsIn = !live && e.startsAt != null ? formatStartsIn(e.startsAt, now) : undefined;
+        return live === e.isLive && startsIn === e.startsIn ? e : { ...e, isLive: live, startsIn };
+      }),
+    [events, now],
+  );
+
   const filteredEvents = useMemo(() => {
-    let result = events;
+    let result = timedEvents;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter((e) =>
@@ -219,7 +267,7 @@ export function useLiveTVData() {
       );
     }
     return result;
-  }, [events, searchQuery]);
+  }, [timedEvents, searchQuery]);
 
   const filteredChannels = useMemo(() => {
     let result = channels;
@@ -241,9 +289,48 @@ export function useLiveTVData() {
     return filteredEvents.filter((e) => e.isLive);
   }, [filteredEvents]);
 
+  // Probe the on-air events' channels so the UI can put playable ones first.
+  const liveKey = currentlyLive.map((e) => e.id).join("|");
+  const probeTick = Math.floor(now / 180000);
+  useEffect(() => {
+    const ids = [...new Set(currentlyLive.flatMap((e) => e.channels.map((c) => c.channelId)))].slice(0, 60);
+    if (!ids.length) return;
+    let cancelled = false;
+    fetch(`/api/livetv/availability?ids=${ids.join(",")}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.ok && d.availability) setAvailability((prev) => ({ ...prev, ...d.availability }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // Re-probe when the set of live events changes, and every 3 minutes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveKey, probeTick]);
+
+  /** Best-known availability for an event: online if any stream is online. */
+  const eventAvailability = useCallback(
+    (e: LiveEvent): Availability => {
+      const statuses = e.channels.map((c) => availability[c.channelId] ?? "unknown");
+      if (statuses.includes("online")) return "online";
+      if (statuses.includes("unknown")) return "unknown";
+      if (statuses.includes("offline")) return "offline";
+      return statuses.length ? "unsupported" : "unknown";
+    },
+    [availability],
+  );
+
+  const liveSorted = useMemo(() => {
+    const rank: Record<Availability, number> = { online: 0, unknown: 1, offline: 2, unsupported: 3 };
+    return [...currentlyLive].sort((a, b) => rank[eventAvailability(a)] - rank[eventAvailability(b)]);
+  }, [currentlyLive, eventAvailability]);
+
   const upcoming = useMemo(() => {
-    return filteredEvents.filter((e) => !e.isLive && e.startsAt);
-  }, [filteredEvents]);
+    return filteredEvents
+      .filter((e) => !e.isLive && (e.startsAt == null || e.startsAt >= now))
+      .sort((a, b) => (a.startsAt ?? Infinity) - (b.startsAt ?? Infinity));
+  }, [filteredEvents, now]);
 
   const sportCategories = useMemo(() => {
     const sportMap = new Map<string, number>();
@@ -279,7 +366,7 @@ export function useLiveTVData() {
   }, [channels]);
 
   const availableCountries = useMemo(() => {
-    const countryMap = new Map<string, { name: string; count: number }>();
+    const countryMap = new Map<string, { name: string; flag?: string; count: number }>();
     channels.forEach((c) => {
       if (c.country) {
         const existing = countryMap.get(c.country);
@@ -288,6 +375,7 @@ export function useLiveTVData() {
         } else {
           countryMap.set(c.country, {
             name: c.countryName || c.country.toUpperCase(),
+            flag: c.flag,
             count: 1,
           });
         }
@@ -335,8 +423,10 @@ export function useLiveTVData() {
     channels: filteredChannels,
     allEvents: events,
     allChannels: channels,
-    currentlyLive,
+    currentlyLive: liveSorted,
     upcoming,
+    availability,
+    eventAvailability,
     sportCategories,
     channelCategories,
     selectedProvider,

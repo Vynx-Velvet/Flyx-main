@@ -5,13 +5,14 @@
  */
 
 import { NextResponse } from "next/server";
+import { APP_VERSION } from "@/lib/version";
 import { providerRegistry } from "@flyx/providers";
 import "@flyx/providers/providers";
 
 export async function GET() {
   return NextResponse.json({
     status: "ok",
-    version: "3.1.0",
+    version: APP_VERSION,
     timestamp: Date.now(),
     providers: providerRegistry.size,
     uptime: process.uptime(),

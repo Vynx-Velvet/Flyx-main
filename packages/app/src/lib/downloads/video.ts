@@ -13,6 +13,7 @@ import { providerRegistry } from "@flyx/providers";
 import "@flyx/providers/providers";
 import { remuxWithFfmpeg } from "./ffmpeg";
 import { pickBestSource } from "./source-picker";
+import { resolveSourceForQuality } from "./hls-variants";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -145,8 +146,10 @@ export async function downloadVideo(
     }
     // Provider doesn't tag audio — fall through with all sources.
   }
-  const source = pickBestSource(candidates, req.quality);
-  if (!source) throw new Error("No playable source found");
+  const picked = pickBestSource(candidates, req.quality);
+  if (!picked) throw new Error("No playable source found");
+  // A generic HLS master + a real quality request → use that variant.
+  const source = await resolveSourceForQuality(picked, req.quality);
 
   if (source.type === "mp4") {
     await streamToFile(

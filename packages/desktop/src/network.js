@@ -12,7 +12,7 @@ function getLocalIPs() {
   const results = [];
   try {
     const nets = os.networkInterfaces();
-    for (const [, ifaces] of Object.entries(nets)) {
+    for (const [interfaceName, ifaces] of Object.entries(nets)) {
       if (!ifaces) continue;
       for (const iface of ifaces) {
         if (iface.internal || iface.family !== "IPv4") continue;
@@ -20,12 +20,25 @@ function getLocalIPs() {
           address: iface.address,
           netmask: iface.netmask,
           family: "IPv4",
-          interface: iface.name || "",
+          interface: interfaceName,
         });
       }
     }
   } catch {}
-  return results;
+  return results.sort((first, second) => scoreAddress(second) - scoreAddress(first));
+}
+
+function scoreAddress(candidate) {
+  const name = candidate.interface || "";
+  const address = candidate.address || "";
+  let score = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(address) ? 20 : 0;
+  if (/wi-?fi|wireless|wlan|ethernet|local area connection/i.test(name)) score += 12;
+  if (
+    /virtual|vmware|vbox|hyper-v|docker|wsl|loopback|tailscale|zerotier|vpn|bluetooth/i.test(name)
+  )
+    score -= 30;
+  if (address.startsWith("169.254.")) score -= 50;
+  return score;
 }
 
 function getLANURLs(port) {

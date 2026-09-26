@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld("flyxDesktop", {
   // Manual GitHub-release updates (works for portable + installer).
   checkUpdates: () => ipcRenderer.invoke("flyx:check-updates"),
   downloadUpdate: () => ipcRenderer.invoke("flyx:download-update"),
+  // Hand a host stream URL to VLC on this machine ({ url, title, startTime }).
+  // Resolves { ok, method: "spawn" | "playlist", path?, error? }.
+  openInVlc: (payload) => ipcRenderer.invoke("flyx:open-in-vlc", payload),
   onUpdateStatus: (cb) => {
     const listener = (_event, status) => cb(status);
     ipcRenderer.on("flyx:update-status", listener);

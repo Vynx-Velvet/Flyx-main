@@ -99,6 +99,25 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* VLC hand-off outcome (mobile player) */
+.vlcToast {
+  position: absolute;
+  left: 50%;
+  bottom: 110px;
+  transform: translateX(-50%);
+  z-index: 40;
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(12, 12, 18, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
   .errorActions {

@@ -4,6 +4,15 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import ContentCard from "@/components/ContentCard";
 import DownloadMenu from "@/components/downloads/DownloadMenu";
+import { useWatchProgress } from "@/hooks/useWatchProgress";
+import {
+  episodeLabel,
+  formatClock,
+  formatRemaining,
+  resumeHref,
+  resumeSeconds,
+  type ProgressEntry,
+} from "@/lib/watch-progress";
 import type { DownloadItemInput } from "@/lib/downloads/types";
 import {
   useWatchlist,
@@ -92,6 +101,23 @@ export default function WatchlistPageClient() {
     return list;
   }, [items, filter, sort]);
 
+  const { latestFor } = useWatchProgress();
+  /** Resume card data for a watchlist item, or null when nothing was watched. */
+  const progressFor = (item: WatchlistItem) => {
+    if (item.mediaType === "manga") return null;
+    const type: "movie" | "tv" = item.mediaType === "movie" ? "movie" : "tv";
+    const entry: ProgressEntry | null = latestFor(item.contentId, type);
+    if (!entry) return null;
+    const done = Boolean(entry.completed) || entry.completionPercentage >= 95;
+    return {
+      done,
+      ep: episodeLabel(entry),
+      subtitle: done ? (type === "tv" ? "Latest episode finished" : "Finished") : formatRemaining(entry),
+      clock: formatClock(resumeSeconds(entry)),
+      pct: Math.max(2, Math.min(100, done ? 100 : entry.completionPercentage)),
+      href: resumeHref(entry, { title: item.title }),
+    };
+  };
   const movieCount = items.filter((i) => i.mediaType === "movie").length;
   const tvCount = items.filter((i) => i.mediaType === "tv").length;
   const animeCount = items.filter((i) => i.mediaType === "anime").length;
@@ -245,6 +271,7 @@ export default function WatchlistPageClient() {
               <div className="watchlist-grid">
                 {filtered.map((item: WatchlistItem, i) => {
                   const dl = directDownload(item);
+                  const progress = progressFor(item);
                   return (
                     <div
                       key={item.id}
@@ -263,6 +290,32 @@ export default function WatchlistPageClient() {
                         year={item.year}
                         href={itemHref(item)}
                       />
+                      {progress && (
+                        <div className={`watchlist-progress${progress.done ? " is-done" : ""}`}>
+                          <div className="watchlist-progress-row">
+                            <div className="watchlist-progress-label">
+                              {progress.ep && <span className="watchlist-progress-ep">{progress.ep}</span>}
+                              <span className="watchlist-progress-left">{progress.subtitle}</span>
+                            </div>
+                            {!progress.done && (
+                              <Link
+                                href={progress.href}
+                                className="watchlist-resume"
+                                title={`Resume at ${progress.clock}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                                  <path d="M8 5v14l11-7z" />
+                                </svg>
+                                Resume {progress.clock}
+                              </Link>
+                            )}
+                          </div>
+                          <div className="watchlist-progress-bar" aria-hidden>
+                            <div className="watchlist-progress-fill" style={{ width: `${progress.pct}%` }} />
+                          </div>
+                        </div>
+                      )}
                       <div className="watchlist-download">
                         {dl ? (
                           <DownloadMenu

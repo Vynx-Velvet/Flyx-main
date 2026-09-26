@@ -19,13 +19,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { get as httpsGet } from "https";
 import { get as httpGet } from "http";
 import { relaxedFetch, needsRelaxedTLS } from "@flyx/core/utils";
+import { prefetchSegments } from "@/lib/livetv/segment-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const UA =
   "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0";
-const SERVICE_URL = process.env.DLHD_SERVICE_URL ?? "http://127.0.0.1:9876";
+// Opt-in only (see dlhd.ts) — a default localhost port cost a full timeout
+// per request whenever something else owned it.
+const SERVICE_URL = (process.env.DLHD_SERVICE_URL || "").trim() || null;
 
 function resolveRelative(
   relative: string,
@@ -37,20 +40,6 @@ function resolveRelative(
   const base = new URL(baseUrl);
   const dir = base.pathname.substring(0, base.pathname.lastIndexOf("/") + 1);
   return `${base.origin}${dir}${relative}`;
-}
-
-function isMediaSegment(line: string): boolean {
-  const t = line.trim();
-  return (
-    t.includes(".ts") ||
-    t.includes(".m4s") ||
-    t.includes(".mp4") ||
-    t.includes(".vtt") ||
-    t.includes(".aac") ||
-    t.includes(".ac3") ||
-    t.includes(".eac3") ||
-    t.includes(".mp3")
-  );
 }
 
 function isPlaylist(line: string): boolean {
@@ -136,6 +125,7 @@ async function fetchViaService(
   referer: string,
   timeoutMs = 3000,
 ): Promise<{ ok: boolean; status: number; text: string } | null> {
+  if (!SERVICE_URL) return null;
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), timeoutMs);
@@ -206,6 +196,10 @@ async function fetchPlaylist(
         if (preview.includes("<html") || preview.includes("<!DOCTYPE")) break;
       } else {
         console.warn(`[Playlist] ✗ Relaxed-TLS fetch HTTP ${r.status} (attempt ${attempt + 1})`);
+        // A definitive 404 means the channel has no live playlist right now
+        // (event channels only exist while the event runs) — don't burn
+        // 20+ seconds on the other strategies.
+        if (r.status === 404) return { text: "", strategy: "offline" };
       }
     } catch (err) {
       console.warn(`[Playlist] ✗ Relaxed-TLS fetch error (attempt ${attempt + 1}): ${(err as Error).message}`);
@@ -295,16 +289,14 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  let decodedUrl: string;
-  let decodedOrigin: string;
-  let decodedCookie: string;
-  try {
-    decodedUrl = decodeURIComponent(m3u8Url);
-    decodedOrigin = decodeURIComponent(origin);
-    decodedCookie = cookie ? decodeURIComponent(cookie) : "";
-  } catch {
+  // searchParams already percent-decodes once; decoding again would corrupt
+  // signed CDN URLs ("%2B" in a signature → "+"). Use the values as-is.
+  const decodedUrl = m3u8Url;
+  const decodedOrigin = origin;
+  const decodedCookie = cookie;
+  if (!/^https?:\/\//i.test(decodedUrl)) {
     return NextResponse.json(
-      { error: "Invalid URL encoding" },
+      { error: "Invalid playlist URL" },
       { status: 400 },
     );
   }
@@ -315,7 +307,31 @@ export async function GET(request: NextRequest) {
     : "";
 
   try {
-    const result = await fetchPlaylist(decodedUrl, decodedOrigin, decodedCookie || undefined);
+    // Cache-bust like the upstream player does for manifests/levels so a
+    // live playlist is never served stale by an intermediate cache.
+    let bustedUrl = decodedUrl;
+    if (decodedUrl.includes(".m3u8")) {
+      try {
+        const u = new URL(decodedUrl);
+        u.searchParams.delete("_");
+        u.searchParams.set("_", String(Date.now()));
+        bustedUrl = u.href;
+      } catch {
+        /* leave as-is */
+      }
+    }
+    const result = await fetchPlaylist(bustedUrl, decodedOrigin, decodedCookie || undefined);
+
+    if (result?.strategy === "offline") {
+      console.warn(`[Playlist] Channel offline (404) for ${decodedUrl.substring(0, 80)}`);
+      return NextResponse.json(
+        {
+          error: "Channel is offline right now",
+          detail: "This channel has no live stream at the moment. Event channels only go live while the event is on.",
+        },
+        { status: 404 },
+      );
+    }
 
     if (!result) {
       console.error(
@@ -333,8 +349,14 @@ export async function GET(request: NextRequest) {
     let playlist = result.text;
     console.log(`[Playlist] Got M3U8 via ${result.strategy} (${playlist.length} bytes)`);
 
+    // The DLHD player strips PROGRAM-DATE-TIME before handing the playlist
+    // to hls.js — the upstream timestamps are bogus and make hls.js compute
+    // wrong live-edge positions. Mirror that.
+    playlist = playlist.replace(/^#EXT-X-PROGRAM-DATE-TIME:.*\r?\n/gm, "");
+
     const playlistProxyBase = "/api/livetv/playlist";
     const segmentProxyBase = "/api/livetv/segment";
+    const upstreamSegments: string[] = [];
 
     playlist = playlist
       .split("\n")
@@ -375,13 +397,24 @@ export async function GET(request: NextRequest) {
           return `${playlistProxyBase}?url=${encodeURIComponent(resolved)}&origin=${encodeURIComponent(decodedOrigin)}${cookieParam}`;
         }
 
-        if (isMediaSegment(resolved)) {
-          return `${segmentProxyBase}?url=${encodeURIComponent(resolved)}&origin=${encodeURIComponent(decodedOrigin)}${cookieParam}`;
-        }
-
+        // Media segment (any non-playlist URL line — DLHD's are image URLs)
+        upstreamSegments.push(resolved);
         return `${segmentProxyBase}?url=${encodeURIComponent(resolved)}&origin=${encodeURIComponent(decodedOrigin)}${cookieParam}`;
       })
       .join("\n");
+
+    // Pre-warm the segments hls.js will ask for first: the newest ones at
+    // the live edge. They are ~2 MB images that must be fully downloaded and
+    // unwrapped before playback can start, so fetching them now (in
+    // parallel) instead of when the player asks (serially) is most of the
+    // difference between a 1 s and a 5 s first frame.
+    if (upstreamSegments.length) {
+      prefetchSegments(upstreamSegments.slice(-6), {
+        referer: decodedOrigin || undefined,
+        origin: decodedOrigin || undefined,
+        cookie: decodedCookie || undefined,
+      });
+    }
 
     return new NextResponse(playlist, {
       status: 200,

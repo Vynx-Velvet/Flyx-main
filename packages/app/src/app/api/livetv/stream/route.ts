@@ -46,13 +46,14 @@ export async function GET(request: NextRequest) {
     const result = await extractDLHD(channelId);
 
     if (!result.sources || result.sources.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `No stream found for "${channelId}" — channel may be offline or geo-blocked.`,
-        },
-        { status: 404 },
-      );
+      const reason = result.reason ?? "offline";
+      const error =
+        reason === "unsupported"
+          ? `This stream uses an external player (${result.unsupportedEmbed ?? "third-party"}) that Flyx can't play yet.`
+          : reason === "offline"
+            ? "This stream is off air right now."
+            : `No stream found for "${channelId}" — channel may be offline or geo-blocked.`;
+      return NextResponse.json({ success: false, error, reason }, { status: 404 });
     }
 
     const source = result.sources[0];

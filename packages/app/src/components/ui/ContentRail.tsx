@@ -1,13 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 interface ContentRailProps {
   title: string;
@@ -88,16 +82,8 @@ export function ContentRail({
             </Link>
           )}
           <div className="hidden items-center gap-1.5 sm:flex">
-            <RailArrow
-              dir="left"
-              disabled={!canLeft}
-              onClick={() => scrollBy("left")}
-            />
-            <RailArrow
-              dir="right"
-              disabled={!canRight}
-              onClick={() => scrollBy("right")}
-            />
+            <RailArrow dir="left" disabled={!canLeft} onClick={() => scrollBy("left")} />
+            <RailArrow dir="right" disabled={!canRight} onClick={() => scrollBy("right")} />
           </div>
         </div>
       </div>
@@ -107,11 +93,7 @@ export function ContentRail({
         data-can-scroll-left={canLeft ? "true" : "false"}
         data-can-scroll-right={canRight ? "true" : "false"}
       >
-        <div
-          ref={scrollerRef}
-          className="rail scrollbar-none"
-          aria-label={title}
-        >
+        <div ref={scrollerRef} className="rail scrollbar-none" aria-label={title}>
           {children}
         </div>
       </div>
@@ -153,13 +135,7 @@ function RailArrow({
   );
 }
 
-export function ContentRailSkeleton({
-  title,
-  count = 8,
-}: {
-  title?: string;
-  count?: number;
-}) {
+export function ContentRailSkeleton({ title, count = 8 }: { title?: string; count?: number }) {
   return (
     <section className="section">
       <div className="section-head">
