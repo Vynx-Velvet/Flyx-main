@@ -52,8 +52,8 @@ a [GitHub Release](https://github.com/Vynx-Velvet/Flyx-main/releases).
 | Platform | Artifacts | How to use |
 |---|---|---|
 | **Windows** | `Flyx-Setup-<version>.exe` · `Flyx-Portable-<version>.exe` | see below |
-| **macOS** | `Flyx-<version>.dmg` | Open the dmg, drag Flyx to Applications. First launch: **right-click → Open** (v1 is unsigned — Gatekeeper will warn) |
-| **Linux** | `Flyx-<version>.AppImage` · `Flyx-<version>.deb` | AppImage: `chmod +x Flyx-*.AppImage`, then run it; or install the `.deb` with your package manager |
+| **macOS** | `Flyx-<version>.dmg` | Open the dmg, drag Flyx to Applications. First launch of each version: **right-click → Open** (the app is ad-hoc signed, not notarized, so Gatekeeper asks once). Updates pulled from inside Flyx launch straight away |
+| **Linux** | `Flyx-<version>.AppImage` · `Flyx-<version>.deb` | AppImage: browsers strip the executable bit on download, so run `chmod +x Flyx-*.AppImage` once, then run it (updates pulled from inside Flyx need nothing); or install the `.deb` with your package manager |
 
 **Windows — Setup vs. Portable:**
 

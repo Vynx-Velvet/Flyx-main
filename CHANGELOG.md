@@ -2,6 +2,12 @@
 
 All notable changes to Flyx are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **CLI runnable out of the box on macOS/Linux.** `packages/cli/cli.js` is now committed with the executable bit, `scripts/setup.sh` sets it before linking the `flyx` command, and `flyx update` re-applies it (and the bundled ffmpeg's) after every rebuild, so a fresh clone or a pull never leaves `flyx` failing with "permission denied".
+
 ## [3.2.2] - 2026-09-26
 
 ### Fixed

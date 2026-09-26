@@ -41,12 +41,17 @@ lives on your computer.
 
 1. Download the **Flyx.dmg** file
 2. Open it and drag Flyx into your Applications folder
-3. Launch Flyx from Applications (you may need to right-click → Open the first time)
+3. The first time you open each version, **right-click Flyx → Open** and confirm.
+   (Flyx isn't notarized with Apple, so macOS asks once. Updates you install
+   from inside Flyx open straight away.)
 
 ### Linux
 
 1. Download the **Flyx.AppImage** or **.deb** file
-2. For AppImage: right-click → Properties → Permissions → "Allow executing", then double-click
+2. For AppImage: browsers save downloads without permission to run, so once
+   per download do right-click → Properties → Permissions → "Allow executing"
+   (or `chmod +x Flyx-*.AppImage`), then double-click. Updates you install
+   from inside Flyx need no extra step.
 3. For .deb: double-click to install, then launch from your app menu
 
 ---

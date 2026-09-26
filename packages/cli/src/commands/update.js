@@ -213,6 +213,24 @@ async function runUpdate(options = {}) {
 
   console.log("✅ Build complete.");
 
+  // macOS/Linux: make sure everything we just produced is runnable. A pull
+  // can reset the CLI entry point's mode, and the bundled ffmpeg must be
+  // executable for downloads — users should never have to chmod by hand.
+  if (process.platform !== "win32") {
+    const fs = require("fs");
+    const candidates = [
+      path.join(rootDir, "packages", "cli", "cli.js"),
+      path.join(rootDir, ".flyx-standalone", "ffmpeg", "ffmpeg"),
+    ];
+    for (const file of candidates) {
+      try {
+        if (fs.existsSync(file)) fs.chmodSync(file, 0o755);
+      } catch {
+        /* best effort */
+      }
+    }
+  }
+
   // ── Restart ─────────────────────────────────────────────────────
 
   if (wasRunning) {

@@ -102,6 +102,9 @@ echo -e "  ${GREEN}✓${NC}  Dependencies installed"
 echo ""
 echo -e "  [4/4] Linking 'flyx' command..."
 
+# A git clone on macOS/Linux does not always keep the executable bit on the
+# CLI entry point; without it the linked `flyx` command fails with EACCES.
+chmod +x packages/cli/cli.js 2>/dev/null || true
 npm run cli:link
 echo -e "  ${GREEN}✓${NC}  'flyx' command linked"
 
