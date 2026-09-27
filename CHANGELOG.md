@@ -2,6 +2,12 @@
 
 All notable changes to Flyx are documented in this file.
 
+## [3.2.8] - 2026-09-27
+
+### Fixed
+
+- **Mac: no more "Flyx Safe Storage" Keychain prompt.** 3.2.5 turned on encryption for the app's sign-in cookies. On Mac, that stores a key in the Keychain, and because each Flyx update is signed differently, macOS asked for permission again after every update. The encryption added almost no protection, since more sensitive settings are stored unencrypted next to those cookies, so it's now off on every platform. After updating, the app signs itself back in once, automatically. Your watchlist, progress and settings aren't affected.
+
 ## [3.2.7] - 2026-09-27
 
 ### Fixed

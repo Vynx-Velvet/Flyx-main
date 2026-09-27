@@ -40,9 +40,14 @@ electronFuses:
   # same (main.js launchDetachedAfterDelay). The env var is only honoured
   # for the Flyx binary itself; server .env keys can't set it (env filter).
   runAsNode: true
-  # Encrypt the Chromium cookie store with the OS keychain/DPAPI. Existing
-  # plaintext cookies stay readable and are encrypted on next write.
-  enableCookieEncryption: true
+  # OFF on purpose (was on in 3.2.5–3.2.7). On macOS the key lives in the
+  # Keychain as "Flyx Safe Storage", and our ad-hoc signature changes with
+  # every release, so macOS asked users to allow access after each update.
+  # It protected little: the cookies it encrypted are less sensitive than
+  # the plaintext .env beside them (JWT_SECRET, FLYX_MASTER_TOKEN). Cookies
+  # already encrypted become unreadable once, and desktop auto-login signs
+  # the window back in. Revisit only with a real Apple Developer ID.
+  enableCookieEncryption: false
   # Nothing in Flyx (main process or server child) relies on NODE_OPTIONS /
   # NODE_EXTRA_CA_CERTS; turning them off also covers the RunAsNode child.
   enableNodeOptionsEnvironmentVariable: false
