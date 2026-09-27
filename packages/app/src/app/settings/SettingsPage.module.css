@@ -228,6 +228,33 @@
   font-size: 0.78rem;
 }
 
+/* Out-specifies the global input[type="text"] { width: 100% } rule. */
+.settingItem input.textInput {
+  flex: 0 0 auto;
+  width: min(300px, 45vw);
+  min-height: 40px;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 0.55rem;
+  background: #181b20;
+  color: #fff;
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.settingsStack {
+  display: grid;
+  gap: 1rem;
+}
+
+.advancedSummary {
+  padding: 1rem 1.35rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
 .slider {
   width: min(180px, 35vw);
   height: 5px;
@@ -795,7 +822,8 @@
     gap: 0.75rem;
   }
   .select,
-  .slider {
+  .slider,
+  .settingItem input.textInput {
     width: 100%;
     max-width: none;
   }

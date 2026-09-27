@@ -57,9 +57,40 @@ const inputStyle: React.CSSProperties = {
   minWidth: 0,
 };
 
+interface Account {
+  username: string;
+  isAdmin: boolean;
+  createdAt: string;
+}
+
+const noticeBase: React.CSSProperties = {
+  padding: "0.75rem 1rem",
+  borderRadius: "0.75rem",
+  fontSize: "0.8125rem",
+};
+const errorStyle: React.CSSProperties = {
+  ...noticeBase,
+  color: "rgba(244,80,80,0.9)",
+  background: "rgba(244,80,80,0.08)",
+  border: "1px solid rgba(244,80,80,0.15)",
+};
+const okStyle: React.CSSProperties = {
+  ...noticeBase,
+  color: "rgba(0,229,191,0.9)",
+  background: "rgba(0,229,191,0.08)",
+  border: "1px solid rgba(0,229,191,0.15)",
+};
+const warnStyle: React.CSSProperties = {
+  ...noticeBase,
+  color: "rgba(250,204,21,0.95)",
+  background: "rgba(250,204,21,0.08)",
+  border: "1px solid rgba(250,204,21,0.18)",
+};
+
 export default function EnvSettings() {
   const [rows, setRows] = useState<EnvVar[]>([]);
   const [original, setOriginal] = useState<Record<string, string>>({});
+  const [admins, setAdmins] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -69,9 +100,18 @@ export default function EnvSettings() {
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
 
+  // Common settings (friendly form over the same .env keys).
+  const [signInAs, setSignInAs] = useState("");
+  const [allowedHosts, setAllowedHosts] = useState("");
+  const [tmdbKey, setTmdbKey] = useState("");
+  const [lastForm, setLastForm] = useState<"common" | "advanced">("common");
+
   const fetchEnv = useCallback(async () => {
     try {
-      const res = await fetch("/api/settings/env");
+      const [res, accRes] = await Promise.all([
+        fetch("/api/settings/env"),
+        fetch("/api/auth/accounts").catch(() => null),
+      ]);
       const data = await res.json();
       if (res.ok && data.ok) {
         const env: EnvVar[] = data.env ?? [];
@@ -79,10 +119,21 @@ export default function EnvSettings() {
         const orig: Record<string, string> = {};
         for (const v of env) orig[v.key] = v.value;
         setOriginal(orig);
+        setSignInAs(orig.DEFAULT_USERNAME ?? "");
+        setAllowedHosts((orig.FLYX_ALLOWED_HOSTS ?? "").split(",").filter(Boolean).join(", "));
+        setTmdbKey("");
         setDesktop(true);
       } else {
         setError(data.error ?? "Failed to load environment variables");
         setDesktop(false);
+      }
+      if (accRes?.ok) {
+        const accData = (await accRes.json()) as { accounts?: Account[] };
+        setAdmins(
+          (accData.accounts ?? [])
+            .filter((a) => a.isAdmin)
+            .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+        );
       }
     } catch {
       setError("Network error");
@@ -95,6 +146,61 @@ export default function EnvSettings() {
   useEffect(() => {
     fetchEnv();
   }, [fetchEnv]);
+
+  // The account the desktop window actually signs in as: the saved default
+  // if it exists, else the oldest admin (see api/auth/auto-login).
+  const savedUser = original.DEFAULT_USERNAME ?? "";
+  const savedExists = admins.some((a) => a.username === savedUser);
+  const effectiveUser = savedExists ? savedUser : (admins[0]?.username ?? "");
+  const selectedUser = admins.some((a) => a.username === signInAs) ? signInAs : effectiveUser;
+
+  /** PATCH .env, then wait for the desktop server restart it triggers. */
+  async function applyChanges(set: Record<string, string>, remove: string[]): Promise<boolean> {
+    const res = await fetch("/api/settings/env", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ set, remove }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      setError(data.error ?? "Failed to save settings");
+      return false;
+    }
+    setRestarting(true);
+    await waitForServerReady();
+    setRestarting(false);
+    setMessage("Saved — Flyx restarted with the new settings");
+    await fetchEnv();
+    return true;
+  }
+
+  async function handleSaveCommon() {
+    setLastForm("common");
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const set: Record<string, string> = {};
+      const remove: string[] = [];
+      if (selectedUser && selectedUser !== savedUser) set.DEFAULT_USERNAME = selectedUser;
+      const hosts = allowedHosts.split(/[\s,]+/).filter(Boolean).join(",");
+      if (hosts !== (original.FLYX_ALLOWED_HOSTS ?? "")) {
+        if (hosts) set.FLYX_ALLOWED_HOSTS = hosts;
+        else if ("FLYX_ALLOWED_HOSTS" in original) remove.push("FLYX_ALLOWED_HOSTS");
+      }
+      if (tmdbKey.trim()) set.TMDB_API_KEY = tmdbKey.trim();
+
+      if (Object.keys(set).length === 0 && remove.length === 0) {
+        setMessage("No changes to save");
+        return;
+      }
+      await applyChanges(set, remove);
+    } catch {
+      setError("Network error");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function updateValue(key: string, value: string) {
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, value } : r)));
@@ -118,6 +224,7 @@ export default function EnvSettings() {
   }
 
   async function handleSave() {
+    setLastForm("advanced");
     setSaving(true);
     setError("");
     setMessage("");
@@ -151,23 +258,8 @@ export default function EnvSettings() {
         return;
       }
 
-      const res = await fetch("/api/settings/env", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ set, remove }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        setError(data.error ?? "Failed to save environment variables");
-        return;
-      }
-
       // The desktop main process restarts the server on .env change.
-      setRestarting(true);
-      await waitForServerReady();
-      setRestarting(false);
-      setMessage("Saved — server restarted with the new values");
-      await fetchEnv();
+      await applyChanges(set, remove);
     } catch {
       setError("Network error");
     } finally {
@@ -179,39 +271,154 @@ export default function EnvSettings() {
     return <div className={styles.loading}>Loading...</div>;
   }
 
-  return (
-    <div className={styles.settingsCard}>
-      <div className={styles.cardHeader}>
-        <div
-          className={styles.cardIconWrapper}
-          style={{ background: "linear-gradient(135deg, #8b7cf0, #6366f1)" }}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M4 17V7l8 5 8-5v10" />
-            <line x1="4" y1="7" x2="20" y2="7" />
-          </svg>
-        </div>
-        <div>
-          <h2 className={styles.cardTitle}>Environment Variables</h2>
-          <p className={styles.cardSubtitle}>
-            Update the TMDB API key and other server settings — changes restart the server
-          </p>
-        </div>
+  const cardHeader = (title: string, subtitle: string) => (
+    <div className={styles.cardHeader}>
+      <div
+        className={styles.cardIconWrapper}
+        style={{ background: "linear-gradient(135deg, #8b7cf0, #6366f1)" }}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M4 17V7l8 5 8-5v10" />
+          <line x1="4" y1="7" x2="20" y2="7" />
+        </svg>
       </div>
+      <div>
+        <h2 className={styles.cardTitle}>{title}</h2>
+        <p className={styles.cardSubtitle}>{subtitle}</p>
+      </div>
+    </div>
+  );
 
-      <div className={styles.settingsList}>
-        {!desktop && (
+  const notices = (
+    <>
+      {restarting && (
+        <div className={styles.settingItem}>
+          <div className={styles.settingInfo}>
+            <span className={styles.settingLabel}>Restarting Flyx…</span>
+            <span className={styles.settingDesc}>
+              The server is picking up the new values. This takes a moment.
+            </span>
+          </div>
+        </div>
+      )}
+      {error && <div style={errorStyle}>{error}</div>}
+      {message && <div style={okStyle}>{message}</div>}
+    </>
+  );
+
+  if (!desktop) {
+    return (
+      <div className={styles.settingsCard}>
+        {cardHeader("Server settings", "Sign-in, remote access and the TMDB key")}
+        <div className={styles.settingsList}>
           <div className={styles.settingItem}>
             <div className={styles.settingInfo}>
               <span className={styles.settingLabel}>Managed by the server owner</span>
               <span className={styles.settingDesc}>
-                Environment variables can only be edited on the desktop app.
+                These settings can only be changed in the Flyx app on the computer running it.
               </span>
             </div>
           </div>
-        )}
+        </div>
+      </div>
+    );
+  }
 
-        {desktop && (
+  return (
+    <div className={styles.settingsStack}>
+      <div className={styles.settingsCard}>
+        {cardHeader(
+          "Server settings",
+          "Sign-in, remote access and the TMDB key — saving restarts Flyx for a moment",
+        )}
+        <div className={styles.settingsList}>
+          <div className={styles.settingItem}>
+            <div className={styles.settingInfo}>
+              <span className={styles.settingLabel}>Sign in automatically as</span>
+              <span className={styles.settingDesc}>
+                The account this app opens with. Other devices always sign in with a password.
+              </span>
+            </div>
+            <select
+              className={styles.select}
+              value={selectedUser}
+              onChange={(e) => setSignInAs(e.target.value)}
+              disabled={admins.length === 0}
+            >
+              {admins.map((a) => (
+                <option key={a.username} value={a.username}>
+                  {a.username}
+                </option>
+              ))}
+            </select>
+          </div>
+          {savedUser && !savedExists && admins.length > 0 && (
+            <div style={warnStyle}>
+              The saved sign-in account “{savedUser}” doesn’t exist, so Flyx is using “
+              {effectiveUser}”. Pick an account above and save to fix this.
+            </div>
+          )}
+
+          <div className={styles.settingItem}>
+            <div className={styles.settingInfo}>
+              <span className={styles.settingLabel}>Remote access addresses</span>
+              <span className={styles.settingDesc}>
+                Extra names other devices use to reach Flyx, like a Tailscale name
+                (mypc.tail1234.ts.net) or your own domain. Separate with commas. IP addresses,
+                localhost and .local names always work.
+              </span>
+            </div>
+            <input
+              type="text"
+              className={styles.textInput}
+              value={allowedHosts}
+              placeholder="mypc.tail1234.ts.net"
+              spellCheck={false}
+              onChange={(e) => setAllowedHosts(e.target.value)}
+            />
+          </div>
+
+          <div className={styles.settingItem}>
+            <div className={styles.settingInfo}>
+              <span className={styles.settingLabel}>TMDB API key</span>
+              <span className={styles.settingDesc}>
+                {"TMDB_API_KEY" in original
+                  ? "Set. Enter a new key to replace it."
+                  : "Needed for movie and TV info."}
+              </span>
+            </div>
+            <input
+              type="password"
+              className={styles.textInput}
+              value={tmdbKey}
+              placeholder="••••••••"
+              autoComplete="off"
+              onChange={(e) => setTmdbKey(e.target.value)}
+            />
+          </div>
+
+          {lastForm === "common" && notices}
+
+          <div className={styles.settingItem}>
+            <div className={styles.settingInfo}>
+              <span className={styles.settingLabel}>Save changes</span>
+            </div>
+            <button
+              className={styles.actionBtn}
+              onClick={handleSaveCommon}
+              disabled={saving || restarting}
+            >
+              {saving ? "Saving…" : "Save & Restart"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <details className={styles.settingsCard}>
+        <summary className={styles.advancedSummary}>
+          Advanced — all environment variables
+        </summary>
+        <div className={styles.settingsList}>
           <>
             {rows.map((row) => (
               <div key={row.key} className={styles.settingItem}>
@@ -276,46 +483,7 @@ export default function EnvSettings() {
               </button>
             </div>
 
-            {restarting && (
-              <div className={styles.settingItem}>
-                <div className={styles.settingInfo}>
-                  <span className={styles.settingLabel}>Restarting Flyx…</span>
-                  <span className={styles.settingDesc}>
-                    The server is picking up the new values. This takes a moment.
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {error && (
-              <div
-                style={{
-                  padding: "0.75rem 1rem",
-                  borderRadius: "0.75rem",
-                  fontSize: "0.8125rem",
-                  color: "rgba(244,80,80,0.9)",
-                  background: "rgba(244,80,80,0.08)",
-                  border: "1px solid rgba(244,80,80,0.15)",
-                }}
-              >
-                {error}
-              </div>
-            )}
-
-            {message && (
-              <div
-                style={{
-                  padding: "0.75rem 1rem",
-                  borderRadius: "0.75rem",
-                  fontSize: "0.8125rem",
-                  color: "rgba(0,229,191,0.9)",
-                  background: "rgba(0,229,191,0.08)",
-                  border: "1px solid rgba(0,229,191,0.15)",
-                }}
-              >
-                {message}
-              </div>
-            )}
+            {lastForm === "advanced" && notices}
 
             <div className={styles.settingItem}>
               <div className={styles.settingInfo}>
@@ -329,8 +497,8 @@ export default function EnvSettings() {
               </button>
             </div>
           </>
-        )}
-      </div>
+        </div>
+      </details>
     </div>
   );
 }

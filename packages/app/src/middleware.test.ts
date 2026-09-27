@@ -2,7 +2,13 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { SignJWT } from "jose";
 import { middleware } from "./middleware";
-import { hasNonJsonBody, isAllowedHost, isCrossSiteMutation, requestOrigin } from "@/lib/request-origin";
+import {
+  hasNonJsonBody,
+  isAllowedHost,
+  isCrossSiteMutation,
+  normalizeHostEntry,
+  requestOrigin,
+} from "@/lib/request-origin";
 
 const KEYS = ["JWT_SECRET", "FLYX_ALLOWED_HOSTS", "NEXT_PUBLIC_APP_URL", "DEFAULT_USERNAME", "FLYX_DESKTOP"];
 let saved: Record<string, string | undefined>;
@@ -48,6 +54,24 @@ describe("isAllowedHost", () => {
     expect(isAllowedHost("media.home.arpa:3891")).toBe(true);
     expect(isAllowedHost("other.example.org")).toBe(true);
     expect(isAllowedHost("evil.example.com")).toBe(false);
+  });
+
+  it("accepts FLYX_ALLOWED_HOSTS entries pasted as full URLs", () => {
+    process.env.FLYX_ALLOWED_HOSTS = "https://MyPC.tail1234.ts.net:3891/watch, garbage://";
+    expect(isAllowedHost("mypc.tail1234.ts.net:3891")).toBe(true);
+    expect(isAllowedHost("evil.example.com")).toBe(false);
+  });
+});
+
+describe("normalizeHostEntry", () => {
+  it("reduces what people paste to a bare hostname", () => {
+    expect(normalizeHostEntry("mypc.ts.net")).toBe("mypc.ts.net");
+    expect(normalizeHostEntry(" mypc.ts.net:3891 ")).toBe("mypc.ts.net");
+    expect(normalizeHostEntry("http://Flyx.Example.com:8443/x?y")).toBe("flyx.example.com");
+    expect(normalizeHostEntry("flyx.example.com/watch")).toBe("flyx.example.com");
+    expect(normalizeHostEntry("[::1]:3891")).toBe("[::1]");
+    expect(normalizeHostEntry("")).toBe("");
+    expect(normalizeHostEntry("https://")).toBe("");
   });
 });
 

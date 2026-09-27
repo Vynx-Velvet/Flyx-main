@@ -94,7 +94,8 @@ export async function middleware(request: NextRequest) {
   if (!isAllowedHost(request.headers.get("host"))) {
     return forbiddenResponse(
       pathname,
-      "Forbidden: unrecognized host. Add it to FLYX_ALLOWED_HOSTS to allow it.",
+      "Flyx doesn't recognize this address. On the computer running Flyx, add it under " +
+        "Settings → Environment → Remote access addresses.",
     );
   }
 
@@ -151,8 +152,8 @@ export async function middleware(request: NextRequest) {
 
   const defaultUser = process.env.DEFAULT_USERNAME;
 
-  // Desktop master: auto-login signs them in as the default account — no
-  // login screen unless that account is gone. A short-lived logout marker lets
+  // Desktop master: auto-login signs them in as the default account (or the
+  // oldest admin) — no login screen unless no admin exists. A short-lived logout marker lets
   // them deliberately sign out to switch accounts (cleared on manual login).
   if (master && !request.cookies.get("flyx_master_logout")) {
     // Carry the requested page so auto-login can land back on it — without

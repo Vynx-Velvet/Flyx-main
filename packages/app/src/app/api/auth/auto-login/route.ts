@@ -4,10 +4,9 @@
  * Two flows, distinguished by the master token (see request-master.ts):
  *
  * 1. Master (the desktop window): signed in without credentials as the
- *    DEFAULT_USERNAME account, or by auto-creating it when no accounts
- *    exist yet. If that account is gone (deleted, store restored from a
- *    backup…) the master is sent to /login — it is never silently signed in
- *    as some other admin.
+ *    DEFAULT_USERNAME account (else the oldest admin — see below), or by
+ *    auto-creating it when no accounts exist yet. Only a store with no
+ *    admin at all sends the master to /login.
  * 2. Everyone else: auto-creates the default account on genuine first
  *    launch only ("Just me" mode, CLI/hosted) — a store that has never held
  *    an account and wasn't rebuilt after corruption (isStorePristine). A
@@ -25,6 +24,7 @@ import { getSession } from "@/lib/auth/get-session";
 import {
   createAccount,
   findAccountByUsername,
+  getAccountAuth,
   getAccountCount,
   isStorePristine,
   listAccounts,
@@ -51,6 +51,14 @@ function withSessionCookie(
     maxAge: 60 * 60 * 24 * 30,
   });
   return response;
+}
+
+/** The oldest admin account, with its token version (for signing). */
+function oldestAdmin() {
+  const admin = [...listAccounts()]
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .find((a) => a.isAdmin);
+  return admin ? getAccountAuth(admin.id) : null;
 }
 
 export async function GET(request: NextRequest) {
@@ -107,14 +115,27 @@ export async function GET(request: NextRequest) {
   }
 
   if (master && accountCount > 0) {
-    const account = defaultUser ? findAccountByUsername(defaultUser) : null;
+    // Default account first, else the oldest admin. Setup wizards before
+    // 3.2.5 rewrote DEFAULT_USERNAME on every re-run but only created an
+    // account on an empty store, so many upgraded installs name an account
+    // that never existed. The master token already proves this is the
+    // owner's own window, so the fallback grants nothing new.
+    const account =
+      (defaultUser ? findAccountByUsername(defaultUser) : null) ?? oldestAdmin();
     if (!account) {
       addLog({
         level: "warn",
         category: "auth",
-        message: `Master auto-login: default account ${JSON.stringify(defaultUser ?? "")} not found — sign in manually`,
+        message: "Master auto-login: no admin account found — sign in manually",
       });
       return NextResponse.redirect(new URL("/login", baseUrl));
+    }
+    if (account.username !== defaultUser) {
+      addLog({
+        level: "warn",
+        category: "auth",
+        message: `Master auto-login: default account ${JSON.stringify(defaultUser ?? "")} not found — using admin "${account.username}"`,
+      });
     }
 
     const token = await signSessionFor(account);

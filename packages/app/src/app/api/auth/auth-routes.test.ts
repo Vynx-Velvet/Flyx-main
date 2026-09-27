@@ -251,13 +251,42 @@ describe("GET /api/auth/auto-login", () => {
     expect(body).not.toHaveProperty("passLength");
   });
 
-  it("sends the master to /login when the default account is missing", async () => {
+  // Upgraded installs: pre-3.2.5 setup re-runs rewrote DEFAULT_USERNAME
+  // without creating that account (3.2.5 regression: master locked out).
+  it("signs the master in as the oldest admin when the default account is missing", async () => {
     const token = "m".repeat(40);
     process.env.FLYX_MASTER_TOKEN = token;
     process.env.SETUP_COMPLETE = "true";
-    createAccount("someone-else", "salt:hash", true);
+    createAccount("guest", "salt:hash", false);
+    const first = createAccount("first-admin", "salt:hash", true);
+    await new Promise((r) => setTimeout(r, 5));
+    createAccount("second-admin", "salt:hash", true);
+    const res = await get("?redirect=%2Fsettings", { cookie: `flyx_master_token=${token}` });
+    expect(res.headers.get("location")).toBe("http://localhost:3891/settings");
+    const jwt = res.cookies.get("flyx_token")?.value;
+    expect(jwt).toBeTruthy();
+    const { verifyJWT } = await import("@/lib/auth/jwt");
+    expect((await verifyJWT(jwt!))?.sub).toBe(first.id);
+  });
+
+  it("sends the master to /login only when no admin exists", async () => {
+    const token = "m".repeat(40);
+    process.env.FLYX_MASTER_TOKEN = token;
+    process.env.SETUP_COMPLETE = "true";
+    createAccount("guest", "salt:hash", false);
     const res = await get("", { cookie: `flyx_master_token=${token}` });
     expect(res.headers.get("location")).toBe("http://localhost:3891/login");
+    expect(res.cookies.get("flyx_token")).toBeUndefined();
+  });
+
+  it("never falls back to an admin for a non-master visitor", async () => {
+    process.env.FLYX_MASTER_TOKEN = "m".repeat(40);
+    process.env.SETUP_COMPLETE = "true";
+    process.env.FLYX_DESKTOP = "true";
+    createAccount("first-admin", "salt:hash", true);
+    const res = await get("", { cookie: `flyx_master_token=${"x".repeat(40)}` });
+    expect(res.headers.get("location")).toBe("http://localhost:3891/login");
+    expect(res.cookies.get("flyx_token")).toBeUndefined();
   });
 });
 

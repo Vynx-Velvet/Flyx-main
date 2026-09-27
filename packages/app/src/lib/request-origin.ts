@@ -42,6 +42,25 @@ export function hostnameOf(hostHeader: string): string {
   return h.endsWith(".") ? h.slice(0, -1) : h;
 }
 
+/**
+ * One FLYX_ALLOWED_HOSTS entry as a bare hostname. Accepts what people paste:
+ * "mypc.ts.net", "mypc.ts.net:3891" or "https://mypc.ts.net:3891/watch".
+ * Returns "" for garbage.
+ */
+export function normalizeHostEntry(entry: string): string {
+  const e = entry.trim();
+  if (!e) return "";
+  if (e === "*") return "*";
+  if (e.includes("://")) {
+    try {
+      return hostnameOf(new URL(e).host);
+    } catch {
+      return "";
+    }
+  }
+  return hostnameOf(e.split("/")[0]);
+}
+
 function isIpLiteral(hostname: string): boolean {
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return true;
   return /^\[[0-9a-f:.]+(%[0-9a-z]+)?\]$/.test(hostname);
@@ -58,8 +77,8 @@ function configuredHosts(): string[] {
     }
   }
   for (const entry of (process.env.FLYX_ALLOWED_HOSTS ?? "").split(",")) {
-    const e = entry.trim();
-    if (e) out.push(e === "*" ? "*" : hostnameOf(e));
+    const h = normalizeHostEntry(entry);
+    if (h) out.push(h);
   }
   return out;
 }

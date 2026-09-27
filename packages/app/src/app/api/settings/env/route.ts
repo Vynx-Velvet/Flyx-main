@@ -22,6 +22,8 @@ import { join } from "path";
 import { getSession } from "@/lib/auth/get-session";
 import { isMasterRequest } from "@/lib/request-master";
 import { ENV_KEY_RE, isBlockedEnvKey, isSafeEnvValue } from "@/lib/security/env-safety";
+import { findAccountByUsername } from "@/lib/db";
+import { normalizeHostEntry } from "@/lib/request-origin";
 
 export const runtime = "nodejs";
 
@@ -168,6 +170,34 @@ export async function PATCH(request: NextRequest) {
         { status: 400 },
       );
     }
+  }
+
+  // Keys with meaning beyond "a string": check them so a typo can't lock
+  // the owner out or silently allow nothing.
+  if ("DEFAULT_USERNAME" in set) {
+    const name = String(set.DEFAULT_USERNAME).trim();
+    if (!findAccountByUsername(name)?.isAdmin) {
+      return NextResponse.json(
+        { ok: false, error: `"${name}" is not an admin account` },
+        { status: 400 },
+      );
+    }
+    set.DEFAULT_USERNAME = name;
+  }
+  if ("FLYX_ALLOWED_HOSTS" in set) {
+    const entries = String(set.FLYX_ALLOWED_HOSTS).split(/[\s,]+/).filter(Boolean);
+    const hosts: string[] = [];
+    for (const entry of entries) {
+      const host = normalizeHostEntry(entry);
+      if (!host) {
+        return NextResponse.json(
+          { ok: false, error: `"${entry}" is not a valid address` },
+          { status: 400 },
+        );
+      }
+      if (!hosts.includes(host)) hosts.push(host);
+    }
+    set.FLYX_ALLOWED_HOSTS = hosts.join(",");
   }
 
   const vars = existsSync(envPath)

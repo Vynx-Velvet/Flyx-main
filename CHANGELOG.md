@@ -2,6 +2,23 @@
 
 All notable changes to Flyx are documented in this file.
 
+## [3.2.6] - 2026-09-27
+
+Fixes the sign-in lockout some desktop users hit after updating to 3.2.5. No action is needed: installing this update signs the app back in by itself.
+
+### Fixed
+
+- **The desktop app signs itself in again after updating.** 3.2.5 signed the app window in only as the account named in the settings file. On many installs that name pointed to an account that was never created (earlier setup wizards saved the name without creating the account when re-run). Those users were sent to a sign-in screen, and the password they remembered didn't match any account. The app window now falls back to the oldest admin account, as it did before 3.2.5. Other devices still always sign in with a password.
+
+### Added
+
+- **Settings → Environment has plain settings** instead of only raw variables:
+  - **Sign in automatically as** picks the account this app opens with from your admin accounts. If the saved account no longer exists, a warning says so and offers to fix it.
+  - **Remote access addresses** lists extra names other devices use to reach Flyx, such as a Tailscale name or your own domain. You can paste them however you copied them (`https://mypc.tail1234.ts.net:3891/` works).
+  - **TMDB API key**.
+  - The full variable list is still there under **Advanced**.
+- Opening Flyx from an unrecognized address now shows where to allow it in Settings, instead of naming a file.
+
 ## [3.2.5] - 2026-09-26
 
 Security release. Update is strongly recommended, especially on Windows.
