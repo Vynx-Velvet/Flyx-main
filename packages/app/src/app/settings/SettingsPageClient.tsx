@@ -5,6 +5,7 @@ import SyncSettings from "@/components/settings/SyncSettings";
 import ProviderSettings from "@/components/settings/ProviderSettings";
 import NetworkSettings from "@/components/settings/NetworkSettings";
 import SecuritySettings from "@/components/settings/SecuritySettings";
+import RemoteAccessSettings from "@/components/settings/RemoteAccessSettings";
 import EnvSettings from "@/components/settings/EnvSettings";
 import UpdatesSettings from "@/components/settings/UpdatesSettings";
 import DownloadsSettings from "@/components/settings/DownloadsSettings";
@@ -181,7 +182,12 @@ export default function SettingsPageClient() {
           {activeTab === "playback" && <PlaybackSettings />}
           {activeTab === "subtitles" && <SubtitleSettingsPanel />}
           {activeTab === "network" && <NetworkSettings />}
-          {activeTab === "security" && <SecuritySettings />}
+          {activeTab === "security" && (
+            <div className={styles.settingsStack}>
+              <SecuritySettings />
+              <RemoteAccessSettings />
+            </div>
+          )}
           {activeTab === "environment" && <EnvSettings />}
           {activeTab === "updates" && <UpdatesSettings />}
           {activeTab === "downloads" && <DownloadsSettings />}

@@ -94,8 +94,8 @@ export async function middleware(request: NextRequest) {
   if (!isAllowedHost(request.headers.get("host"))) {
     return forbiddenResponse(
       pathname,
-      "Flyx doesn't recognize this address. On the computer running Flyx, add it under " +
-        "Settings → Environment → Remote access addresses.",
+      "Flyx doesn't recognize this address. A Flyx admin can allow it under " +
+        "Settings → Security → Remote access addresses.",
     );
   }
 

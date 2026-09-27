@@ -12,12 +12,12 @@ Fixes the sign-in lockout some desktop users hit after updating to 3.2.5. No act
 
 ### Added
 
+- **Settings → Security → Remote access addresses** (admins). Since 3.2.5, Flyx only answers to IP addresses, `localhost`, `.local` names and plain computer names. Any admin can now allow other names people use to reach Flyx, such as a Tailscale name or your own domain, from any signed-in device. You can paste an address however you copied it (`https://mypc.tail1234.ts.net:3891/` works). The desktop app restarts itself to apply the change; CLI and Docker servers apply it on their next restart.
 - **Settings → Environment has plain settings** instead of only raw variables:
   - **Sign in automatically as** picks the account this app opens with from your admin accounts. If the saved account no longer exists, a warning says so and offers to fix it.
-  - **Remote access addresses** lists extra names other devices use to reach Flyx, such as a Tailscale name or your own domain. You can paste them however you copied them (`https://mypc.tail1234.ts.net:3891/` works).
   - **TMDB API key**.
   - The full variable list is still there under **Advanced**.
-- Opening Flyx from an unrecognized address now shows where to allow it in Settings, instead of naming a file.
+- Opening Flyx from an unrecognized address now says where an admin can allow it, instead of naming a file.
 
 ## [3.2.5] - 2026-09-26
 

@@ -2,48 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import styles from "@/app/settings/SettingsPage.module.css";
+import { waitForServerReady } from "@/lib/utils/wait-for-server";
 
 interface EnvVar {
   key: string;
   value: string;
   secret: boolean;
   locked: boolean;
-}
-
-interface FlyxDesktopBridge {
-  isDesktop: boolean;
-  onServerReady: (cb: () => void) => void;
-}
-
-function getBridge(): FlyxDesktopBridge | null {
-  return (window as unknown as { flyxDesktop?: FlyxDesktopBridge }).flyxDesktop ?? null;
-}
-
-/** Wait until the server is healthy again (desktop restarts on .env change). */
-function waitForServerReady(timeoutMs = 30000): Promise<void> {
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      clearInterval(iv);
-      clearTimeout(timer);
-      resolve();
-    };
-
-    const bridge = getBridge();
-    if (bridge) bridge.onServerReady(finish);
-
-    const iv = setInterval(async () => {
-      try {
-        const r = await fetch("/api/health");
-        if (r.ok) finish();
-      } catch {
-        /* server still down */
-      }
-    }, 1000);
-    const timer = setTimeout(finish, timeoutMs);
-  });
 }
 
 const inputStyle: React.CSSProperties = {
@@ -102,7 +67,6 @@ export default function EnvSettings() {
 
   // Common settings (friendly form over the same .env keys).
   const [signInAs, setSignInAs] = useState("");
-  const [allowedHosts, setAllowedHosts] = useState("");
   const [tmdbKey, setTmdbKey] = useState("");
   const [lastForm, setLastForm] = useState<"common" | "advanced">("common");
 
@@ -120,7 +84,6 @@ export default function EnvSettings() {
         for (const v of env) orig[v.key] = v.value;
         setOriginal(orig);
         setSignInAs(orig.DEFAULT_USERNAME ?? "");
-        setAllowedHosts((orig.FLYX_ALLOWED_HOSTS ?? "").split(",").filter(Boolean).join(", "));
         setTmdbKey("");
         setDesktop(true);
       } else {
@@ -183,11 +146,6 @@ export default function EnvSettings() {
       const set: Record<string, string> = {};
       const remove: string[] = [];
       if (selectedUser && selectedUser !== savedUser) set.DEFAULT_USERNAME = selectedUser;
-      const hosts = allowedHosts.split(/[\s,]+/).filter(Boolean).join(",");
-      if (hosts !== (original.FLYX_ALLOWED_HOSTS ?? "")) {
-        if (hosts) set.FLYX_ALLOWED_HOSTS = hosts;
-        else if ("FLYX_ALLOWED_HOSTS" in original) remove.push("FLYX_ALLOWED_HOSTS");
-      }
       if (tmdbKey.trim()) set.TMDB_API_KEY = tmdbKey.trim();
 
       if (Object.keys(set).length === 0 && remove.length === 0) {
@@ -309,7 +267,7 @@ export default function EnvSettings() {
   if (!desktop) {
     return (
       <div className={styles.settingsCard}>
-        {cardHeader("Server settings", "Sign-in, remote access and the TMDB key")}
+        {cardHeader("Server settings", "App sign-in and the TMDB key")}
         <div className={styles.settingsList}>
           <div className={styles.settingItem}>
             <div className={styles.settingInfo}>
@@ -329,7 +287,7 @@ export default function EnvSettings() {
       <div className={styles.settingsCard}>
         {cardHeader(
           "Server settings",
-          "Sign-in, remote access and the TMDB key — saving restarts Flyx for a moment",
+          "App sign-in and the TMDB key — saving restarts Flyx for a moment",
         )}
         <div className={styles.settingsList}>
           <div className={styles.settingItem}>
@@ -358,25 +316,6 @@ export default function EnvSettings() {
               {effectiveUser}”. Pick an account above and save to fix this.
             </div>
           )}
-
-          <div className={styles.settingItem}>
-            <div className={styles.settingInfo}>
-              <span className={styles.settingLabel}>Remote access addresses</span>
-              <span className={styles.settingDesc}>
-                Extra names other devices use to reach Flyx, like a Tailscale name
-                (mypc.tail1234.ts.net) or your own domain. Separate with commas. IP addresses,
-                localhost and .local names always work.
-              </span>
-            </div>
-            <input
-              type="text"
-              className={styles.textInput}
-              value={allowedHosts}
-              placeholder="mypc.tail1234.ts.net"
-              spellCheck={false}
-              onChange={(e) => setAllowedHosts(e.target.value)}
-            />
-          </div>
 
           <div className={styles.settingItem}>
             <div className={styles.settingInfo}>
@@ -415,9 +354,7 @@ export default function EnvSettings() {
       </div>
 
       <details className={styles.settingsCard}>
-        <summary className={styles.advancedSummary}>
-          Advanced — all environment variables
-        </summary>
+        <summary className={styles.advancedSummary}>Advanced — all environment variables</summary>
         <div className={styles.settingsList}>
           <>
             {rows.map((row) => (
@@ -462,7 +399,10 @@ export default function EnvSettings() {
 
             {/* Add variable */}
             <div className={styles.settingItem}>
-              <div className={styles.settingInfo} style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <div
+                className={styles.settingInfo}
+                style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}
+              >
                 <input
                   type="text"
                   value={newKey}
@@ -492,7 +432,11 @@ export default function EnvSettings() {
                   Unchanged secret values are left as-is. Locked values cannot be edited.
                 </span>
               </div>
-              <button className={styles.actionBtn} onClick={handleSave} disabled={saving || restarting}>
+              <button
+                className={styles.actionBtn}
+                onClick={handleSave}
+                disabled={saving || restarting}
+              >
                 {saving ? "Saving…" : "Save & Restart"}
               </button>
             </div>
