@@ -43,6 +43,7 @@ const { getLANURLs, getLocalURL, isPortInUse } = require("./src/network");
 const updater = require("./src/updater");
 const ghUpdater = require("./src/github-updater");
 const vlc = require("./src/vlc");
+const { migrateLegacyOriginStorage } = require("./src/storage-migration");
 const {
   appOrigin,
   isTrustedSender,
@@ -159,6 +160,17 @@ async function onReady() {
   } catch (err) {
     server.log(`webRequest hook failed: ${err && err.message}`);
   }
+
+  // 3.2.5 moved the window from localhost to 127.0.0.1, a different
+  // origin, which hid the watchlist/progress saved by older builds. Bring
+  // it over before the app page loads (see src/storage-migration.js).
+  await migrateLegacyOriginStorage({
+    BrowserWindow,
+    userDataDir: app.getPath("userData"),
+    targetOrigin: appOrigin(currentPort),
+    legacyPorts: [Number(env.PORT), currentPort, 3891],
+    log: (msg) => server.log(msg),
+  });
 
   createWindow();
   loadApp();

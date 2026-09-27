@@ -2,6 +2,12 @@
 
 All notable changes to Flyx are documented in this file.
 
+## [3.2.7] - 2026-09-27
+
+### Fixed
+
+- **Your watchlist, Continue Watching and reading progress are back.** Since 3.2.5 the desktop app opens its window on `127.0.0.1` instead of `localhost`. The app keeps saved lists and preferences separately for each address, so everything saved before 3.2.5 was hidden. It was never deleted, which is why going back to 3.2.4 showed it. On first launch, 3.2.7 copies it all to the new address: the watchlist, Continue Watching, manga reading progress, and player and subtitle preferences. Anything you added since updating is kept. When the same title has progress in both places, the newer progress wins. The old copy isn't touched, so 3.2.4 still works if you need it. This runs once; it runs again only if you use 3.2.4 again in between, so titles you remove don't come back. It affected every platform, not only Mac.
+
 ## [3.2.6] - 2026-09-27
 
 Fixes the sign-in lockout some desktop users hit after updating to 3.2.5. No action is needed: installing this update signs the app back in by itself.
