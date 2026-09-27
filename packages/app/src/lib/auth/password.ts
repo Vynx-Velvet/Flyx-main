@@ -6,7 +6,7 @@
  * `salt:hash` (both hex-encoded).
  */
 
-import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 
 const KEYLEN = 64; // 512-bit hash
 const SCRYPT_OPTIONS = { N: 16384, r: 8, p: 1 } as const;
@@ -50,4 +50,25 @@ export async function verifyPassword(password: string, stored: string): Promise<
   } catch {
     return false;
   }
+}
+
+/** Minimum length for newly chosen passwords (existing accounts keep theirs). */
+export const MIN_PASSWORD_LENGTH = 8;
+
+let _dummyHash: Promise<string> | null = null;
+
+/**
+ * Burn the same scrypt work as a real verify when the username doesn't
+ * exist, so response timing can't be used to enumerate accounts.
+ */
+export async function dummyVerifyPassword(password: string): Promise<void> {
+  _dummyHash ??= hashPassword(randomBytes(16).toString("hex"));
+  await verifyPassword(password, await _dummyHash);
+}
+
+/** Constant-time string comparison (hashes first so lengths don't leak). */
+export function safeEqualStrings(a: string, b: string): boolean {
+  const ha = createHash("sha256").update(a, "utf8").digest();
+  const hb = createHash("sha256").update(b, "utf8").digest();
+  return timingSafeEqual(ha, hb);
 }

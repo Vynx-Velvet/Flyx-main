@@ -501,9 +501,57 @@ export async function searchOpenSubtitles(p: OSSearchParams): Promise<OSSearchRe
  * Fetch a subtitle zip straight from the download CDN (the www
  * /en/subtitleserve path redirects into an ad landing — avoid it).
  */
+/** Default cap on a downloaded subtitle archive (real ones are tens of KB). */
+const MAX_ZIP_BYTES = 20 * 1024 * 1024;
+
+/** Redirects may only stay on opensubtitles.org over https (cookies ride along). */
+function isOpenSubtitlesUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return (
+      u.protocol === "https:" &&
+      (u.hostname === "opensubtitles.org" || u.hostname.endsWith(".opensubtitles.org"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Read a response body, failing with OSDownloadError(413) past `maxBytes`. */
+async function readCapped(res: Response, maxBytes: number): Promise<Uint8Array> {
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await res.body?.cancel().catch(() => {});
+    throw new OSDownloadError(413, "subtitle archive too large");
+  }
+  if (!res.body) return new Uint8Array(await res.arrayBuffer());
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw new OSDownloadError(413, "subtitle archive too large");
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    out.set(c, off);
+    off += c.byteLength;
+  }
+  return out;
+}
+
 export async function fetchOpenSubtitlesZip(
   subId: string,
+  maxBytes = MAX_ZIP_BYTES,
 ): Promise<{ fileName: string; data: Uint8Array }> {
+  if (!/^\d{1,12}$/.test(subId)) throw new OSDownloadError(400, "invalid subtitle id");
   let url = `${DL_ORIGIN}/en/download/sub/${subId}`;
   const init: RequestInit = {
     headers: {
@@ -519,11 +567,13 @@ export async function fetchOpenSubtitlesZip(
     const loc = res.headers.get("location");
     if (!loc) break;
     url = new URL(loc, url).href;
+    // Never follow the session's cookies off-site (or to plain http).
+    if (!isOpenSubtitlesUrl(url)) throw new OSDownloadError(502, "unexpected redirect target");
     res = await fetchWithSession(url, init, "buffer");
   }
 
   if (!res.ok) throw new OSDownloadError(res.status);
-  const data = new Uint8Array(await res.arrayBuffer());
+  const data = await readCapped(res, maxBytes);
   if (data.length === 0) throw new OSDownloadError(res.status, "empty body");
   return { fileName: res.headers.get("content-disposition") ?? "", data };
 }

@@ -408,7 +408,7 @@ export async function extractMultiEmbed(
     // ── Step 3: Try XPS first (most backends), fall back to others ──
     // Prefer XPS → Swish → Vesy → Vcr
     const priorityOrder: EmbedServer["type"][] = ["xps", "swish", "vesy", "vcr"];
-    let allSources: StreamSource[] = [];
+    const allSources: StreamSource[] = [];
     let allSubtitles: SubtitleTrack[] = [];
 
     for (const preferredType of priorityOrder) {

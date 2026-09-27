@@ -33,28 +33,54 @@ const DATA_DIR = getDataDir();
 
 /**
  * Whether we're running inside a packaged app (vs `electron .` dev).
- * In a packaged app `process.defaultApp` is unset.
+ * Prefers Electron's own app.isPackaged; outside Electron (unit tests,
+ * plain Node) require("electron") yields the binary path, so we're not
+ * packaged.
  */
 function isPackaged() {
-  return !process.defaultApp;
+  try {
+    const electron = require("electron");
+    if (electron && electron.app && typeof electron.app.isPackaged === "boolean") {
+      return electron.app.isPackaged;
+    }
+  } catch {}
+  return false;
 }
 
-function getStandaloneDir() {
+/**
+ * Locate the embedded standalone server.
+ *
+ * Packaged: ONLY <resources>/server — fail closed (null → "embedded server
+ * is missing") rather than trusting FLYX_STANDALONE_DIR or the CWD, either
+ * of which would let whoever controls the launch environment / working
+ * directory run their own server.js with the master token in its env.
+ * Dev: FLYX_STANDALONE_DIR → repo .flyx-standalone → CWD fallback.
+ *
+ * @param {{packaged?: boolean, resourcesPath?: string, env?: object, cwd?: string}} [opts]
+ */
+function getStandaloneDir(opts = {}) {
+  const packaged = opts.packaged !== undefined ? opts.packaged : isPackaged();
+  const resourcesPath =
+    opts.resourcesPath !== undefined ? opts.resourcesPath : process.resourcesPath;
+  const env = opts.env || process.env;
+  const cwd = opts.cwd || process.cwd();
+
   // Packaged: the build script ships .flyx-standalone as resources/server.
-  if (isPackaged() && process.resourcesPath) {
-    const packaged = path.join(process.resourcesPath, "server");
-    if (fs.existsSync(packaged)) return packaged;
+  if (packaged) {
+    if (!resourcesPath) return null;
+    const packagedDir = path.join(resourcesPath, "server");
+    return fs.existsSync(packagedDir) ? packagedDir : null;
   }
-  if (process.env.FLYX_STANDALONE_DIR) {
-    const d = path.resolve(process.env.FLYX_STANDALONE_DIR);
+  if (env.FLYX_STANDALONE_DIR) {
+    const d = path.resolve(env.FLYX_STANDALONE_DIR);
     if (fs.existsSync(d)) return d;
   }
   // Repo root (3 levels up from packages/desktop/src/)
   const repo = path.resolve(__dirname, "..", "..", "..");
   const dev = path.join(repo, ".flyx-standalone");
   if (fs.existsSync(dev)) return dev;
-  // CWD fallback
-  const alt = path.join(process.cwd(), ".flyx-standalone");
+  // CWD fallback (dev only)
+  const alt = path.join(cwd, ".flyx-standalone");
   if (fs.existsSync(alt)) return alt;
   return null;
 }

@@ -336,7 +336,6 @@ function HeroSection({
         transition={{ duration: 0.5 }}
         className="absolute inset-0"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         {current.image ? (
           <img
             src={current.image}
@@ -833,7 +832,7 @@ function PosterCard({
                 {!loaded && (
                   <div className="skeleton absolute inset-0 z-[1] rounded-none" />
                 )}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
+                { }
                 <img
                   ref={imgRef}
                   src={item.image}

@@ -29,7 +29,14 @@ async function runStop(options = {}) {
   }
 
   console.log(`Stopping Flyx (PID ${state.pid})...`);
-  const { stopped, forced } = await stopServer(state.pid);
+  const { stopped, forced, refused, reason } = await stopServer(state, { force: !!options.force });
+
+  if (refused) {
+    console.log(`⚠️  Not stopping PID ${state.pid}: ${reason}.`);
+    console.log("   The recorded PID could not be confirmed as this Flyx server, so it was left alone");
+    console.log("   (PIDs are reused by the OS). If Flyx is hung, stop that process manually.");
+    process.exit(1);
+  }
 
   if (stopped) {
     console.log(forced ? "✅ Stopped (forced)." : "✅ Stopped.");

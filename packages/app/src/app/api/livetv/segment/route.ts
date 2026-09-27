@@ -12,10 +12,16 @@
  *             never decode again, signed CDN URLs contain "%2B")
  *   origin  — player origin to send as Referer/Origin (optional)
  *   cookie  — session cookies captured during extraction (optional)
+ *
+ * Requires a session or a valid signature (the playlist proxy signs every
+ * segment URI it writes); signature-authorized responses carry CORS
+ * (applySignedCors). Upstream hops are SSRF-checked in segment-cache.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSegment } from "@/lib/livetv/segment-cache";
+import { proxyAuthorization } from "@/lib/security/proxy-sign";
+import { PROXY_SECURITY_HEADERS, applySignedCors, proxyJsonError, proxyUnauthorized, signedPreflight } from "@/lib/media-proxy";
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -23,11 +29,21 @@ export const maxDuration = 30;
 const DEFAULT_PLAYER_ORIGIN = "https://daddyliveplayer.st";
 
 export async function GET(request: NextRequest) {
+  const via = await proxyAuthorization(request);
+  if (!via) return proxyUnauthorized();
+  return applySignedCors(await handleGet(request), via);
+}
+
+export function OPTIONS(request: NextRequest) {
+  return signedPreflight(request);
+}
+
+async function handleGet(request: NextRequest): Promise<NextResponse> {
   const searchParams = request.nextUrl.searchParams;
   const url = searchParams.get('url');
 
   if (!url || !/^https?:\/\//i.test(url)) {
-    return NextResponse.json({ error: 'Missing or invalid url parameter' }, { status: 400 });
+    return proxyJsonError({ error: 'Missing or invalid url parameter' }, 400);
   }
 
   const origin = searchParams.get("origin") || searchParams.get("referer") || DEFAULT_PLAYER_ORIGIN;
@@ -42,9 +58,9 @@ export async function GET(request: NextRequest) {
     const message = (err as Error).message;
     console.error(`[Segment] ${message} for ${url.substring(0, 80)}`);
     if (status && status >= 400 && status < 600) {
-      return NextResponse.json({ error: `Upstream error: ${status}` }, { status });
+      return proxyJsonError({ error: `Upstream error: ${status}` }, status);
     }
-    return NextResponse.json({ error: 'Segment fetch failed' }, { status: 502 });
+    return proxyJsonError({ error: 'Segment fetch failed' }, 502);
   }
 
   const elapsed = Date.now() - startedAt;
@@ -58,23 +74,10 @@ export async function GET(request: NextRequest) {
   return new NextResponse(body, {
     status: 200,
     headers: {
+      ...PROXY_SECURITY_HEADERS,
       'Content-Type': 'video/mp2t',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Range, Content-Type',
-      'Cache-Control': 'public, max-age=300, s-maxage=300',
+      'Cache-Control': 'private, max-age=300',
       'Content-Length': ts.byteLength.toString(),
-    },
-  });
-}
-
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Range, Content-Type',
     },
   });
 }

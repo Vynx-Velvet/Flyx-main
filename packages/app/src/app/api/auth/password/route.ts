@@ -2,49 +2,24 @@
  * PATCH /api/auth/password — Change own password or reset another user's (admin)
  *
  * Body: { currentPassword?, newPassword, userId? }
- * - Without userId: changes current user's password (requires currentPassword)
- * - With userId (admin only): resets another user's password
+ * - Without userId (or userId = self): changes the caller's password.
+ *   Requires currentPassword — for admins too, except the desktop master
+ *   window (it is the instance owner and may not know an auto-generated pw).
+ * - With another user's userId (admin only): resets that user's password.
+ *
+ * Every change bumps the account's tokenVersion, signing out all of its
+ * other sessions; a self-change re-issues the caller's own cookie.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/get-session";
-import { hashPassword, verifyPassword } from "@/lib/auth/password";
-import { findAccountById } from "@/lib/db";
-import { readFileSync, writeFileSync, existsSync, renameSync } from "fs";
-import path from "path";
-
-const DB_DIR = process.env.FLYX_DATA_DIR || path.resolve(process.cwd(), ".flyx");
-const DB_PATH = path.join(DB_DIR, "store.json");
+import { hashPassword, MIN_PASSWORD_LENGTH, verifyPassword } from "@/lib/auth/password";
+import { signSessionFor } from "@/lib/auth/jwt";
+import { getAccountAuth, getPasswordHash, setAccountPassword } from "@/lib/db";
+import { isMasterRequest } from "@/lib/request-master";
+import { addLog } from "@/lib/log-store";
 
 export const runtime = "nodejs";
-
-/**
- * Read store.json directly (bypasses the in-memory cache for writes).
- * Shape-validates like lib/db: a file that parses but isn't a store
- * (partial write, older schema) reads as "no accounts" instead of
- * throwing a TypeError mid-request.
- */
-function loadStore(): any | null {
-  if (!existsSync(DB_PATH)) return null;
-  try {
-    const parsed = JSON.parse(readFileSync(DB_PATH, "utf-8"));
-    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.accounts)) {
-      console.warn("[auth/password] store.json has an unexpected shape");
-      return null;
-    }
-    return parsed;
-  } catch {
-    console.warn("[auth/password] store.json is unreadable");
-    return null;
-  }
-}
-
-/** Atomic write (tmp + rename) — a crash mid-write must never truncate the store. */
-function saveStore(store: any): void {
-  const tmp = DB_PATH + ".tmp";
-  writeFileSync(tmp, JSON.stringify(store, null, 2), "utf-8");
-  renameSync(tmp, DB_PATH);
-}
 
 export async function PATCH(request: NextRequest) {
   const session = await getSession();
@@ -53,62 +28,64 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const { currentPassword, newPassword, userId } = await request.json();
+    const { currentPassword, newPassword, userId } = (await request.json()) ?? {};
 
-    if (!newPassword || typeof newPassword !== "string" || newPassword.length < 8) {
-      return NextResponse.json({ error: "New password must be at least 8 characters" }, { status: 400 });
+    if (!newPassword || typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD_LENGTH) {
+      return NextResponse.json(
+        { error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters` },
+        { status: 400 },
+      );
     }
 
-    const store = loadStore();
-    if (!store) {
-      return NextResponse.json({ error: "No accounts found" }, { status: 404 });
-    }
-
-    // Resetting a specific user's password (by ID)
-    if (userId) {
+    // Resetting another user's password (by ID)
+    if (userId && userId !== session.sub) {
       if (!session.isAdmin) {
         return NextResponse.json({ error: "Admin access required" }, { status: 403 });
       }
-      const targetIdx = store.accounts.findIndex((a: any) => a.id === userId);
-      if (targetIdx === -1) {
+      if (typeof userId !== "string" || !getAccountAuth(userId)) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
-      store.accounts[targetIdx].passwordHash = await hashPassword(newPassword);
-      saveStore(store);
+      setAccountPassword(userId, await hashPassword(newPassword));
+      addLog({
+        level: "info",
+        category: "auth",
+        message: `Password reset for account ${userId} by admin "${session.username}"`,
+      });
       return NextResponse.json({ ok: true });
     }
 
     // Changing own password
-    // Admin can change their own without old password (e.g. auto-generated pw unknown)
-    if (session.isAdmin) {
-      const selfIdx = store.accounts.findIndex((a: any) => a.id === session.sub);
-      if (selfIdx === -1) {
-        return NextResponse.json({ error: "Account not found" }, { status: 404 });
-      }
-      store.accounts[selfIdx].passwordHash = await hashPassword(newPassword);
-      saveStore(store);
-      return NextResponse.json({ ok: true });
-    }
-
-    // Non-admin: require current password
-    if (!currentPassword) {
-      return NextResponse.json({ error: "Current password is required" }, { status: 400 });
-    }
-
-    const selfIdx = store.accounts.findIndex((a: any) => a.id === session.sub);
-    if (selfIdx === -1) {
+    const storedHash = getPasswordHash(session.sub);
+    if (!storedHash) {
       return NextResponse.json({ error: "Account not found" }, { status: 404 });
     }
 
-    const valid = await verifyPassword(currentPassword, store.accounts[selfIdx].passwordHash);
-    if (!valid) {
-      return NextResponse.json({ error: "Current password is incorrect" }, { status: 401 });
+    if (!isMasterRequest(request)) {
+      if (!currentPassword || typeof currentPassword !== "string") {
+        return NextResponse.json({ error: "Current password is required" }, { status: 400 });
+      }
+      const valid = await verifyPassword(currentPassword, storedHash);
+      if (!valid) {
+        return NextResponse.json({ error: "Current password is incorrect" }, { status: 401 });
+      }
     }
 
-    store.accounts[selfIdx].passwordHash = await hashPassword(newPassword);
-    saveStore(store);
+    setAccountPassword(session.sub, await hashPassword(newPassword));
 
-    return NextResponse.json({ ok: true });
+    // The bump above revoked this session too — hand the caller a new one.
+    const response = NextResponse.json({ ok: true });
+    const account = getAccountAuth(session.sub);
+    if (account) {
+      response.cookies.set("flyx_token", await signSessionFor(account), {
+        httpOnly: true,
+        // Derive from the request protocol (see /api/auth/login for why).
+        secure: request.nextUrl.protocol === "https:",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
+      });
+    }
+    return response;
   } catch (err) {
     console.error("[auth/password]", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

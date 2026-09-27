@@ -24,10 +24,29 @@ const STANDALONE_DIR = join(ROOT, ".flyx-standalone");
 
 console.log("[desktop:build] Building Next.js standalone...");
 
-// Step 1: Build
+// Step 1: Build with DUMMY env only (same approach as build-standalone.mjs).
+// Next loads packages/app/.env* at build time, and that file holds a real
+// TMDB token — build-time env can be inlined into shipped bundles. Next
+// never overrides a variable that is already set in process.env, so every
+// key found in packages/app/.env* is pinned to a dummy value here, plus the
+// secrets the server expects. Real config is injected at runtime by the
+// desktop app.
+const BUILD_DUMMY_ENV = {
+  TMDB_API_KEY: "dummy-key-for-build",
+  JWT_SECRET: "dummy-secret-for-build-0123456789abcdef",
+  HOST_KEY: "dummy-host-key-for-build",
+};
+for (const name of readdirSync(APP_DIR)) {
+  if (!/^\.env(\..*)?$/.test(name) || /\.example$/.test(name)) continue;
+  for (const line of readFileSync(join(APP_DIR, name), "utf-8").split(/\r?\n/)) {
+    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(line);
+    if (!m || m[1] in BUILD_DUMMY_ENV || /^(NODE_ENV|FLYX_STANDALONE)$/.test(m[1])) continue;
+    BUILD_DUMMY_ENV[m[1]] = "dummy-for-build";
+  }
+}
 execSync("npx next build", {
   cwd: APP_DIR,
-  env: { ...process.env, FLYX_STANDALONE: "1" },
+  env: { ...process.env, ...BUILD_DUMMY_ENV, FLYX_STANDALONE: "1" },
   stdio: "inherit",
 });
 
@@ -86,7 +105,19 @@ if (existsSync(publicSrc)) {
 // .flyx/ is runtime state (accounts + password hashes) written when the
 // standalone server runs with a local CWD — shipping it would leak any
 // accounts created during local testing into the public installer.
-for (const junk of ["e2e", "test-results", ".flyx"]) {
+// src/ (TypeScript sources — the server runs the compiled .next output),
+// build/test config and tsbuildinfo are dead weight that also leak
+// internals; nothing reads them at runtime.
+for (const junk of [
+  "e2e",
+  "test-results",
+  ".flyx",
+  "src",
+  "playwright.config.ts",
+  "vitest.config.ts",
+  "wrangler.toml",
+  "tsconfig.tsbuildinfo",
+]) {
   const junkPath = join(STANDALONE_DIR, "packages", "app", junk);
   if (existsSync(junkPath)) {
     rmSync(junkPath, { recursive: true });
@@ -132,6 +163,15 @@ for (const name of readdirSync(join(ROOT, "node_modules", "@next"))) {
 // runtime (TMDB key, credentials, JWT secret, etc.) via server-manager + the
 // setup wizard, so ship only harmless placeholders.
 const envPath = join(STANDALONE_DIR, "packages", "app", ".env");
+// Next may also copy .env.local / .env.production etc. — drop every other
+// .env* in the app dir first. (build/after-pack.cjs re-checks the whole
+// packaged server tree and fails the build on any non-dummy .env.)
+for (const name of readdirSync(join(STANDALONE_DIR, "packages", "app"))) {
+  if (/^\.env(\..*)?$/.test(name) && name !== ".env") {
+    rmSync(join(STANDALONE_DIR, "packages", "app", name), { force: true });
+    console.log(`[desktop:build] Removed standalone env file: ${name}`);
+  }
+}
 writeFileSync(envPath, "TMDB_API_KEY=dummy-key-for-build\nFLYX_DESKTOP=true\n", "utf-8");
 console.log("[desktop:build] Standalone .env reset to dummy values (Electron injects runtime config)");
 
@@ -213,6 +253,22 @@ try {
 } catch (err) {
   console.warn(`[desktop:build] ${err.message} — remux downloads will fall back to system ffmpeg`);
 }
+
+// Step 8: Drop source maps from the payload (they embed original sources).
+function removeSourceMaps(dir) {
+  let removed = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      removed += removeSourceMaps(full);
+    } else if (entry.name.endsWith(".map")) {
+      rmSync(full, { force: true });
+      removed += 1;
+    }
+  }
+  return removed;
+}
+console.log(`[desktop:build] Removed ${removeSourceMaps(STANDALONE_DIR)} source map file(s)`);
 
 console.log("[desktop:build] Done! Standalone build at:", STANDALONE_DIR);
 console.log("[desktop:build] Run 'npm run desktop:package' to create installers.");

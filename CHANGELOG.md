@@ -2,6 +2,37 @@
 
 All notable changes to Flyx are documented in this file.
 
+## [3.2.5] - 2026-09-26
+
+Security release. Update is strongly recommended, especially on Windows.
+
+### Security
+
+- **Next.js 16.3.6** (was 16.2.12) fixes an unauthenticated remote-code-execution vulnerability affecting Windows-hosted servers (GHSA-p293-qw3h-jr36) and the AVIF image-optimizer RCE (GHSA-2xp9-vwfh-vxw4); sharp is now 0.35.4. `npm audit` reports 0 vulnerabilities.
+- **Media proxies are no longer open relays.** Stream, live TV, subtitle and manga-image proxies require a signed-in session or a server-signed URL, refuse private/loopback/link-local addresses (checked on every redirect and again at connect time), cap response sizes, and never serve upstream content with an executable content type.
+- **Setup and settings hardening.** The setup endpoint locks once setup is complete; `.env` writes reject line breaks and process-control keys (`NODE_OPTIONS`, `ELECTRON_*`, …); the host key is visible to admins only and can no longer be used to self-register as admin; logs require an admin; login is rate-limited with a single generic error; sessions are revoked on password change or account deletion; an unreadable `store.json` is backed up instead of wiped.
+- **Request checks.** Cross-site state-changing requests and unrecognised `Host` headers (DNS rebinding) are rejected; security headers (CSP, `nosniff`, frame denial) are sent on every page; open redirects after login are closed.
+- **Desktop.** Electron fuses enabled (no `NODE_OPTIONS`/inspector, cookie encryption, asar integrity); the window loads `127.0.0.1` and verifies a per-launch boot nonce before trusting the server; IPC senders and navigation are restricted; permissions are denied by default; the in-app updater only follows HTTPS, verifies the download's checksum and asks before installing.
+- **Hardening against hostile upstreams.** Decompression-bomb and oversized-image limits in the live TV unwrapper and subtitle downloads; upstream WASM runs in a time-, heap- and memory-capped worker; ffmpeg is restricted to network protocols.
+- **Supply chain.** Every lockfile entry now carries an integrity hash; the bundled ffmpeg is checksum-verified; CI actions are pinned to commit SHAs and only the release job can write; the unused `@consumet/extensions` dependency and a leftover page that loaded a third-party script were removed.
+
+### Fixed
+
+- **Playback no longer restarts from the beginning after retries.** When a stream failed and the player's retries were exhausted, the automatic switch to the next source started it at 0:00. It now resumes where playback stopped.
+- **Anime search** on the Search page works again (it called an endpoint that no longer existed).
+- Manga browse page crash when the featured list finished loading; manga reader page tracking after chapter loads.
+- Admins changing their own password from a browser are now asked for the current password (the desktop app window is exempt).
+- Chromecast can cast proxied streams (requires LAN sharing).
+- Manga posters from the AnimeX CDN load again.
+
+### Changed
+
+- **LAN sharing is now off by default** for new desktop and CLI installs (existing settings are kept). Turn it on in Settings → Connect Devices, or `flyx config set HOSTNAME 0.0.0.0`.
+- Reaching Flyx through a domain name (reverse proxy, Tailscale, tunnel) now requires adding it to `FLYX_ALLOWED_HOSTS`.
+- Links copied for external players (VLC, "copy link") expire after 24 hours.
+- `flyx reset` only deletes files Flyx created and refuses unsafe folders; `flyx stop` verifies the process is Flyx before stopping it.
+- Tooling: ESLint 9 flat config (lint now actually runs), Vitest 5, live-server and browser tests that sign in with `FLYX_TEST_USER` / `FLYX_TEST_PASSWORD`.
+
 ## [3.2.4] - 2026-09-26
 
 ### Fixed

@@ -1,18 +1,27 @@
-version: "3.8"
-
 services:
   flyx:
     build: .
     container_name: flyx
     ports:
-      - "3000:3000"
+      # Loopback only by default. To reach Flyx from other devices on your
+      # network, change this to "3000:3000".
+      - "127.0.0.1:3000:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
+      # Bind inside the container; exposure is controlled by `ports` above.
       - HOSTNAME=0.0.0.0
+      - FLYX_DATA_DIR=/data
+      # Optional: TMDB_API_KEY=<your key>. JWT_SECRET and HOST_KEY are
+      # generated on first boot and stored (0600) in the flyx-data volume.
+    volumes:
+      - flyx-data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3
+
+volumes:
+  flyx-data:

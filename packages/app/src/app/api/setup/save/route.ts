@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "fs";
 import { join } from "path";
-import { hashPassword } from "@/lib/auth/password";
-import { createAccount, getAccountCount } from "@/lib/db";
+import { hashPassword, MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
+import { getSession } from "@/lib/auth/get-session";
+import { createAccount, findAccountByUsername, getAccountCount, withAccountLock } from "@/lib/db";
 import { addLog } from "@/lib/log-store";
+import { isMasterRequest } from "@/lib/request-master";
+import { assertSafeEnvEntry } from "@/lib/security/env-safety";
+
+export const runtime = "nodejs";
 
 /** Parse a KEY=VALUE env file (tolerant: skips comments/blank/malformed lines). */
 function parseEnvFile(raw: string): Record<string, string> {
@@ -27,13 +32,48 @@ function serializeEnvFile(vars: Record<string, string>): string {
   return content;
 }
 
+/**
+ * Who may (re-)run setup. Desktop: only the master window (the middleware
+ * also enforces this). Elsewhere the wizard is open on genuine first run so
+ * the operator can configure a fresh server — but once setup is complete
+ * (flag set or any account exists) it rewrites credentials and secrets, so
+ * it then requires an admin session.
+ */
+async function setupAllowed(request: NextRequest): Promise<boolean> {
+  if (isMasterRequest(request)) return true;
+  if (process.env.FLYX_DESKTOP === "true") return false;
+  const setupDone = process.env.SETUP_COMPLETE === "true" || getAccountCount() > 0;
+  if (!setupDone) return true;
+  return (await getSession())?.isAdmin === true;
+}
+
 export async function POST(request: NextRequest) {
   // Log before anything can hang — a request whose body never completes
   // (request.json() below) would otherwise leave zero trace, and "the
   // wizard silently reset" is exactly what the user reports then.
   console.log("[Flyx Setup] save request received");
+  let body: Record<string, unknown>;
   try {
-    const body = await request.json();
+    body = (await request.json()) ?? {};
+  } catch {
+    return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
+  }
+  // Serialized with every other account-creating flow: the authorization
+  // check below reads "is setup done / does an account exist?", and two
+  // concurrent first-run saves must not both pass it.
+  return withAccountLock(() => save(request, body));
+}
+
+async function save(request: NextRequest, body: Record<string, unknown>): Promise<NextResponse> {
+  try {
+    if (!(await setupAllowed(request))) {
+      console.warn("[Flyx Setup] save rejected: not authorized (setup complete, or desktop non-master)");
+      return NextResponse.json(
+        { ok: false, error: "Setup is already complete. Sign in as an admin to change it." },
+        { status: 403 },
+      );
+    }
+
     const { tmdbKey, username, password, displayName, networkMode } = body;
 
     // Validate required fields. The username/password become the default
@@ -49,9 +89,12 @@ export async function POST(request: NextRequest) {
       console.warn("[Flyx Setup] save rejected: username is required");
       return NextResponse.json({ ok: false, error: "Username is required" }, { status: 400 });
     }
-    if (pass.length < 4) {
+    if (pass.length < MIN_PASSWORD_LENGTH) {
       console.warn("[Flyx Setup] save rejected: password too short");
-      return NextResponse.json({ ok: false, error: "Password must be at least 4 characters" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` },
+        { status: 400 },
+      );
     }
     console.log(`[Flyx Setup] save accepted (user ${JSON.stringify(user)}, mode ${String(networkMode)})`);
 
@@ -62,7 +105,7 @@ export async function POST(request: NextRequest) {
           "flyx"
         );
 
-    if (!existsSync(dataDir)) {
+    if (!existsSync(/*turbopackIgnore: true*/ dataDir)) {
       mkdirSync(dataDir, { recursive: true });
     }
 
@@ -77,7 +120,9 @@ export async function POST(request: NextRequest) {
 
     const next: Record<string, string> = { ...existing };
     next.TMDB_API_KEY = tmdbKey.trim();
-    next.FLYX_DESKTOP = "true";
+    // Only the desktop server may mark itself desktop — a CLI/Docker server
+    // writing this would switch itself into desktop (master-token) mode.
+    if (process.env.FLYX_DESKTOP === "true") next.FLYX_DESKTOP = "true";
     // Marks first-run setup as done. Until this flag exists, the desktop
     // master window is pinned to the wizard (see middleware.ts) — otherwise
     // an account created before setup finished would let auto-login skip the
@@ -86,7 +131,9 @@ export async function POST(request: NextRequest) {
 
     next.DEFAULT_USERNAME = user;
     next.DEFAULT_PASSWORD = pass;
-    if (displayName?.trim()) next.DEFAULT_DISPLAY_NAME = displayName.trim();
+    if (typeof displayName === "string" && displayName.trim()) {
+      next.DEFAULT_DISPLAY_NAME = displayName.trim();
+    }
     next.HOSTNAME = networkMode === "network" ? "0.0.0.0" : "127.0.0.1";
 
     // Generate secrets if this is a fresh (non-desktop) setup
@@ -97,9 +144,31 @@ export async function POST(request: NextRequest) {
       next.HOST_KEY = randomBytes(18).toString("base64url");
     }
 
-    // Atomic write (tmp + rename) — desktop's env watcher fires on rename
+    // Every value written must stay on its own line: a line break in the TMDB
+    // key or password would smuggle extra keys (a second JWT_SECRET,
+    // NODE_OPTIONS…) into .env.
+    for (const key of ["TMDB_API_KEY", "DEFAULT_USERNAME", "DEFAULT_PASSWORD", "DEFAULT_DISPLAY_NAME"]) {
+      if (next[key] === undefined) continue;
+      try {
+        assertSafeEnvEntry(key, next[key]);
+      } catch {
+        console.warn(`[Flyx Setup] save rejected: ${key} contains a line break`);
+        return NextResponse.json(
+          { ok: false, error: "Values must not contain line breaks" },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Atomic write (tmp + rename) — desktop's env watcher fires on rename.
+    // Owner-only: .env holds JWT_SECRET and the default password.
     const tmpPath = envPath + ".tmp";
-    writeFileSync(tmpPath, serializeEnvFile(next), "utf-8");
+    try {
+      unlinkSync(tmpPath); // `mode` only applies when the file is created
+    } catch {
+      /* no stale tmp */
+    }
+    writeFileSync(tmpPath, serializeEnvFile(next), { encoding: "utf-8", mode: 0o600 });
     renameSync(tmpPath, envPath);
 
     // Mutate the running server's env so the new credentials and secret
@@ -136,8 +205,14 @@ export async function POST(request: NextRequest) {
     // default account from the env credentials on the next boot (the
     // auto-create branch runs whenever the store has zero accounts), and
     // the store itself now self-heals on read (shape validation in db).
+    //
+    // The caller is authorized (first run, master, or admin), so a default
+    // username that has no account yet — first run, a recovered store, or a
+    // re-run that picked a new name — gets one. An existing account's
+    // password is never silently replaced. (Runs under the account lock,
+    // see POST.)
     try {
-      if (getAccountCount() === 0) {
+      if (!findAccountByUsername(user)) {
         const passwordHash = await hashPassword(pass);
         const account = createAccount(user, passwordHash, true);
         addLog({

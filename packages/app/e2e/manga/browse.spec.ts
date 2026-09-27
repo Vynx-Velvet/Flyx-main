@@ -92,7 +92,6 @@ test.describe("Manga Browse Page", () => {
     const detailLink = page.locator('a[href*="/manga/"]').first();
 
     if ((await detailLink.count()) > 0) {
-      const href = await detailLink.getAttribute("href");
       await detailLink.click();
 
       // Should navigate to the details page

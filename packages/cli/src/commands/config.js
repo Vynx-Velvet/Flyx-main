@@ -2,8 +2,8 @@
  * flyx config — View and edit Flyx configuration.
  */
 
-const { readEnv, writeEnv } = require("../lib/env-file");
-const { checkHealth, readState, isProcessAlive } = require("../lib/server");
+const { readEnv, writeEnv, assertSafeEnvEntry } = require("../lib/env-file");
+const { readState, isProcessAlive } = require("../lib/server");
 const { getAccountCount } = require("../lib/store");
 const { PORT, DATA_DIR } = require("../lib/paths");
 
@@ -63,7 +63,7 @@ async function showConfig(options = {}) {
   console.log("");
 }
 
-async function setConfig(key, value, options = {}) {
+async function setConfig(key, value, _options = {}) {
   if (!key || value === undefined) {
     console.error("Usage: flyx config set <key> <value>");
     process.exit(1);
@@ -72,6 +72,19 @@ async function setConfig(key, value, options = {}) {
   if (!EDITABLE_KEYS.includes(key)) {
     console.error(`❌ Unknown config key: ${key}`);
     console.error(`   Editable keys: ${EDITABLE_KEYS.join(", ")}`);
+    process.exit(1);
+  }
+
+  // Validate: no line breaks (would inject extra .env lines), no blocked keys
+  try {
+    assertSafeEnvEntry(key, String(value));
+  } catch (err) {
+    console.error(`❌ ${err.message}`);
+    process.exit(1);
+  }
+
+  if (key === "HOSTNAME" && !/^[A-Za-z0-9.:\-[\]]+$/.test(String(value))) {
+    console.error("❌ HOSTNAME must be a hostname or IP address (e.g. 127.0.0.1 or 0.0.0.0).");
     process.exit(1);
   }
 
@@ -86,7 +99,12 @@ async function setConfig(key, value, options = {}) {
 
   const env = readEnv();
   env[key] = String(value);
-  writeEnv(env);
+  try {
+    writeEnv(env);
+  } catch (err) {
+    console.error(`❌ ${err.message}`);
+    process.exit(1);
+  }
 
   console.log(`✅ ${key} = ${SECRET_KEYS.includes(key) ? redact(key, value) : value}`);
 

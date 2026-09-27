@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import NetworkStatus from "@/components/help/NetworkStatus";
 import { useIsApple } from "@/hooks/useIsApple";
 import styles from "./HelpPage.module.css";

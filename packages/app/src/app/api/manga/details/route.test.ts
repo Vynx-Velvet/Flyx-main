@@ -4,12 +4,15 @@
  * Tests GET /api/manga/details — validates response shape, error
  * handling, and parameter validation.
  *
- * Requires the Next.js dev server running on localhost:3000.
+ * Live test: needs a running Flyx server (FLYX_TEST_BASE_URL, default
+ * http://127.0.0.1:3000) and FLYX_TEST_USER / FLYX_TEST_PASSWORD. Skipped when
+ * no server is up unless FLYX_TEST_REQUIRE_LIVE=1. See src/test/live-server.ts.
  */
 
 import { describe, it, expect } from "vitest";
+import { liveFetch, liveSuiteEnabled } from "@/test/live-server";
 
-const BASE_URL = "http://localhost:3000";
+const serverUp = await liveSuiteEnabled();
 
 // We'll discover a real manga ID at test time via search
 let knownMangaId: string | null = null;
@@ -17,8 +20,8 @@ let knownMangaId: string | null = null;
 async function getMangaId(): Promise<string> {
   if (knownMangaId) return knownMangaId;
 
-  const res = await fetch(
-    `${BASE_URL}/api/manga/search?q=solo+leveling&limit=1`
+  const res = await liveFetch(
+    `/api/manga/search?q=solo+leveling&limit=1`
   );
   const body = (await res.json()) as { data: { id: string }[] };
   if (body.data.length > 0 && body.data[0]?.id) {
@@ -26,8 +29,8 @@ async function getMangaId(): Promise<string> {
     return knownMangaId;
   }
 
-  const res2 = await fetch(
-    `${BASE_URL}/api/manga/search?q=one+piece&limit=1`
+  const res2 = await liveFetch(
+    `/api/manga/search?q=one+piece&limit=1`
   );
   const body2 = (await res2.json()) as { data: { id: string }[] };
   if (body2.data.length > 0 && body2.data[0]?.id) {
@@ -38,11 +41,11 @@ async function getMangaId(): Promise<string> {
   throw new Error("Could not discover a valid manga ID from search");
 }
 
-describe("GET /api/manga/details", () => {
+describe.skipIf(!serverUp)("GET /api/manga/details", () => {
   it("returns manga details for a valid ID", async () => {
     const mangaId = await getMangaId();
-    const res = await fetch(
-      `${BASE_URL}/api/manga/details?id=${encodeURIComponent(mangaId)}`
+    const res = await liveFetch(
+      `/api/manga/details?id=${encodeURIComponent(mangaId)}`
     );
     expect(res.status).toBe(200);
 
@@ -66,7 +69,7 @@ describe("GET /api/manga/details", () => {
   });
 
   it("returns 400 for missing id", async () => {
-    const res = await fetch(`${BASE_URL}/api/manga/details?id=`);
+    const res = await liveFetch(`/api/manga/details?id=`);
     expect(res.status).toBe(400);
 
     const body = (await res.json()) as {
@@ -78,8 +81,8 @@ describe("GET /api/manga/details", () => {
   });
 
   it("returns null data for invalid manga ID", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/manga/details?id=definitely-not-a-valid-manga-id-99999`
+    const res = await liveFetch(
+      `/api/manga/details?id=definitely-not-a-valid-manga-id-99999`
     );
     // Should return 200 with null data (graceful handling)
     expect(res.status).toBe(200);
@@ -92,8 +95,8 @@ describe("GET /api/manga/details", () => {
 
   it("chapters array has valid chapter objects", async () => {
     const mangaId = await getMangaId();
-    const res = await fetch(
-      `${BASE_URL}/api/manga/details?id=${encodeURIComponent(mangaId)}`
+    const res = await liveFetch(
+      `/api/manga/details?id=${encodeURIComponent(mangaId)}`
     );
     const body = (await res.json()) as {
       data: {
@@ -114,8 +117,8 @@ describe("GET /api/manga/details", () => {
 
   it("chapters are sorted by chapter number", async () => {
     const mangaId = await getMangaId();
-    const res = await fetch(
-      `${BASE_URL}/api/manga/details?id=${encodeURIComponent(mangaId)}`
+    const res = await liveFetch(
+      `/api/manga/details?id=${encodeURIComponent(mangaId)}`
     );
     const body = (await res.json()) as {
       data: { chapters: { number: number }[] } | null;

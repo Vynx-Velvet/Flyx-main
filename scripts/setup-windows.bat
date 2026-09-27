@@ -95,11 +95,11 @@ REM ── Install dependencies ────────────────
 echo.
 echo   [3/4] Installing dependencies (this may take a minute^)...
 
-call npm install
+call npm ci
 if %errorlevel% neq 0 (
     echo.
-    echo   X  npm install failed.
-    echo      Try running manually: npm install
+    echo   X  npm ci failed.
+    echo      Try running manually: npm ci
     pause
     exit /b 1
 )

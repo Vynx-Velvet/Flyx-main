@@ -51,13 +51,16 @@ async function navigateToReader(page: import("@playwright/test").Page) {
 
   await page.waitForURL(/\/manga\//, { timeout: 15_000 });
 
-  // Click "Start Reading" or the first chapter
-  const startBtn = page.getByRole("button", { name: /Start Reading/i });
+  // Click "Start Reading" or the first chapter. The details page renders a
+  // spinner until its (uncached, upstream) fetch resolves, so wait for either
+  // control to appear instead of counting them immediately.
+  const startBtn = page.getByRole("button", { name: /Start Reading|Continue Ch\./i });
   const firstChapterBtn = page.locator('[class*="ep-row"]').first();
+  await expect(startBtn.or(firstChapterBtn).first()).toBeVisible({ timeout: 30_000 });
 
   if ((await startBtn.count()) > 0) {
     await startBtn.click();
-  } else if ((await firstChapterBtn.count()) > 0) {
+  } else {
     await firstChapterBtn.click();
   }
 
@@ -88,8 +91,12 @@ test.describe("Manga Reader", () => {
     if ((await pageEl.count()) > 0) {
       const img = pageEl.locator("img");
       await expect(img).toBeVisible({ timeout: 10_000 });
+      // Pages go through the same-origin, session-authenticated image proxy.
       const src = await img.getAttribute("src");
-      expect(src).toMatch(/^https?:\/\//);
+      expect(src).toMatch(/^\/api\/manga\/image\?url=https?%3A/);
+      await expect
+        .poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0), { timeout: 20_000 })
+        .toBe(true);
     }
   });
 
@@ -102,8 +109,9 @@ test.describe("Manga Reader", () => {
 
     if ((await pageEl.count()) > 0) {
       // The footer should have a page counter like "1 / N"
-      const footerText = page.locator("text=/\\d+ \\/ \\d+/");
-      await expect(footerText).toBeVisible({ timeout: 5_000 });
+      // (mobile and desktop layouts each render one; only one is visible)
+      const counter = page.getByText(/^\s*\d+\s*\/\s*\d+\s*$/).locator("visible=true");
+      await expect(counter.first()).toBeVisible({ timeout: 5_000 });
     }
   });
 
@@ -114,22 +122,22 @@ test.describe("Manga Reader", () => {
     await pageEl.first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
 
     if ((await pageEl.count()) > 0) {
-      // Header should have "Chapter X" text
-      const chapterLabel = page.getByText(/Chapter \d+/);
+      // Header shows "Ch. X"
+      const chapterLabel = page.getByText(/^Ch\. \d+$/).locator("visible=true");
       await expect(chapterLabel.first()).toBeVisible({ timeout: 5_000 });
     }
   });
 
-  test("Prev/Next chapter buttons are present", async ({ page }) => {
+  test("Prev/Next page buttons are present", async ({ page }) => {
     await navigateToReader(page);
 
     const pageEl = page.locator('[data-page="1"]');
     await pageEl.first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
 
     if ((await pageEl.count()) > 0) {
-      // Header buttons: "Prev" and "Next" for chapter navigation
-      const prevBtn = page.getByRole("button", { name: /^Prev$/ });
-      const nextBtn = page.getByRole("button", { name: /^Next$/ });
+      // Footer page navigation: "Prev"/"Next" (mobile) or "Prev Page"/"Next Page" (desktop)
+      const prevBtn = page.getByRole("button", { name: /^Prev( Page)?$/ }).locator("visible=true").first();
+      const nextBtn = page.getByRole("button", { name: /^Next( Page)?$/ }).locator("visible=true").first();
 
       // At least one should be visible (prev might be disabled on chapter 1)
       const prevVisible = await prevBtn.isVisible().catch(() => false);
@@ -145,10 +153,11 @@ test.describe("Manga Reader", () => {
     await pageEl.first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
 
     // Click "Back" button
-    const backBtn = page.getByRole("button", { name: /Back/ });
+    const backBtn = page.getByRole("button", { name: /Back/ }).locator("visible=true").first();
     if ((await backBtn.count()) > 0) {
       await backBtn.click();
-      await page.waitForURL(/\/manga\//);
+      // The reader URL itself matches /manga/ — wait until we've actually left it.
+      await page.waitForURL((url) => url.pathname.startsWith("/manga/") && !url.pathname.includes("/manga/read/"));
       // Should be on the details page, not the reader
       expect(page.url()).not.toContain("/manga/read/");
     }
@@ -255,7 +264,7 @@ test.describe("Manga Reader", () => {
     }
   });
 
-  test("images use referrerpolicy=no-referrer", async ({ page }) => {
+  test("images are served through the same-origin proxy", async ({ page }) => {
     await navigateToReader(page);
 
     const pageEl = page.locator('[data-page="1"]');
@@ -264,7 +273,8 @@ test.describe("Manga Reader", () => {
     if ((await pageEl.count()) > 0) {
       const img = pageEl.locator("img");
       if ((await img.count()) > 0) {
-        await expect(img).toHaveAttribute("referrerpolicy", "no-referrer");
+        // No direct hotlinking of third-party image hosts from the browser.
+        await expect(img).toHaveAttribute("src", /^\/api\/manga\/image\?/);
       }
     }
   });
@@ -300,7 +310,6 @@ test.describe("Manga Reader", () => {
 
       // Check if the UI elements transitioned to hidden state
       // The header has pointer-events-none and opacity-0 when hidden
-      const hiddenElements = page.locator(".pointer-events-none.opacity-0");
       // This transition will happen if the timer fires — soft check
       // In headless mode, timers may behave differently
       expect(true).toBeTruthy(); // Non-flaky assertion

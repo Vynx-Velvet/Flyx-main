@@ -5,17 +5,20 @@
  * requests to Jikan (with AniList fallback), handles caching, and
  * validates response shapes.
  *
- * Requires the Next.js dev server running on localhost:3000.
+ * Live test: needs a running Flyx server (FLYX_TEST_BASE_URL, default
+ * http://127.0.0.1:3000) and FLYX_TEST_USER / FLYX_TEST_PASSWORD. Skipped when
+ * no server is up unless FLYX_TEST_REQUIRE_LIVE=1. See src/test/live-server.ts.
  */
 
 import { describe, it, expect } from "vitest";
+import { liveFetch, liveSuiteEnabled } from "@/test/live-server";
 
-const BASE_URL = "http://localhost:3000";
+const serverUp = await liveSuiteEnabled();
 
-describe("GET /api/anime/jikan", () => {
+describe.skipIf(!serverUp)("GET /api/anime/jikan", () => {
   it("returns top anime list from Jikan", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/anime/jikan?path=${encodeURIComponent("/top/anime?limit=5")}`
+    const res = await liveFetch(
+      `/api/anime/jikan?path=${encodeURIComponent("/top/anime?limit=5")}`
     );
     expect(res.status).toBe(200);
 
@@ -32,7 +35,7 @@ describe("GET /api/anime/jikan", () => {
   });
 
   it("returns 400 for missing path parameter", async () => {
-    const res = await fetch(`${BASE_URL}/api/anime/jikan`);
+    const res = await liveFetch(`/api/anime/jikan`);
     expect(res.status).toBe(400);
 
     const body = await res.json();
@@ -40,22 +43,42 @@ describe("GET /api/anime/jikan", () => {
   });
 
   it("returns 400 for path traversal attempt", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/anime/jikan?path=${encodeURIComponent("/../../../etc/passwd")}`
+    const res = await liveFetch(
+      `/api/anime/jikan?path=${encodeURIComponent("/../../../etc/passwd")}`
+    );
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error).toContain("invalid");
+    expect(body.data).toEqual([]);
+  });
+
+  it("returns 400 for a traversal hidden mid-path", async () => {
+    const res = await liveFetch(
+      `/api/anime/jikan?path=${encodeURIComponent("/anime/../../users")}`
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for a double-encoded traversal attempt", async () => {
+    // "/%2e%2e/%2e%2e/etc/passwd" encoded once more: the route decodes one
+    // layer, which must still be caught by the ".." check.
+    const res = await liveFetch(
+      `/api/anime/jikan?path=${encodeURIComponent("/%2e%2e/%2e%2e/etc/passwd")}`
     );
     expect(res.status).toBe(400);
   });
 
   it("returns 400 for non-slash-prefixed path", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/anime/jikan?path=top/anime`
+    const res = await liveFetch(
+      `/api/anime/jikan?path=top/anime`
     );
     expect(res.status).toBe(400);
   });
 
   it("sets cache headers on success", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/anime/jikan?path=${encodeURIComponent("/top/anime?limit=3")}`
+    const res = await liveFetch(
+      `/api/anime/jikan?path=${encodeURIComponent("/top/anime?limit=3")}`
     );
     expect(res.status).toBe(200);
 
@@ -66,8 +89,8 @@ describe("GET /api/anime/jikan", () => {
   });
 
   it("returns anime search results", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/anime/jikan?path=${encodeURIComponent("/anime?q=naruto&limit=5")}`
+    const res = await liveFetch(
+      `/api/anime/jikan?path=${encodeURIComponent("/anime?q=naruto&limit=5")}`
     );
     expect(res.status).toBe(200);
 
@@ -87,8 +110,8 @@ describe("GET /api/anime/jikan", () => {
 
   it("returns anime details for a specific MAL ID", async () => {
     // Naruto = MAL ID 20
-    const res = await fetch(
-      `${BASE_URL}/api/anime/jikan?path=${encodeURIComponent("/anime/20")}`
+    const res = await liveFetch(
+      `/api/anime/jikan?path=${encodeURIComponent("/anime/20")}`
     );
     expect(res.status).toBe(200);
 
@@ -106,12 +129,12 @@ describe("GET /api/anime/jikan", () => {
     const path = encodeURIComponent("/top/anime?limit=2");
 
     // First request — should be a miss
-    const res1 = await fetch(`${BASE_URL}/api/anime/jikan?path=${path}`);
+    const res1 = await liveFetch(`/api/anime/jikan?path=${path}`);
     expect(res1.status).toBe(200);
     const cache1 = res1.headers.get("x-flyx-cache");
 
     // Second request — should be a hit (within 10 min TTL)
-    const res2 = await fetch(`${BASE_URL}/api/anime/jikan?path=${path}`);
+    const res2 = await liveFetch(`/api/anime/jikan?path=${path}`);
     expect(res2.status).toBe(200);
     const cache2 = res2.headers.get("x-flyx-cache");
 
@@ -121,8 +144,8 @@ describe("GET /api/anime/jikan", () => {
   });
 
   it("gracefully handles unknown Jikan paths", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/anime/jikan?path=${encodeURIComponent("/anime/999999999")}`
+    const res = await liveFetch(
+      `/api/anime/jikan?path=${encodeURIComponent("/anime/999999999")}`
     );
     // Jikan returns 404 for unknown IDs, but our proxy may return 200 with empty data
     // or forward the error. Either way, it should not crash.
@@ -130,8 +153,8 @@ describe("GET /api/anime/jikan", () => {
   });
 
   it("response is always JSON", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/anime/jikan?path=${encodeURIComponent("/top/anime?limit=1")}`
+    const res = await liveFetch(
+      `/api/anime/jikan?path=${encodeURIComponent("/top/anime?limit=1")}`
     );
     expect(res.headers.get("content-type")).toContain("application/json");
   });
@@ -139,8 +162,8 @@ describe("GET /api/anime/jikan", () => {
   it("handles double-encoded paths", async () => {
     // Simulate a double-encoded path
     const doubleEncoded = encodeURIComponent(encodeURIComponent("/top/anime?limit=2"));
-    const res = await fetch(
-      `${BASE_URL}/api/anime/jikan?path=${doubleEncoded}`
+    const res = await liveFetch(
+      `/api/anime/jikan?path=${doubleEncoded}`
     );
     expect(res.status).toBe(200);
     const body = await res.json();

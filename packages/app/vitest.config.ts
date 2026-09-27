@@ -3,20 +3,18 @@ import path from "node:path";
 
 export default defineConfig({
   resolve: {
+    // Aliases match by prefix in insertion order: subpaths must come before
+    // their package root or "@flyx/extractors" swallows "@flyx/extractors/services".
     alias: {
       "@": path.resolve(__dirname, "src"),
       "@flyx/core/utils": path.resolve(__dirname, "../core/src/utils/index.ts"),
       "@flyx/core/types": path.resolve(__dirname, "../core/src/types/index.ts"),
       "@flyx/core": path.resolve(__dirname, "../core/src/index.ts"),
       "@flyx/config": path.resolve(__dirname, "../config/src/index.ts"),
-      "@flyx/providers": path.resolve(__dirname, "../providers/src/index.ts"),
       "@flyx/providers/providers": path.resolve(__dirname, "../providers/src/providers/index.ts"),
-      "@flyx/extractors": path.resolve(__dirname, "../extractors/src/index.ts"),
+      "@flyx/providers": path.resolve(__dirname, "../providers/src/index.ts"),
       "@flyx/extractors/services": path.resolve(__dirname, "../extractors/src/services/index.ts"),
-      "@flyx/player": path.resolve(__dirname, "../player/src/index.ts"),
-      "@flyx/db": path.resolve(__dirname, "../db/src/index.ts"),
-      "@flyx/sync": path.resolve(__dirname, "../sync/src/index.ts"),
-      "@flyx/shared": path.resolve(__dirname, "../shared/src/index.ts"),
+      "@flyx/extractors": path.resolve(__dirname, "../extractors/src/index.ts"),
     },
   },
   test: {

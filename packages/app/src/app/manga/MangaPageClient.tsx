@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ExtensionGate } from "@/components/ExtensionGate";
@@ -194,13 +194,16 @@ function HeroSection({ items, onOpen }: { items: MangaCard[]; onOpen: (item: Man
   const [idx, setIdx] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const current = items[idx] ?? items[0];
-  if (!current) return null;
 
+  // Hooks must run before the early return below: items starts empty and
+  // fills in after the fetch, and a hook count change between renders crashes.
   useEffect(() => {
     if (items.length <= 1) return;
     timer.current = setInterval(() => setIdx((p) => (p + 1) % items.length), 6000);
     return () => { if (timer.current) clearInterval(timer.current); };
   }, [items.length]);
+
+  if (!current) return null;
 
   return (
     <section className="relative h-[48vh] min-h-[300px] max-h-[480px] overflow-hidden">
@@ -211,7 +214,7 @@ function HeroSection({ items, onOpen }: { items: MangaCard[]; onOpen: (item: Man
         transition={{ duration: 0.5 }}
         className="absolute inset-0"
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
+        { }
         <img
           src={`/api/manga/image?url=${encodeURIComponent(current.coverImage)}`}
           alt=""
@@ -479,7 +482,7 @@ function MangaPosterCard({ item, onClick }: { item: MangaCard; onClick: () => vo
             {showImage ? (
               <>
                 {!loaded && <div className="skeleton absolute inset-0 z-[1] rounded-none" />}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
+                { }
                 <img ref={imgRef} src={`/api/manga/image?url=${encodeURIComponent(item.coverImage)}`} alt="" loading="lazy" decoding="async"
                   onLoad={() => setLoaded(true)} onError={() => { setImgError(true); setLoaded(false); }}
                   className={`absolute inset-0 z-[2] h-full w-full object-cover transition-[transform,opacity] duration-300 ease-out group-hover:scale-[1.05] ${loaded ? "opacity-100" : "opacity-0"}`}
@@ -544,21 +547,6 @@ function GridSkeleton({ count }: { count: number }) {
         </div>
       ))}
     </div>
-  );
-}
-
-function RowSkeleton({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <section className="content-container">
-      <div className="section-head">
-        <div><h2 className="!text-white/45">{title}</h2><p className="section-sub !text-white/25">{subtitle}</p></div>
-      </div>
-      <div className="flex gap-3 overflow-hidden">
-        {Array.from({ length: 7 }).map((_, i) => (
-          <div key={i} className="skeleton aspect-[2/3] w-[138px] shrink-0 rounded-[0.9rem] sm:w-[156px]" />
-        ))}
-      </div>
-    </section>
   );
 }
 

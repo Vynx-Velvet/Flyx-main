@@ -4,17 +4,20 @@
  * Tests GET /api/manga/search — validates response shape, error
  * handling, and parameter validation.
  *
- * Requires the Next.js dev server running on localhost:3000.
+ * Live test: needs a running Flyx server (FLYX_TEST_BASE_URL, default
+ * http://127.0.0.1:3000) and FLYX_TEST_USER / FLYX_TEST_PASSWORD. Skipped when
+ * no server is up unless FLYX_TEST_REQUIRE_LIVE=1. See src/test/live-server.ts.
  */
 
 import { describe, it, expect } from "vitest";
+import { liveFetch, liveSuiteEnabled } from "@/test/live-server";
 
-const BASE_URL = "http://localhost:3000";
+const serverUp = await liveSuiteEnabled();
 
-describe("GET /api/manga/search", () => {
+describe.skipIf(!serverUp)("GET /api/manga/search", () => {
   it("returns results for a known manga query", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/manga/search?q=solo+leveling&limit=5`
+    const res = await liveFetch(
+      `/api/manga/search?q=solo+leveling&limit=5`
     );
     expect(res.status).toBe(200);
 
@@ -36,7 +39,7 @@ describe("GET /api/manga/search", () => {
   });
 
   it("returns empty data for empty query", async () => {
-    const res = await fetch(`${BASE_URL}/api/manga/search?q=`);
+    const res = await liveFetch(`/api/manga/search?q=`);
     expect(res.status).toBe(200);
 
     const body = (await res.json()) as {
@@ -48,7 +51,7 @@ describe("GET /api/manga/search", () => {
   });
 
   it("returns empty data for whitespace query", async () => {
-    const res = await fetch(`${BASE_URL}/api/manga/search?q=+++`);
+    const res = await liveFetch(`/api/manga/search?q=+++`);
     expect(res.status).toBe(200);
 
     const body = (await res.json()) as {
@@ -59,8 +62,8 @@ describe("GET /api/manga/search", () => {
   });
 
   it("respects the limit parameter (cap of 40)", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/manga/search?q=one&limit=100`
+    const res = await liveFetch(
+      `/api/manga/search?q=one&limit=100`
     );
     const body = (await res.json()) as {
       data: unknown[];
@@ -69,8 +72,8 @@ describe("GET /api/manga/search", () => {
     expect(body.data.length).toBeLessThanOrEqual(40);
 
     // Also test low limit
-    const res2 = await fetch(
-      `${BASE_URL}/api/manga/search?q=one&limit=3`
+    const res2 = await liveFetch(
+      `/api/manga/search?q=one&limit=3`
     );
     const body2 = (await res2.json()) as {
       data: unknown[];
@@ -85,8 +88,8 @@ describe("GET /api/manga/search", () => {
     // results as page=1. This test validates that the endpoint
     // handles the parameter without errors.
     const [res1, res2] = await Promise.all([
-      fetch(`${BASE_URL}/api/manga/search?q=naruto&page=1&limit=3`),
-      fetch(`${BASE_URL}/api/manga/search?q=naruto&page=2&limit=3`),
+      liveFetch(`/api/manga/search?q=naruto&page=1&limit=3`),
+      liveFetch(`/api/manga/search?q=naruto&page=2&limit=3`),
     ]);
     const body1 = (await res1.json()) as {
       data: { id: string }[];
@@ -107,8 +110,8 @@ describe("GET /api/manga/search", () => {
 
   it("always returns JSON with consistent shape", async () => {
     // Test the error path too — it should not crash
-    const res = await fetch(
-      `${BASE_URL}/api/manga/search?q=zzzxxxyyyzzzxxxyyy&limit=5`
+    const res = await liveFetch(
+      `/api/manga/search?q=zzzxxxyyyzzzxxxyyy&limit=5`
     );
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("application/json");

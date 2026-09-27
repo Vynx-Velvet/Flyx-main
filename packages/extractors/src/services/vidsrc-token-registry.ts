@@ -22,6 +22,19 @@ const expiryByOrigin = new Map<string, number>();
 /** Default TTL: 30 minutes (tokens themselves last ~55 min) */
 const DEFAULT_TTL_MS = 30 * 60 * 1000;
 
+/** Upper bound on remembered origins (oldest registrations are dropped). */
+const MAX_ORIGINS = 256;
+
+/** Token endpoints are fetched server-side: only plain https URLs are accepted. */
+function isAcceptableTokenUrl(tokenUrl: string): boolean {
+  try {
+    const u = new URL(tokenUrl);
+    return u.protocol === "https:" && !u.username && !u.password;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Register a token URL for one or more CDN origins.
  * Called by the VidSrc extractor after it gets gen_token_url from the API.
@@ -31,10 +44,20 @@ export function registerTokenUrls(
   tokenUrl: string,
   ttlMs = DEFAULT_TTL_MS,
 ): void {
+  if (!isAcceptableTokenUrl(tokenUrl)) return;
   const expiresAt = Date.now() + ttlMs;
   for (const origin of origins) {
+    // Re-insert so Map order tracks recency.
+    tokenUrlByOrigin.delete(origin);
+    expiryByOrigin.delete(origin);
     tokenUrlByOrigin.set(origin, tokenUrl);
     expiryByOrigin.set(origin, expiresAt);
+  }
+  while (tokenUrlByOrigin.size > MAX_ORIGINS) {
+    const oldest = tokenUrlByOrigin.keys().next().value;
+    if (oldest === undefined) break;
+    tokenUrlByOrigin.delete(oldest);
+    expiryByOrigin.delete(oldest);
   }
 }
 

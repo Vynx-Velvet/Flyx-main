@@ -8,7 +8,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string; chapter: string }>;
 }): Promise<Metadata> {
-  const { id, chapter } = await params;
+  const { chapter } = await params;
   return {
     title: `Chapter ${chapter} — Manga Reader — Flyx`,
     description: `Read manga chapter ${chapter} online for free.`,

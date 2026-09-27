@@ -24,7 +24,8 @@ describe("network", () => {
     expect(ips[0].address).toBe("192.168.1.5");
 
     expect(getLANURLs(3900)).toEqual([{ url: "http://192.168.1.5:3900", address: "192.168.1.5" }]);
-    expect(getLocalURL(3900)).toBe("http://localhost:3900");
+    // Never "localhost" — it may resolve to [::1] (a different listener).
+    expect(getLocalURL(3900)).toBe("http://127.0.0.1:3900");
   });
 
   it("isPortInUse detects a listening port", async () => {
@@ -35,6 +36,20 @@ describe("network", () => {
     await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
     const port = probe.address().port;
     expect(await isPortInUse(port)).toBe(true); // probe itself is listening
+    await new Promise((resolve) => probe.close(resolve));
+    expect(await isPortInUse(port)).toBe(false);
+  });
+
+  it("isPortInUse also detects a listener on the IPv6 loopback only", async () => {
+    const { isPortInUse } = await import("../src/network.js");
+    const probe = net.createServer();
+    const listening = await new Promise((resolve) => {
+      probe.once("error", () => resolve(false)); // no IPv6 on this machine
+      probe.listen(0, "::1", () => resolve(true));
+    });
+    if (!listening) return;
+    const port = probe.address().port;
+    expect(await isPortInUse(port)).toBe(true);
     await new Promise((resolve) => probe.close(resolve));
     expect(await isPortInUse(port)).toBe(false);
   });

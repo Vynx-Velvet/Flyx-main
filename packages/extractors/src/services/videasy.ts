@@ -263,6 +263,12 @@ async function getSeed(mediaId: number, force = false): Promise<string> {
         }
         const ttl = data.ttlMs ?? 30000;
         seedCache.set(key, { seed: data.seed, expiresAt: Date.now() + ttl });
+        // Bounded: drop the oldest seeds (keyed by request-supplied ids).
+        while (seedCache.size > 500) {
+          const oldest = seedCache.keys().next().value;
+          if (oldest === undefined) break;
+          seedCache.delete(oldest);
+        }
         return data.seed;
       } catch (e) {
         lastErr = e as Error;

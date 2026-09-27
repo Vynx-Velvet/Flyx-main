@@ -6,10 +6,14 @@
  * converts SRT → VTT, and serves it to the browser's native <track>.
  * Converted VTTs are cached in memory for 24h so each sub is fetched from
  * the CDN at most once per day (anonymous download limits).
+ *
+ * Public route, untrusted archive: the zip download is size-capped while
+ * streaming, and only the chosen subtitle entry is inflated, with its own
+ * output cap (see extract-subtitle.ts). The outbound URL is fixed-host
+ * (numeric subId only), so it cannot be pointed elsewhere.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { unzipSync } from "fflate";
 import {
   fetchOpenSubtitlesZip,
   AnubisBlockedError,
@@ -20,12 +24,14 @@ import {
   decodeSubtitleText,
   normalizeVTT,
 } from "@/lib/subtitles/srt";
+import { extractSubtitleFromZip, SubtitleArchiveError } from "./extract-subtitle";
 
 export const runtime = "nodejs";
 
 const VTT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const VTT_CACHE_MAX = 150;
-const MAX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024;
+/** Largest subtitle zip we download (real ones are tens of KB). */
+const MAX_ZIP_BYTES = 20 * 1024 * 1024;
 
 /** LRU-ish VTT cache keyed by subId. */
 const vttCache = new Map<string, { vtt: string; at: number }>();
@@ -57,14 +63,14 @@ function vttResponse(vtt: string): NextResponse {
     headers: {
       "Content-Type": "text/vtt; charset=utf-8",
       "Cache-Control": "public, max-age=86400",
-      "Access-Control-Allow-Origin": "*",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }
 
 export async function GET(request: NextRequest) {
   const subId = request.nextUrl.searchParams.get("subId") ?? "";
-  if (!/^\d+$/.test(subId)) {
+  if (!/^\d{1,12}$/.test(subId)) {
     return NextResponse.json({ error: "subId is required" }, { status: 400 });
   }
 
@@ -75,27 +81,19 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const zip = await fetchOpenSubtitlesZip(subId);
+    const zip = await fetchOpenSubtitlesZip(subId, MAX_ZIP_BYTES);
 
-    let files: Record<string, Uint8Array>;
-    try {
-      files = unzipSync(new Uint8Array(zip.data));
-    } catch {
-      return NextResponse.json({ error: "invalid_archive" }, { status: 422 });
-    }
-
-    const names = Object.keys(files);
     // Native <track> renders .srt/.vtt only — .ass/.sub/.idx are unsupported.
-    const pick =
-      names.find((n) => /\.srt$/i.test(n)) ?? names.find((n) => /\.vtt$/i.test(n));
-    if (!pick) {
-      console.log(`[subtitles/download] ${subId} zip has no srt/vtt (${names.slice(0, 5).join(", ")})`);
-      return NextResponse.json({ error: "unsupported_format" }, { status: 422 });
-    }
-
-    const bytes = files[pick]!;
-    if (bytes.byteLength > MAX_UNCOMPRESSED_BYTES) {
-      return NextResponse.json({ error: "too_large" }, { status: 422 });
+    let pick: string;
+    let bytes: Uint8Array;
+    try {
+      ({ name: pick, bytes } = extractSubtitleFromZip(zip.data));
+    } catch (err) {
+      if (err instanceof SubtitleArchiveError) {
+        console.log(`[subtitles/download] ${subId}: ${err.message}`);
+        return NextResponse.json({ error: err.code }, { status: 422 });
+      }
+      throw err;
     }
 
     const text = decodeSubtitleText(bytes);
@@ -113,6 +111,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "blocked" }, { status: 503 });
     }
     if (err instanceof OSDownloadError) {
+      if (err.status === 413) {
+        return NextResponse.json({ error: "too_large" }, { status: 422 });
+      }
       if (err.status === 404) {
         return NextResponse.json({ error: "not_found" }, { status: 404 });
       }

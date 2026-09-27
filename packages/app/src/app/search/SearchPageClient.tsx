@@ -154,6 +154,121 @@ export default function SearchPageClient({
   };
 
   // Perform search
+  // Anime search: Jikan /anime via the cached /api/anime/jikan proxy.
+  const performAnimeSearch = useCallback(
+    async (
+      searchQuery: string,
+      searchFilters: SearchFilters,
+      pageNum: number,
+      append: boolean = false,
+    ) => {
+      try {
+        let animeResults: AnimeResult[] = [];
+
+        // Jikan /anime search through the cached server proxy (extra query
+        // params are forwarded to Jikan alongside `path`).
+        const searchUrl = new URL("/api/anime/jikan", window.location.origin);
+        searchUrl.searchParams.set("path", "/anime");
+        searchUrl.searchParams.set("sfw", "true");
+        searchUrl.searchParams.set("sort", "desc");
+        searchUrl.searchParams.set("page", pageNum.toString());
+        searchUrl.searchParams.set("limit", "24");
+        searchUrl.searchParams.set(
+          "order_by",
+          searchFilters.sortBy === "rating"
+            ? "score"
+            : searchFilters.sortBy === "release_date"
+              ? "start_date"
+              : "members",
+        );
+
+        if (searchQuery.trim()) {
+          searchUrl.searchParams.set("q", searchQuery);
+        }
+
+        if (searchFilters.genres.length > 0) {
+          const genreIds = searchFilters.genres
+            .map((slug) => MAL_GENRE_IDS[slug])
+            .filter((id) => id !== undefined);
+          if (genreIds.length > 0) {
+            searchUrl.searchParams.set("genres", genreIds.join(","));
+          }
+        }
+
+        if (searchFilters.yearRange[0] > 1900) {
+          searchUrl.searchParams.set("start_date", `${searchFilters.yearRange[0]}-01-01`);
+        }
+        if (searchFilters.yearRange[1] < new Date().getFullYear()) {
+          searchUrl.searchParams.set("end_date", `${searchFilters.yearRange[1]}-12-31`);
+        }
+
+        if (searchFilters.minRating > 0) {
+          searchUrl.searchParams.set("min_score", searchFilters.minRating.toString());
+        }
+
+        const response = await fetch(searchUrl.toString());
+        const data = await response.json();
+
+        if (!response.ok) {
+          console.error("Anime search API error:", response.status, data);
+          if (response.status === 429) {
+            setHasMore(false);
+          }
+          throw new Error(data.message || "Anime search failed");
+        }
+
+        animeResults = data.data || [];
+
+        // Transform MAL results to MediaItem format for consistent display
+        const transformedResults: MediaItem[] = animeResults.map((anime: AnimeResult) => ({
+          id: anime.mal_id.toString(),
+          title: anime.title_english || anime.title,
+          name: anime.title,
+          overview: "",
+          posterPath: anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url || "",
+          poster_path: anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url || "",
+          backdropPath: "",
+          releaseDate: anime.year ? `${anime.year}-01-01` : "",
+          first_air_date: anime.year ? `${anime.year}-01-01` : "",
+          rating: anime.score || 0,
+          vote_average: anime.score || 0,
+          voteCount: 0,
+          vote_count: 0,
+          mediaType: "anime" as any,
+          genres: [],
+          genre_ids: [],
+          // Store MAL ID and anime type for navigation
+          mal_id: anime.mal_id,
+          anime_type: anime.type, // "TV", "Movie", "OVA", "ONA", "Special", etc.
+          episodes: anime.episodes ?? undefined,
+        }));
+
+        // Update URL without reload
+        const params = new URLSearchParams();
+        if (searchQuery) params.set("q", searchQuery);
+        params.set("type", "anime");
+        if (searchFilters.genres.length > 0) params.set("genre", searchFilters.genres[0]);
+        window.history.replaceState(null, "", `/search?${params.toString()}`);
+
+        if (append) {
+          setResults((prev) => [...prev, ...transformedResults]);
+        } else {
+          setResults(transformedResults);
+        }
+
+        setHasMore(data.pagination?.has_next_page || false);
+      } catch (error) {
+        console.error("Anime search error:", error);
+        if (!append) setResults([]);
+        setHasMore(false);
+      } finally {
+        setLoading(false);
+        loadingRef.current = false;
+      }
+    },
+    [],
+  );
+
   const performSearch = useCallback(
     async (
       searchQuery: string,
@@ -281,117 +396,7 @@ export default function SearchPageClient({
         loadingRef.current = false;
       }
     },
-    [sessionId],
-  );
-
-  // Perform anime search via internal /api/content/anime-search (AniList-backed)
-  const performAnimeSearch = useCallback(
-    async (
-      searchQuery: string,
-      searchFilters: SearchFilters,
-      pageNum: number,
-      append: boolean = false,
-    ) => {
-      try {
-        let animeResults: AnimeResult[] = [];
-
-        const searchUrl = new URL("/api/content/anime-search", window.location.origin);
-        searchUrl.searchParams.set("page", pageNum.toString());
-        searchUrl.searchParams.set("limit", "24");
-        searchUrl.searchParams.set(
-          "order_by",
-          searchFilters.sortBy === "rating"
-            ? "score"
-            : searchFilters.sortBy === "release_date"
-              ? "start_date"
-              : "members",
-        );
-
-        if (searchQuery.trim()) {
-          searchUrl.searchParams.set("q", searchQuery);
-        }
-
-        if (searchFilters.genres.length > 0) {
-          const genreIds = searchFilters.genres
-            .map((slug) => MAL_GENRE_IDS[slug])
-            .filter((id) => id !== undefined);
-          if (genreIds.length > 0) {
-            searchUrl.searchParams.set("genres", genreIds.join(","));
-          }
-        }
-
-        if (searchFilters.yearRange[0] > 1900) {
-          searchUrl.searchParams.set("start_date", `${searchFilters.yearRange[0]}-01-01`);
-        }
-        if (searchFilters.yearRange[1] < new Date().getFullYear()) {
-          searchUrl.searchParams.set("end_date", `${searchFilters.yearRange[1]}-12-31`);
-        }
-
-        if (searchFilters.minRating > 0) {
-          searchUrl.searchParams.set("min_score", searchFilters.minRating.toString());
-        }
-
-        const response = await fetch(searchUrl.toString());
-        const data = await response.json();
-
-        if (!response.ok) {
-          console.error("Anime search API error:", response.status, data);
-          if (response.status === 429) {
-            setHasMore(false);
-          }
-          throw new Error(data.message || "Anime search failed");
-        }
-
-        animeResults = data.data || [];
-
-        // Transform MAL results to MediaItem format for consistent display
-        const transformedResults: MediaItem[] = animeResults.map((anime: AnimeResult) => ({
-          id: anime.mal_id.toString(),
-          title: anime.title_english || anime.title,
-          name: anime.title,
-          overview: "",
-          posterPath: anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url || "",
-          poster_path: anime.images?.jpg?.large_image_url || anime.images?.jpg?.image_url || "",
-          backdropPath: "",
-          releaseDate: anime.year ? `${anime.year}-01-01` : "",
-          first_air_date: anime.year ? `${anime.year}-01-01` : "",
-          rating: anime.score || 0,
-          vote_average: anime.score || 0,
-          voteCount: 0,
-          vote_count: 0,
-          mediaType: "anime" as any,
-          genres: [],
-          genre_ids: [],
-          // Store MAL ID and anime type for navigation
-          mal_id: anime.mal_id,
-          anime_type: anime.type, // "TV", "Movie", "OVA", "ONA", "Special", etc.
-          episodes: anime.episodes ?? undefined,
-        }));
-
-        // Update URL without reload
-        const params = new URLSearchParams();
-        if (searchQuery) params.set("q", searchQuery);
-        params.set("type", "anime");
-        if (searchFilters.genres.length > 0) params.set("genre", searchFilters.genres[0]);
-        window.history.replaceState(null, "", `/search?${params.toString()}`);
-
-        if (append) {
-          setResults((prev) => [...prev, ...transformedResults]);
-        } else {
-          setResults(transformedResults);
-        }
-
-        setHasMore(data.pagination?.has_next_page || false);
-      } catch (error) {
-        console.error("Anime search error:", error);
-        if (!append) setResults([]);
-        setHasMore(false);
-      } finally {
-        setLoading(false);
-        loadingRef.current = false;
-      }
-    },
-    [],
+    [sessionId, performAnimeSearch],
   );
 
   // Effect for live search and filter changes

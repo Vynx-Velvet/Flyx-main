@@ -7,6 +7,11 @@
  * a debounced server restart (setup wizard completion, network mode toggle,
  * settings changes) — the edge runtime snapshots env at boot, so restarting
  * is the only way every runtime agrees on the latest values.
+ *
+ * Trust model: the window (master cookie + preload bridge) is pinned to
+ * http://127.0.0.1:<port> — see src/security.js. IPC only answers that
+ * origin, navigation elsewhere is blocked (https opens in the OS browser),
+ * and the server must prove it's ours (boot nonce) before the window loads.
  */
 
 const path = require("path");
@@ -22,6 +27,7 @@ const {
   nativeImage,
   clipboard,
   session,
+  shell,
 } = require("electron");
 
 // Dev convenience: never touch real data when running unpackaged.
@@ -37,6 +43,14 @@ const { getLANURLs, getLocalURL, isPortInUse } = require("./src/network");
 const updater = require("./src/updater");
 const ghUpdater = require("./src/github-updater");
 const vlc = require("./src/vlc");
+const {
+  appOrigin,
+  isTrustedSender,
+  classifyNavigation,
+  isPermissionAllowed,
+  stripQuery,
+  redactUrls,
+} = require("./src/security");
 
 app.setName("Flyx");
 
@@ -53,12 +67,13 @@ let currentChild = null;
 let isQuitting = false;
 let intentionalStop = false;
 let currentPort = PORT;
-let currentHostname = "0.0.0.0";
+let currentHostname = "127.0.0.1"; // localhost-only unless .env opts into LAN
 let updateDownloaded = false;
 let watchSuppressUntil = 0;
 let restartTimer = null;
 let restartInFlight = false;
 let crashCount = 0;
+let updateInFlight = false;
 
 // ── Single instance ──────────────────────────────────────────────
 
@@ -73,7 +88,7 @@ if (!gotLock) {
 // ── Startup ──────────────────────────────────────────────────────
 
 async function onReady() {
-  cleanupStalePortableExes(); // portable self-update: drop the previous build
+  cleanupStalePortableExes(); // portable self-update: drop the exact previous build
   // The embedded server writes downloads here by default (overridable in
   // Settings → Downloads). Must be set before the server child is spawned so
   // it's inherited via process.env.
@@ -82,19 +97,31 @@ async function onReady() {
   } catch {
     /* app not ready for getPath yet — server falls back to ~/Downloads */
   }
-  bootstrap(); // first run: writes secrets + HOSTNAME=0.0.0.0
+  bootstrap(); // first run: writes secrets + HOSTNAME=127.0.0.1 (LAN is opt-in)
   ensureMasterToken(); // migrate pre-token data dirs (before watcher is armed)
   ensureSecrets(); // heal .env files missing JWT_SECRET/HOST_KEY (older builds)
   const env = readEnv();
 
-  currentPort = await resolvePort(env);
+  const port = await resolvePort(env);
+  if (!port) {
+    dialog.showErrorBox(
+      "Flyx could not start",
+      "Every port Flyx tried is already in use by another program on this " +
+        "computer (on 127.0.0.1 or ::1).\n\nClose the program using it, or " +
+        `set a different PORT in:\n${envPath}`,
+    );
+    app.quit();
+    return;
+  }
+  currentPort = port;
   if (currentPort !== Number(env.PORT)) {
     // Back-write our port pick; suppress the env watcher for our own write.
     watchSuppressUntil = Date.now() + 2000;
     updateEnv("PORT", String(currentPort));
   }
-  currentHostname = (env.HOSTNAME && env.HOSTNAME.trim()) || "0.0.0.0";
+  currentHostname = (env.HOSTNAME && env.HOSTNAME.trim()) || "127.0.0.1";
 
+  installPermissionHandlers();
   registerIpc();
   createTray();
   watchEnvFile();
@@ -117,13 +144,14 @@ async function onReady() {
   // the Chromium network layer. The wizard's save POST must appear as
   // "[http] POST .../api/setup/save" here BEFORE the server can log its
   // own side — a missing entry proves the click never fired a request.
-  // (Filter /_next/static so chunk loads don't drown the trail.)
+  // (Filter /_next/static so chunk loads don't drown the trail.) Query
+  // strings are dropped: they carry signed stream tokens + upstream URLs.
   try {
     session.defaultSession.webRequest.onBeforeRequest(
       { urls: ["http://*/*", "https://*/*"] },
       (details, callback) => {
         if (!/\/_next\/(static|image)\//.test(details.url)) {
-          server.log(`[http] ${details.method} ${details.url}`);
+          server.log(`[http] ${details.method} ${stripQuery(details.url)}`);
         }
         callback({});
       },
@@ -148,12 +176,21 @@ async function onReady() {
 async function resolvePort(env) {
   let port = parseInt(env.PORT, 10);
   if (!Number.isInteger(port) || port < 1024 || port > 65535) port = PORT;
-  for (let i = 0; i < 20; i++) {
+  return findFreePort(port);
+}
+
+/**
+ * First port from `start` that nothing listens on — on 127.0.0.1 AND ::1
+ * (a squatter on either could otherwise sit in front of our server).
+ * Resolves null when 20 consecutive ports are taken — never "use it anyway".
+ */
+async function findFreePort(start) {
+  let port = start;
+  for (let i = 0; i < 20 && port <= 65535; i++, port++) {
     if (!(await isPortInUse(port))) return port;
     server.log(`port ${port} in use — bumping`);
-    port += 1;
   }
-  return port;
+  return null;
 }
 
 /**
@@ -188,7 +225,8 @@ async function startAndWait() {
   const reason =
     result.kind === "exit"
       ? `The embedded server exited immediately (code ${result.code}).`
-      : "The embedded server did not respond within 60 seconds.";
+      : "The embedded server did not respond within 60 seconds " +
+        `(or another program is answering on port ${currentPort}).`;
   dialog.showErrorBox(
     "Flyx could not start",
     `${reason}\n\nDetails were written to:\n${serverLog}`,
@@ -243,6 +281,9 @@ async function restartFlow() {
       port: currentPort,
       hostname: currentHostname,
       onExit: (code) => onServerExit(code),
+      // Re-probe once the old server is gone: something may have taken the
+      // port in between. Never spawn onto (or health-check) a squatter.
+      beforeSpawn: (port) => ensurePortStillFree(port),
     });
 
     const result = await Promise.race([
@@ -264,10 +305,38 @@ async function restartFlow() {
         `Details were written to:\n${serverLog}`,
     );
     quitApp();
+  } catch (err) {
+    server.log(`restart failed: ${(err && err.message) || err}`);
+    dialog.showErrorBox(
+      "Flyx could not restart",
+      `${(err && err.message) || err}\n\nDetails were written to:\n${serverLog}`,
+    );
+    quitApp();
   } finally {
     intentionalStop = false;
     restartInFlight = false;
   }
+}
+
+/**
+ * Called by server.restart() after the old server stopped. Gives a
+ * just-closed listener a moment to release the port, then moves to the next
+ * free port (back-writing PORT to .env) if something else holds it.
+ */
+async function ensurePortStillFree(port) {
+  for (let i = 0; i < 6; i++) {
+    if (!(await isPortInUse(port))) return port;
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  const next = await findFreePort(port + 1);
+  if (!next) {
+    throw new Error(`Port ${port} is in use by another program and no free port was found.`);
+  }
+  server.log(`port ${port} still in use after stop — moving to ${next}`);
+  currentPort = next;
+  watchSuppressUntil = Date.now() + 2000;
+  updateEnv("PORT", String(next));
+  return next;
 }
 
 // ── Env watcher ──────────────────────────────────────────────────
@@ -305,7 +374,7 @@ async function handleEnvChange() {
   // the master would loop between / and auto-login forever. A restart is
   // the only way to bring every runtime onto the same environment.
   if (portChanged) currentPort = newPort;
-  currentHostname = (env.HOSTNAME && env.HOSTNAME.trim()) || "0.0.0.0";
+  currentHostname = (env.HOSTNAME && env.HOSTNAME.trim()) || "127.0.0.1";
   server.log(
     `env changed — restarting (port ${currentPort}, hostname ${currentHostname})`,
   );
@@ -322,6 +391,7 @@ const RESTARTING_HTML = `<!doctype html>
 <div style="color:#9ca3af;font-size:14px">Applying new settings — this page reloads automatically.</div>
 </body>
 </html>`;
+const RESTARTING_URL = "data:text/html;charset=utf-8," + encodeURIComponent(RESTARTING_HTML);
 
 /**
  * Resolve the app icon (window + tray). In a packaged build the icon ships
@@ -373,23 +443,110 @@ function createWindow() {
   // and resumes when the window comes back.
   mainWindow.on("hide", () => sendToWindow("flyx:window-hidden"));
   mainWindow.on("show", () => sendToWindow("flyx:window-shown"));
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  // Renderer console + crash trails — teed into flyx-server.log so the
-  // wizard's "[Setup UI] …" logs (and any JS errors) are visible there.
-  // Electron ≥32 passes a details object; older builds passed positional
-  // args — handle both.
+  // New windows are never created. https links (target=_blank, window.open)
+  // open in the OS browser; links back into the app load in this window.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    const verdict = classifyNavigation(url, currentPort);
+    if (verdict.action === "external") {
+      openExternalSafe(verdict.url);
+    } else if (verdict.action === "allow" || verdict.action === "rewrite") {
+      const target = verdict.action === "rewrite" ? verdict.url : url;
+      mainWindow.loadURL(target).catch(() => {});
+    } else {
+      server.log(`[nav] blocked window.open ${stripQuery(url)}`);
+    }
+    return { action: "deny" };
+  });
+  // The window holds the master cookie and the preload bridge — it may only
+  // ever show the app origin (or our own "Restarting…" page). Anything else
+  // is blocked; https destinations are handed to the OS browser instead.
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    guardNavigation(event, (event && event.url) || url);
+  });
+  mainWindow.webContents.on("will-redirect", (event, url, _isInPlace, isMainFrame) => {
+    const mainFrame = event && "isMainFrame" in event ? event.isMainFrame : isMainFrame;
+    if (mainFrame === false) return; // iframes (trailers) are sandboxed web content
+    guardNavigation(event, (event && event.url) || url);
+  });
+  // Renderer console + crash trails — teed into flyx-server.log. Only
+  // warnings/errors by default (the renderer's info logs carry stream URLs
+  // and titles); FLYX_DEBUG=1 restores the full trail for troubleshooting
+  // (e.g. the wizard's "[Setup UI] …" logs). URLs are query-stripped either
+  // way. Electron ≥32 passes a details object; older builds passed
+  // positional args — handle both.
   mainWindow.webContents.on("console-message", (_event, ...args) => {
     const first = args[0];
     const details = first && typeof first === "object" ? first : null;
     const message =
       details && "message" in details ? details.message : String(args[1] ?? "");
-    if (message) server.log(`[renderer] ${message}`);
+    const level = details ? details.level : first;
+    const important =
+      typeof level === "number" ? level >= 2 : level === "warning" || level === "error";
+    if (!important && process.env.FLYX_DEBUG !== "1") return;
+    if (message) server.log(`[renderer] ${redactUrls(message)}`);
   });
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
     server.log(`[renderer] process gone: ${details && details.reason}`);
   });
   mainWindow.webContents.on("did-fail-load", (_event, code, desc, url) => {
-    server.log(`[renderer] failed load (${code}) ${desc} ${url}`);
+    server.log(`[renderer] failed load (${code}) ${desc} ${stripQuery(url)}`);
+  });
+}
+
+/** will-navigate / will-redirect policy for the main window. */
+function guardNavigation(event, url) {
+  const verdict = classifyNavigation(url, currentPort, { allowExact: [RESTARTING_URL] });
+  if (verdict.action === "allow") return;
+  event.preventDefault();
+  if (verdict.action === "rewrite") {
+    // localhost / 0.0.0.0 spelling of our own server → pin to 127.0.0.1.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.loadURL(verdict.url).catch(() => {});
+    }
+  } else if (verdict.action === "external") {
+    openExternalSafe(verdict.url);
+  } else {
+    server.log(`[nav] blocked navigation to ${stripQuery(url)}`);
+  }
+}
+
+/** shell.openExternal for https: URLs only — never file:, smb:, custom schemes. */
+function openExternalSafe(url) {
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return;
+  }
+  if (u.protocol !== "https:") return;
+  shell.openExternal(u.toString()).catch((err) => {
+    server.log(`[nav] openExternal failed: ${(err && err.message) || err}`);
+  });
+}
+
+/**
+ * Chromium permission prompts: allow only what the app uses (fullscreen,
+ * clipboard write, EME for trailer embeds) and only while the window is on
+ * the app origin. Camera/mic, geolocation, notifications, MIDI, HID, … are
+ * always denied.
+ */
+function installPermissionHandlers() {
+  const ses = session.defaultSession;
+  const topUrlOf = (wc) => {
+    try {
+      return wc && !wc.isDestroyed() ? wc.getURL() : "";
+    } catch {
+      return "";
+    }
+  };
+  ses.setPermissionRequestHandler((wc, permission, callback) => {
+    const allowed = isPermissionAllowed(permission, { topUrl: topUrlOf(wc), port: currentPort });
+    if (!allowed) server.log(`[permission] denied ${permission}`);
+    callback(allowed);
+  });
+  ses.setPermissionCheckHandler((wc, permission, _requestingOrigin, details) => {
+    const topUrl = topUrlOf(wc) || (details && details.embeddingOrigin) || "";
+    return isPermissionAllowed(permission, { topUrl, port: currentPort });
   });
 }
 
@@ -409,8 +566,10 @@ function showMainWindow() {
  * window loads. The server grants passwordless auto-login to requests that
  * carry it (see request-master.ts) — so the desktop window never sees a
  * login screen, while LAN browsers (which never have this cookie) always
- * go through /login. The token persists in $DATA_DIR/.env, so it survives
- * restarts; the cookie just needs re-asserting per boot/port.
+ * go through /login. The token persists in $DATA_DIR/.env; the cookie is a
+ * SESSION cookie for 127.0.0.1 only, re-asserted each boot/restart after
+ * the boot-nonce health check proved the server on the port is ours (never
+ * "localhost", which may resolve to a different [::1] listener).
  */
 async function setMasterCookie() {
   try {
@@ -420,19 +579,26 @@ async function setMasterCookie() {
       return;
     }
     const cookies = session.defaultSession.cookies;
-    const expirationDate = Math.floor(Date.now() / 1000) + 10 * 365 * 24 * 3600;
-    for (const host of ["localhost", "127.0.0.1"]) {
-      await cookies.set({
-        url: `http://${host}:${currentPort}`,
-        name: "flyx_master_token",
-        value: token,
-        httpOnly: true,
-        secure: false, // the desktop server speaks plain http (even on LAN)
-        sameSite: "lax",
-        path: "/",
-        expirationDate,
-      });
-    }
+    // Drop every older copy first — earlier builds persisted a 10-year
+    // cookie for both "localhost" and "127.0.0.1".
+    try {
+      const existing = await cookies.get({ name: "flyx_master_token" });
+      for (const c of existing) {
+        const host = String(c.domain || "").replace(/^\./, "");
+        if (!host) continue;
+        await cookies.remove(`http://${host}${c.path || "/"}`, c.name).catch(() => {});
+      }
+    } catch {}
+    await cookies.set({
+      url: appOrigin(currentPort),
+      name: "flyx_master_token",
+      value: token,
+      httpOnly: true,
+      secure: false, // the desktop server speaks plain http (even on LAN)
+      sameSite: "lax",
+      path: "/",
+      // no expirationDate → session cookie: never outlives this launch
+    });
   } catch (err) {
     server.log(`failed to set master cookie: ${err && err.message}`);
   }
@@ -446,7 +612,7 @@ function loadApp() {
 function showRestartingPage() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow
-    .loadURL("data:text/html;charset=utf-8," + encodeURIComponent(RESTARTING_HTML))
+    .loadURL(RESTARTING_URL)
     .catch(() => {});
 }
 
@@ -462,36 +628,57 @@ function isPortable() {
   return Boolean(process.env.PORTABLE_EXECUTABLE_FILE);
 }
 
+/** Where a portable self-update records { oldExe, newExe } before relaunching. */
+function portableHandoffPath() {
+  return path.join(app.getPath("userData"), "portable-update.json");
+}
+
 /**
  * Portable self-update cleanup. The updater downloads the new
- * Flyx-Portable-<version>.exe next to the current one and relaunches; on the
- * next start (running the new build) sweep up any stale Flyx-Portable-*.exe
- * so the previous build doesn't linger in the folder.
+ * Flyx-Portable-<version>.exe next to the current one, records the exact
+ * old exe path, and relaunches; on the next start (running the new build)
+ * delete exactly that one file — never a sweep of the folder, which could
+ * hit other Flyx-Portable-*.exe copies the user keeps on purpose.
  */
 function cleanupStalePortableExes() {
   if (!isPortable()) return;
-  const dir = process.env.PORTABLE_EXECUTABLE_DIR;
-  const current = process.env.PORTABLE_EXECUTABLE_FILE;
-  if (!dir || !current) return;
-
-  let entries;
+  const recordPath = portableHandoffPath();
+  let record;
   try {
-    entries = fs.readdirSync(dir);
+    record = JSON.parse(fs.readFileSync(recordPath, "utf-8"));
   } catch {
-    return;
+    return; // no hand-off pending
   }
-
-  const currentName = path.basename(current).toLowerCase();
-  for (const name of entries) {
-    if (!/^Flyx-Portable-.*\.exe$/i.test(name)) continue;
-    if (name.toLowerCase() === currentName) continue;
-    const full = path.join(dir, name);
+  const current = process.env.PORTABLE_EXECUTABLE_FILE;
+  const target = ghUpdater.planPortableCleanup(record, current);
+  const forUs =
+    record && typeof record.newExe === "string" && current &&
+    path.resolve(record.newExe).toLowerCase() === path.resolve(current).toLowerCase();
+  if (target) {
     try {
-      fs.unlinkSync(full);
-      server.log(`[updater] removed old portable build ${name}`);
+      fs.unlinkSync(target);
+      server.log(`[updater] removed old portable build ${path.basename(target)}`);
     } catch (err) {
-      server.log(`[updater] could not remove ${name}: ${(err && err.message) || err}`);
+      server.log(`[updater] could not remove ${path.basename(target)}: ${(err && err.message) || err}`);
     }
+  }
+  // Clear once the build it was meant for has started (or it's garbage);
+  // keep it if the OLD exe was simply launched again before the new one.
+  if (target || forUs || !record || typeof record !== "object") {
+    try { fs.unlinkSync(recordPath); } catch {}
+  }
+}
+
+function recordPortableHandoff(newExe) {
+  try {
+    fs.mkdirSync(path.dirname(portableHandoffPath()), { recursive: true });
+    fs.writeFileSync(
+      portableHandoffPath(),
+      JSON.stringify({ oldExe: process.env.PORTABLE_EXECUTABLE_FILE, newExe }),
+      "utf-8",
+    );
+  } catch (err) {
+    server.log(`[updater] could not record portable hand-off: ${(err && err.message) || err}`);
   }
 }
 
@@ -520,15 +707,33 @@ function launchDetachedAfterDelay(dest) {
 }
 
 /**
- * Download + install the latest GitHub release for this build. Never throws
- * — resolves with an outcome object and emits `flyx:update-status` events.
+ * Download, VERIFY, then install the latest GitHub release for this build.
+ * Never throws — resolves with an outcome object and emits
+ * `flyx:update-status` events. Callers confirm with the user first
+ * (tray dialog / confirmAndInstallGithubUpdate).
+ *
+ * @param {object} [prefetched] a checkForUpdate() result the user confirmed
  */
-async function downloadGithubUpdate() {
-  const info = await ghUpdater.checkForUpdate({
-    currentVersion: app.getVersion(),
-    platform: process.platform,
-    portable: isPortable(),
-  });
+async function downloadGithubUpdate(prefetched) {
+  if (updateInFlight) {
+    return { ok: false, message: "An update is already in progress" };
+  }
+  updateInFlight = true;
+  try {
+    return await downloadGithubUpdateInner(prefetched);
+  } finally {
+    updateInFlight = false;
+  }
+}
+
+async function downloadGithubUpdateInner(prefetched) {
+  const info =
+    prefetched ||
+    (await ghUpdater.checkForUpdate({
+      currentVersion: app.getVersion(),
+      platform: process.platform,
+      portable: isPortable(),
+    }));
 
   if (!info.available || !info.assetUrl || !info.asset) {
     const message = info.assetUrl
@@ -541,10 +746,11 @@ async function downloadGithubUpdate() {
   // Portable builds download the new exe next to the current one (the
   // artifact name embeds the version, so it won't collide); installers and
   // other platforms download to the OS temp dir and run from there.
+  const assetName = path.basename(info.asset);
   const dest =
     isPortable() && process.env.PORTABLE_EXECUTABLE_DIR
-      ? path.join(process.env.PORTABLE_EXECUTABLE_DIR, info.asset)
-      : path.join(app.getPath("temp"), info.asset);
+      ? path.join(process.env.PORTABLE_EXECUTABLE_DIR, assetName)
+      : path.join(app.getPath("temp"), assetName);
   sendUpdateStatus({ phase: "downloading", percent: 0, asset: info.asset });
 
   try {
@@ -558,6 +764,25 @@ async function downloadGithubUpdate() {
     sendUpdateStatus({ phase: "error", message });
     return { ok: false, ...info, message };
   }
+
+  // Integrity gate: the release's latest*.yml sha512 (or GitHub's own
+  // sha256 asset digest for files the yml doesn't list, i.e. the portable
+  // exe). No match, or nothing to match against → delete and refuse.
+  const verdict = await ghUpdater.verifyDownload({
+    file: dest,
+    assetName,
+    metadataUrls: info.metadataUrls || [],
+    assetDigest: info.assetDigest || null,
+    assetSize: info.assetSize || null,
+  });
+  if (!verdict.ok) {
+    try { fs.unlinkSync(dest); } catch {}
+    const message = verdict.error || "Update verification failed";
+    server.log(`[updater] ${assetName} rejected: ${message}`);
+    sendUpdateStatus({ phase: "error", message });
+    return { ok: false, ...info, message };
+  }
+  server.log(`[updater] ${assetName} verified (${verdict.source})`);
 
   sendUpdateStatus({ phase: "installing", asset: info.asset, path: dest });
 
@@ -580,14 +805,72 @@ async function downloadGithubUpdate() {
     try { fs.chmodSync(dest, 0o755); } catch {}
   }
 
+  if (isPortable()) recordPortableHandoff(dest);
   launchDetachedAfterDelay(dest);
   sendUpdateStatus({ phase: "done", asset: info.asset, path: dest });
   quitApp();
   return { ok: true, ...info, path: dest, restarted: true };
 }
 
+/**
+ * Renderer flow (Settings → Updates → Install): the page can only ASK —
+ * the main process re-checks GitHub and the user confirms in a native
+ * dialog before anything is downloaded or run.
+ */
+async function confirmAndInstallGithubUpdate() {
+  if (!app.isPackaged) {
+    return { ok: false, dev: true, message: "Updates are disabled in development builds" };
+  }
+  if (updateInFlight) {
+    return { ok: false, message: "An update is already in progress" };
+  }
+  const info = await ghUpdater.checkForUpdate({
+    currentVersion: app.getVersion(),
+    platform: process.platform,
+    portable: isPortable(),
+  });
+  if (!info.available || !info.assetUrl || !info.asset) {
+    const message = info.error
+      ? "Could not check for updates"
+      : info.assetUrl
+        ? "No compatible download found for this build"
+        : "You are already up to date";
+    sendUpdateStatus({ phase: "error", message });
+    return { ok: false, ...info, message };
+  }
+  const options = {
+    type: "question",
+    title: "Flyx Update",
+    message: `Install Flyx v${info.latest} now?`,
+    detail:
+      `You have ${info.current}. Flyx will download the update, verify it, ` +
+      "then close and start the installer.",
+    buttons: ["Install", "Cancel"],
+    defaultId: 0,
+    cancelId: 1,
+  };
+  const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  const { response } = win
+    ? await dialog.showMessageBox(win, options)
+    : await dialog.showMessageBox(options);
+  if (response !== 0) {
+    const message = "Update cancelled";
+    sendUpdateStatus({ phase: "error", message });
+    return { ok: false, cancelled: true, ...info, message };
+  }
+  return downloadGithubUpdate(info);
+}
+
 /** Tray flow: check GitHub, prompt, then download + install. */
 async function checkGithubAndPromptInstall() {
+  if (!app.isPackaged) {
+    dialog.showMessageBox({
+      type: "info",
+      title: "Flyx Update",
+      message: "Updates are disabled in development builds.",
+    });
+    return;
+  }
   let info;
   try {
     info = await ghUpdater.checkForUpdate({
@@ -625,7 +908,7 @@ async function checkGithubAndPromptInstall() {
     defaultId: 0,
     cancelId: 1,
   });
-  if (response === 0) await downloadGithubUpdate();
+  if (response === 0) await downloadGithubUpdate(info);
 }
 
 // ── Tray ─────────────────────────────────────────────────────────
@@ -689,13 +972,29 @@ function onUpdateDownloaded(info) {
 
 // ── IPC ──────────────────────────────────────────────────────────
 
+/**
+ * ipcMain.handle, but only for frames on the app origin
+ * (http://127.0.0.1:<currentPort>). Anything else — a navigated-away
+ * window, a trailer iframe, a squatter page — gets an error, never data.
+ */
+function handleTrusted(channel, handler) {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!isTrustedSender(event, currentPort)) {
+      const from = event && event.senderFrame ? stripQuery(event.senderFrame.url) : "unknown";
+      server.log(`[ipc] rejected ${channel} from ${from}`);
+      throw new Error("Untrusted sender");
+    }
+    return handler(event, ...args);
+  });
+}
+
 function registerIpc() {
-  ipcMain.handle("flyx:get-version", () => app.getVersion());
-  ipcMain.handle("flyx:get-lan-urls", () =>
+  handleTrusted("flyx:get-version", () => app.getVersion());
+  handleTrusted("flyx:get-lan-urls", () =>
     currentHostname === "0.0.0.0" ? getLANURLs(currentPort) : [],
   );
-  ipcMain.handle("flyx:get-local-url", () => getLocalURL(currentPort));
-  ipcMain.handle("flyx:check-updates", async () => {
+  handleTrusted("flyx:get-local-url", () => getLocalURL(currentPort));
+  handleTrusted("flyx:check-updates", async () => {
     if (!app.isPackaged) {
       return { available: false, current: app.getVersion(), dev: true };
     }
@@ -705,15 +1004,18 @@ function registerIpc() {
       portable: isPortable(),
     });
   });
-  ipcMain.handle("flyx:download-update", () => downloadGithubUpdate());
+  // Packaged builds only, and always behind a native confirmation dialog.
+  handleTrusted("flyx:download-update", () => confirmAndInstallGithubUpdate());
   // Open a host stream URL in VLC on this machine. The renderer passes an
-  // absolute /api/stream/proxy URL on our own server, so VLC pulls the
-  // stream through the host exactly like the in-app player does.
-  ipcMain.handle("flyx:open-in-vlc", (_event, payload) =>
+  // absolute /api/stream/… or /api/livetv/… URL on our own server, so VLC
+  // pulls the stream through the host exactly like the in-app player does;
+  // vlc.launch() rejects anything else.
+  handleTrusted("flyx:open-in-vlc", (_event, payload) =>
     vlc.launch(payload || {}, {
       log: (msg) => server.log(msg),
-      openPath: (file) => require("electron").shell.openPath(file),
+      openPath: (file) => shell.openPath(file),
       tempDir: app.getPath("temp"),
+      port: currentPort,
     }),
   );
 }
@@ -736,20 +1038,27 @@ app.on("activate", () => showMainWindow());
 
 app.on("will-quit", () => {
   intentionalStop = true;
-  server.stopServer(); // graceful attempt (SIGTERM → SIGKILL)
-  // Synchronous guarantee the child doesn't outlive us on Windows:
+  const child = currentChild;
+  // Already exited → its pid may now belong to an unrelated process (PID
+  // reuse); signalling or tree-killing it could take down someone else's
+  // processes. Nothing to do.
+  if (!child || server.hasExited(child)) return;
   try {
     // A utility-process host dies with Electron; ask it to stop and move on.
-    if (currentChild && currentChild.utility) {
-      try { currentChild.kill(); } catch {}
+    if (child.utility) {
+      try { child.kill(); } catch {}
       return;
     }
-    const pid = currentChild && currentChild.pid;
+    const pid = child.pid;
     if (!pid) return;
     if (process.platform === "win32") {
+      // Synchronous tree kill while the pid is still our live child (Node
+      // holds its process handle, so the pid can't have been reused yet).
+      // Killing the parent first would orphan ffmpeg and free the pid.
       execSync(`taskkill /PID ${pid} /T /F 2>nul`, { stdio: "ignore" });
     } else {
-      process.kill(pid, "SIGKILL");
+      server.stopServer(child); // SIGTERM (graceful attempt)
+      if (!server.hasExited(child)) process.kill(pid, "SIGKILL");
     }
   } catch {}
 });

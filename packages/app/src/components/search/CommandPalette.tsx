@@ -564,7 +564,7 @@ function CommandPaletteModal({ onClose }: { onClose: () => void }) {
                   >
                     <span className="cmdk-item-poster">
                       {hit.poster ? (
-                        // eslint-disable-next-line @next/next/no-img-element
+                         
                         <img src={hit.poster} alt="" referrerPolicy="no-referrer" />
                       ) : (
                         <span className="cmdk-item-poster-fallback">

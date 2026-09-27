@@ -14,6 +14,7 @@
 
 import { relaxedFetch } from "@flyx/core/utils";
 import { unwrapDLHDSegment, looksLikeTS } from "@flyx/extractors/services";
+import { BlockedUrlError, assertPublicUrl, guardedLookup, readBodyLimited } from "@/lib/security/safe-fetch";
 
 const UA =
   "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0";
@@ -21,6 +22,35 @@ const UA =
 const MAX_CACHE_BYTES = 96 * 1024 * 1024; // ~40 live segments
 const MAX_AGE_MS = 3 * 60 * 1000; // live segments are useless after a few minutes
 const PREFETCH_CONCURRENCY = 4;
+/** Hard cap on one upstream segment body (wrapped images are ~2 MB). */
+const MAX_SEGMENT_BYTES = 50 * 1024 * 1024;
+const MAX_REDIRECTS = 5;
+
+/**
+ * relaxedFetch with SSRF protection: every hop (initial URL and each
+ * redirect) must resolve to a public address. Redirects are followed
+ * manually so a CDN can't bounce us onto the LAN / loopback, and the
+ * connect-time address is re-validated by guardedLookup (DNS rebinding).
+ */
+export async function safeRelaxedFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  let current = url;
+  for (let hop = 0; ; hop++) {
+    const target = await assertPublicUrl(current);
+    const res = await relaxedFetch(target.href, { ...init, redirect: "manual", lookup: guardedLookup });
+    const location = res.headers.get("location");
+    if (res.status >= 300 && res.status < 400 && location) {
+      if (hop >= MAX_REDIRECTS) throw new BlockedUrlError("Too many redirects");
+      current = new URL(location, target).href;
+      try {
+        await res.body?.cancel();
+      } catch {
+        /* ignore */
+      }
+      continue;
+    }
+    return res;
+  }
+}
 
 interface Entry {
   ts: Uint8Array;
@@ -60,18 +90,24 @@ async function fetchAndUnwrap(url: string, headers: SegmentHeaders): Promise<Uin
   if (headers.origin) h.Origin = headers.origin;
   if (headers.cookie) h.Cookie = headers.cookie;
 
+  // One deadline for headers AND body — a CDN that goes silent mid-body
+  // must not pin the request (and the in-flight entry) forever.
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), 20000);
-  let res: Response;
+  let raw: Uint8Array;
   try {
-    res = await relaxedFetch(url, { headers: h, signal: c.signal });
+    const res = await safeRelaxedFetch(url, { headers: h, signal: c.signal });
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => {});
+      throw Object.assign(new Error(`upstream ${res.status}`), { status: res.status });
+    }
+    raw = await readBodyLimited(res, MAX_SEGMENT_BYTES);
+  } catch (err) {
+    if (err instanceof BlockedUrlError) throw Object.assign(err, { status: 403 });
+    throw err;
   } finally {
     clearTimeout(t);
   }
-  if (!res.ok) {
-    throw Object.assign(new Error(`upstream ${res.status}`), { status: res.status });
-  }
-  const raw = new Uint8Array(await res.arrayBuffer());
   if (raw.byteLength === 0) throw Object.assign(new Error("empty segment"), { status: 502 });
   // Copy out of the (much larger) wrapper's backing store.
   return looksLikeTS(raw) ? raw : new Uint8Array(unwrapDLHDSegment(raw));

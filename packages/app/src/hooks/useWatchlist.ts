@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { accountKey, ACCOUNT_SCOPE_EVENT } from "@/lib/account-storage";
 
 export type WatchlistMediaType = "movie" | "tv" | "anime" | "manga";
 
@@ -15,12 +16,16 @@ export interface WatchlistItem {
   addedAt: number;
 }
 
+// Base key; stored per account as `flyx_watchlist_v1:<accountId>` (see
+// lib/account-storage — the legacy bare key is migrated on first load).
 const STORAGE_KEY = "flyx_watchlist_v1";
 
 function loadItems(): WatchlistItem[] {
   if (typeof window === "undefined") return [];
+  const key = accountKey(STORAGE_KEY);
+  if (!key) return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as WatchlistItem[];
     // Normalize legacy items that might lack mediaType
@@ -41,8 +46,10 @@ function loadItems(): WatchlistItem[] {
 
 function saveItems(items: WatchlistItem[]) {
   if (typeof window === "undefined") return;
+  const key = accountKey(STORAGE_KEY);
+  if (!key) return; // account not known yet — never write a shared key
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    localStorage.setItem(key, JSON.stringify(items));
   } catch {
     // ignore quota / private mode
   }
@@ -55,6 +62,10 @@ export function useWatchlist() {
   useEffect(() => {
     setItems(loadItems());
     setLoaded(true);
+    // Re-read once the signed-in account is known (or changes).
+    const onScope = () => setItems(loadItems());
+    window.addEventListener(ACCOUNT_SCOPE_EVENT, onScope);
+    return () => window.removeEventListener(ACCOUNT_SCOPE_EVENT, onScope);
   }, []);
 
   const addItem = useCallback(

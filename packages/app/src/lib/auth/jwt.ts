@@ -21,6 +21,8 @@ export interface JWTPayload {
   sub: string; // account id
   username: string;
   isAdmin: boolean;
+  /** Account token version at issue time (see lib/db tokenVersion). */
+  tv?: number;
 }
 
 export async function signJWT(payload: JWTPayload): Promise<string> {
@@ -32,6 +34,25 @@ export async function signJWT(payload: JWTPayload): Promise<string> {
     .sign(secret);
 }
 
+/** Sign a session token for a stored account (carries its token version). */
+export function signSessionFor(account: {
+  id: string;
+  username: string;
+  isAdmin: boolean;
+  tokenVersion?: number;
+}): Promise<string> {
+  return signJWT({
+    sub: account.id,
+    username: account.username,
+    isAdmin: account.isAdmin,
+    tv: account.tokenVersion ?? 0,
+  });
+}
+
+/**
+ * Signature/expiry check only. The claims are NOT authoritative — use
+ * getSession() (which re-checks the account store) for authorization.
+ */
 export async function verifyJWT(token: string): Promise<JWTPayload | null> {
   try {
     const secret = getSecret();

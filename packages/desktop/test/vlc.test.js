@@ -115,12 +115,52 @@ describe("vlc.buildArgs / buildPlaylist", () => {
   });
 });
 
+describe("vlc.isAllowedStreamUrl", () => {
+  it("accepts only our own server's stream routes", async () => {
+    const { isAllowedStreamUrl } = await load();
+    const ok = [
+      "http://127.0.0.1:3891/api/stream/proxy?url=a&sig=b",
+      "http://localhost:3891/api/stream/proxy?url=a",
+      "http://127.0.0.1:3891/api/livetv/playlist?ch=1",
+    ];
+    for (const url of ok) expect(isAllowedStreamUrl(url, 3891), url).toBeTruthy();
+
+    const bad = [
+      "file:///etc/passwd",
+      "smb://evil/share/x.mkv",
+      "https://127.0.0.1:3891/api/stream/proxy?url=a", // https: not our server
+      "http://evil.example/api/stream/proxy?url=a",
+      "http://192.168.1.5:3891/api/stream/proxy?url=a", // LAN address ≠ this machine's server origin
+      "http://127.0.0.1:3892/api/stream/proxy?url=a", // wrong port
+      "http://127.0.0.1:3891/api/admin/users",
+      "http://127.0.0.1:3891/api/stream/../admin/users",
+      "http://user:pw@127.0.0.1:3891/api/stream/proxy",
+      "http://127.0.0.1:3891/",
+      "",
+      42,
+    ];
+    for (const url of bad) expect(isAllowedStreamUrl(url, 3891), String(url)).toBeNull();
+    expect(isAllowedStreamUrl("http://127.0.0.1:3891/api/stream/proxy", undefined)).toBeNull();
+  });
+});
+
 describe("vlc.launch", () => {
   it("rejects non-http URLs", async () => {
     const { launch } = await load();
-    const result = await launch({ url: "file:///etc/passwd" }, { exists: () => false });
+    const result = await launch({ url: "file:///etc/passwd" }, { exists: () => false, port: 3891 });
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/http/);
+  });
+
+  it("rejects http URLs that aren't this server's stream routes (never spawns VLC)", async () => {
+    const { launch } = await load();
+    const spawn = vi.fn();
+    const result = await launch(
+      { url: "http://evil.example/api/stream/proxy?url=a" },
+      { platform: "linux", env: { FLYX_VLC_PATH: "/usr/bin/vlc" }, exists: () => true, spawn, port: 3891 },
+    );
+    expect(result.ok).toBe(false);
+    expect(spawn).not.toHaveBeenCalled();
   });
 
   it("spawns VLC detached when a binary is found", async () => {
@@ -128,19 +168,20 @@ describe("vlc.launch", () => {
     const unref = vi.fn();
     const spawn = vi.fn(() => ({ unref }));
     const result = await launch(
-      { url: "http://host:3891/api/stream/proxy?url=a", title: "T", startTime: 10 },
+      { url: "http://127.0.0.1:3891/api/stream/proxy?url=a", title: "T", startTime: 10 },
       {
         platform: "linux",
         env: { FLYX_VLC_PATH: "/usr/bin/vlc" },
         exists: (p) => p === "/usr/bin/vlc",
         spawn,
+        port: 3891,
       },
     );
     expect(result).toEqual({ ok: true, method: "spawn", path: "/usr/bin/vlc" });
     expect(spawn).toHaveBeenCalledTimes(1);
     const [bin, args, opts] = spawn.mock.calls[0];
     expect(bin).toBe("/usr/bin/vlc");
-    expect(args.at(-1)).toBe("http://host:3891/api/stream/proxy?url=a");
+    expect(args.at(-1)).toBe("http://127.0.0.1:3891/api/stream/proxy?url=a");
     expect(opts.detached).toBe(true);
     expect(unref).toHaveBeenCalled();
   });
@@ -150,7 +191,7 @@ describe("vlc.launch", () => {
     const writes = [];
     const openPath = vi.fn(async () => "");
     const result = await launch(
-      { url: "http://host:3891/api/stream/proxy?url=a", title: "My: Show", startTime: 5 },
+      { url: "http://127.0.0.1:3891/api/stream/proxy?url=a", title: "..\\..\\evil", startTime: 5 },
       {
         platform: "win32",
         env: {},
@@ -160,13 +201,18 @@ describe("vlc.launch", () => {
         },
         openPath,
         tempDir: "C:\\tmp",
+        mkdir: () => {},
         writeFile: (file, body) => writes.push({ file, body }),
+        port: 3891,
       },
     );
     expect(result.ok).toBe(true);
     expect(result.method).toBe("playlist");
     expect(writes).toHaveLength(1);
-    expect(writes[0].file).toBe(path.join("C:\\tmp", "My Show.m3u"));
+    // Random name in a Flyx-only subfolder — the title never becomes a path.
+    expect(path.dirname(writes[0].file)).toBe(path.join("C:\\tmp", "flyx-vlc"));
+    expect(path.basename(writes[0].file)).toMatch(/^flyx-[0-9a-f]{24}\.m3u$/);
+    expect(writes[0].body).toContain("#EXTINF:-1,..\\..\\evil\n");
     expect(writes[0].body).toContain("#EXTVLCOPT:start-time=5");
     expect(openPath).toHaveBeenCalledWith(writes[0].file);
   });
@@ -174,7 +220,7 @@ describe("vlc.launch", () => {
   it("reports a clear error when neither VLC nor a playlist opener is available", async () => {
     const { launch } = await load();
     const result = await launch(
-      { url: "http://host/x" },
+      { url: "http://127.0.0.1:3891/api/stream/proxy?url=x" },
       {
         platform: "linux",
         env: {},
@@ -182,6 +228,7 @@ describe("vlc.launch", () => {
         execFile: () => {
           throw new Error("no which");
         },
+        port: 3891,
       },
     );
     expect(result.ok).toBe(false);
@@ -191,7 +238,7 @@ describe("vlc.launch", () => {
   it("surfaces the OS error when the playlist cannot be opened", async () => {
     const { launch } = await load();
     const result = await launch(
-      { url: "http://host/x", title: "T" },
+      { url: "http://127.0.0.1:3891/api/livetv/playlist?ch=1", title: "T" },
       {
         platform: "linux",
         env: {},
@@ -201,7 +248,9 @@ describe("vlc.launch", () => {
         },
         openPath: async () => "No application is associated",
         tempDir: "/tmp",
+        mkdir: () => {},
         writeFile: () => {},
+        port: 3891,
       },
     );
     expect(result.ok).toBe(false);

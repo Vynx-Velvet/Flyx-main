@@ -51,6 +51,14 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   }
+  // Both values are interpolated into the TMDB path — keep them to the
+  // shapes TMDB actually uses so callers can't steer the request elsewhere.
+  if (!/^\d{1,10}$/.test(id) || (type !== 'movie' && type !== 'tv')) {
+    return NextResponse.json(
+      { error: 'Invalid id or type parameter' },
+      { status: 400 },
+    );
+  }
 
   if (!getApiKey()) {
     return NextResponse.json(

@@ -49,8 +49,8 @@ export default function SetupPage() {
         setError("Please choose a username");
         return;
       }
-      if (data.password.length < 4) {
-        setError("Password must be at least 4 characters");
+      if (data.password.trim().length < 8) {
+        setError("Password must be at least 8 characters");
         return;
       }
     }
@@ -124,6 +124,9 @@ export default function SetupPage() {
 
   function handleLaunch() {
     console.log("[Setup UI] Launch Flyx clicked → /");
+    // Full reload on purpose: the server just rewrote .env/session state, so
+    // a client-side push would reuse stale router cache and middleware results.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/";
   }
 
@@ -322,7 +325,7 @@ function AccountsStep({
           style={styles.input}
         />
       </Field>
-      <Field label="Password" hint="At least 4 characters">
+      <Field label="Password" hint="At least 8 characters">
         <input
           type="password"
           value={password}

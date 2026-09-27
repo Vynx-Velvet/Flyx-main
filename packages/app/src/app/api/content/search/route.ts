@@ -91,7 +91,6 @@ export async function GET(request: NextRequest) {
     const genre = searchParams.get('genre') || '';
     const contentType = searchParams.get('type') || 'movie';
     const page = parseInt(searchParams.get('page') || '1');
-    const sessionId = searchParams.get('sessionId') || '';
     const excludeAnime = searchParams.get('excludeAnime') === 'true';
 
     let searchResults: any[] = [];
@@ -211,24 +210,6 @@ export async function GET(request: NextRequest) {
             (item: any) => !isLikelyAnime(item),
           );
         }
-      }
-    }
-
-    // Track the search query for popular searches
-    if (query && sessionId) {
-      try {
-        await fetch(`${request.nextUrl.origin}/api/search/popular`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query,
-            sessionId,
-            resultsCount: searchResults.length,
-            clickedResult: false,
-          }),
-        });
-      } catch (trackingError) {
-        console.error('Failed to track search:', trackingError);
       }
     }
 

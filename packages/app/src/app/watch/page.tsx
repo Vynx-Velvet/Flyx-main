@@ -41,14 +41,14 @@ import {
 import type { SubtitleTrack } from "@flyx/core";
 import DownloadMenu from "@/components/downloads/DownloadMenu";
 import { getPlayerPreferences } from "@/lib/utils/player-preferences";
-import { openInVlc, copyStreamUrl } from "@/lib/external-player-client";
+import { openInVlc, copyStreamUrl, resolveHostStreamUrl } from "@/lib/external-player-client";
 import {
   buildVlcPlaylist,
   handoffTitle,
-  hostStreamUrl,
   playlistFilename,
 } from "@/lib/external-player";
 import { usePlaybackRecovery } from "@/components/player/usePlaybackRecovery";
+import { PositionMemory } from "@/components/player/position-memory";
 import { IconVlc } from "@/components/player/VlcButton";
 import {
   getWatchProgress,
@@ -60,6 +60,9 @@ const TMDB_IMG = "https://image.tmdb.org/t/p";
 
 /** Max accepted size for a user-uploaded .srt/.vtt subtitle file (5 MB). */
 const MAX_SUBTITLE_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+/** Playback-speed steps for the speed menu and the < / > shortcuts. */
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
 /** True when a drag payload contains files (vs. text/images dragged on-page). */
 function dragHasFiles(e: ReactDragEvent): boolean {
@@ -142,33 +145,6 @@ const VOD_PROVIDERS: CatalogProvider[] = [
 const ANIME_PROVIDERS: CatalogProvider[] = [
   { id: "animex", label: "AnimeX", blurb: "animex.one · multi-CDN", kind: "anime" },
 ];
-
-/**
- * Route a source URL through our stream proxy when the CDN requires
- * Referer / Origin headers that the browser <video> element cannot send.
- *
- * MP4 files loaded via video.src don't go through hls.js xhrSetup —
- * the browser makes the request directly without custom headers.
- * The proxy adds the required headers server-side.
- */
-/** Proxy HLS sources (browser <video> can't send custom headers),
- *  but skip the proxy for MP4 — the browser loads it natively. */
-function proxySourceUrl(source: StreamSource): string {
-  // MP4 plays natively — no proxy overhead needed
-  if (source.type === "mp4") return source.url;
-  // HLS needs proxy for segment requests with custom headers
-  if (
-    !source.referer &&
-    !source.origin &&
-    source.requiresSegmentProxy !== true
-  )
-    return source.url;
-  const params = new URLSearchParams();
-  params.set("url", source.url);
-  if (source.referer) params.set("referer", source.referer);
-  if (source.origin) params.set("origin", source.origin);
-  return `/api/stream/proxy?${params.toString()}`;
-}
 
 /** Infer sub/dub from explicit language field or source title. */
 function detectAudioLang(s: {
@@ -311,17 +287,6 @@ function pickBestSource(
   return sorted[0]!;
 }
 
-function sourceMatchesAudio(
-  s: StreamSource,
-  mode: AnimeAudioMode,
-  isAnime: boolean,
-): boolean {
-  if (!isAnime) return true;
-  const detected = detectAudioLang(s);
-  if (!detected) return true;
-  return detected === mode;
-}
-
 function filterSourcesByAudio(
   list: StreamSource[],
   mode: AnimeAudioMode,
@@ -437,6 +402,22 @@ function WatchInner() {
    *  match SSR — localStorage preference is synced in a useEffect below. */
   const [audioMode, setAudioMode] = useState<AnimeAudioMode>("sub");
   const resumeAfterSwitchRef = useRef<number | null>(null);
+  /** Last good position of what's playing — automatic fail-over resumes here,
+   *  since by the time it runs the dead source has already reset currentTime. */
+  const positionMemoryRef = useRef(new PositionMemory());
+  const contentKeyRef = useRef("");
+  contentKeyRef.current = `${tmdbId}:${mediaType}:${season}:${episode}`;
+  /** Call before any automatic source retry / fail-over so the next source
+   *  resumes instead of starting over. `at` = a position known to the caller. */
+  const rememberFailoverResume = useCallback((at?: number) => {
+    if (at != null && Number.isFinite(at) && at > 2) {
+      resumeAfterSwitchRef.current = at;
+      return;
+    }
+    if (resumeAfterSwitchRef.current != null) return; // a resume is still pending
+    const pos = positionMemoryRef.current.resumeAt(contentKeyRef.current);
+    if (pos != null) resumeAfterSwitchRef.current = pos;
+  }, []);
   /** `t=` from a Resume link — consumed once by the first episode load. */
   const urlResumeRef = useRef<number | null>(Number(searchParams.get("t")) || null);
   /** Identity of what is playing, for the progress store (assigned each render). */
@@ -678,8 +659,6 @@ function WatchInner() {
     activeUrl,
     applySubtitleDelay,
   ]);
-
-  const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
   const title =
     animeTitle ||
@@ -962,7 +941,14 @@ function WatchInner() {
         showToast("Stream not ready yet");
         return;
       }
-      const url = hostStreamUrl(window.location.origin, currentRawSource);
+      // External players carry no session cookie — the host signs the URL.
+      let url: string;
+      try {
+        url = await resolveHostStreamUrl({ source: currentRawSource });
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : "Could not prepare the stream link");
+        return;
+      }
       const at = videoRef.current?.currentTime || 0;
       if (action === "copy") {
         const ok = await copyStreamUrl(url);
@@ -1011,7 +997,12 @@ function WatchInner() {
           ? "Skipped a gap in the stream"
           : `Skipped a stuck spot (+${Math.round(plan.target - plan.from)}s)`,
       ),
-    onGiveUp: () => recoverRef.current?.(),
+    // resumeAt = where the dead stream stopped; keep it for the next source
+    // (previously dropped, so fail-over after the hls.js retries restarted at 0).
+    onGiveUp: (resumeAt) => {
+      rememberFailoverResume(resumeAt);
+      recoverRef.current?.();
+    },
   });
 
   const cast = useCast({
@@ -1070,8 +1061,11 @@ function WatchInner() {
     const connected = await cast.requestSession();
     if (!connected) return;
     if (!activeUrl) return;
+    // The raw source (with its Referer/Origin) lets the host mint a signed
+    // LAN URL for the receiver — see useCast loadMedia.
     const ok = await cast.loadMedia({
       url: activeUrl,
+      source: currentRawSource ?? undefined,
       title,
       subtitle:
         mediaType === "tv" && !malId
@@ -1079,7 +1073,8 @@ function WatchInner() {
           : malId
             ? `EP ${episode || "1"}`
             : undefined,
-      contentType: activeUrl.includes(".m3u8")
+      // aniwatchtv /uwu/ token URLs are HLS without ".m3u8" in them.
+      contentType: activeUrl.includes(".m3u8") || /\/uwu\//i.test(activeUrl)
         ? "application/x-mpegURL"
         : "video/mp4",
       startTime: videoRef.current?.currentTime || 0,
@@ -1088,6 +1083,7 @@ function WatchInner() {
   }, [
     cast,
     activeUrl,
+    currentRawSource,
     title,
     mediaType,
     malId,
@@ -1186,7 +1182,7 @@ function WatchInner() {
 
   // Panel list = browsed season; next-ep logic uses playing season
   const episodes = episodesBySeason[browseSeason] ?? [];
-  const playingSeasonEpisodes = episodesBySeason[season] ?? [];
+  const playingSeasonEpisodes = useMemo(() => episodesBySeason[season] ?? [], [episodesBySeason, season]);
 
   // Anime meta
   useEffect(() => {
@@ -1405,7 +1401,6 @@ function WatchInner() {
     (async () => {
       // Use auto mode to combine sources from multiple providers.
       // Individual provider probes fill the source cache for direct switching.
-      let result: Awaited<ReturnType<typeof fetchFromProvider>> | null = null;
       const tryOrder = catalogProviders.map((p) => p.id);
 
       // Race individual probes + auto mode. Start playback on the FIRST
@@ -1460,7 +1455,6 @@ function WatchInner() {
               applyProbeResult(pid, r);
             }
             startPlayback(pid, r.list);
-            result = r;
           }
           return outcome;
         }),
@@ -1800,7 +1794,6 @@ function WatchInner() {
         url.includes("application/vnd.apple.mpegurl");
 
       loadStartRef.current = performance.now();
-      const len = (s: string) => s.length;
       console.log("[Watch] ⏱️ Loading source:", JSON.stringify({ isHls, isUwu, type: isHls ? "hls" : "mp4", urlLen: url.length, urlFull: url }));
 
       const applyResumeAndPlay = () => {
@@ -1874,6 +1867,9 @@ function WatchInner() {
         // Window hidden to tray: the source is torn down on hide and
         // restored on show — never churn through sources in the background.
         if (trayHiddenRef.current) return;
+        // The failed source is already torn down (currentTime reset to 0):
+        // resume the next one from the last good position instead.
+        rememberFailoverResume();
         consecutiveFailuresRef.current++;
         const fails = consecutiveFailuresRef.current;
         console.log(`[Watch] ⏱️ Playback failure #${fails}/${MAX_CONSECUTIVE_FAILURES}`);
@@ -2056,11 +2052,10 @@ function WatchInner() {
           // error). Retrying the SAME source once after the window passes
           // is far cheaper than a full source switch — and the proxy's
           // segment cache makes the retry mostly local. Keep the position
-          // so the retry resumes where the stream died.
-          const now = video.currentTime;
-          if (now > 2 && Number.isFinite(video.duration) && video.duration > now) {
-            resumeAfterSwitchRef.current = now;
-          }
+          // so the retry resumes where the stream died. (Don't gate on
+          // video.duration — after a media error Chromium reports NaN, which
+          // used to skip saving and restart the retry from 0.)
+          rememberFailoverResume(video.currentTime);
           console.log(`[Watch] ⏱️ Native HLS error (code=${code} ${msg}) — retrying same source in 1.5s`);
           clearTimeout(stallTimeout);
           clearTimeout(metaTimeout);
@@ -2152,7 +2147,6 @@ function WatchInner() {
 
       // Use a ref-backed flag so Fast Refresh doesn't kill the load
       const doneRef = { current: false };
-      let mp4Timeout: ReturnType<typeof setTimeout>;
       let lastProgress = 0;
 
       const cleanup = () => {
@@ -2208,7 +2202,7 @@ function WatchInner() {
       }
       video.src = mp4Src;
       video.load();
-      mp4Timeout = setTimeout(onTimeout, mp4TimeoutMs);
+      const mp4Timeout = setTimeout(onTimeout, mp4TimeoutMs);
     })();
 
     return () => {
@@ -2234,6 +2228,20 @@ function WatchInner() {
     // browseProvider/showToast are stable enough; recovery uses refs for cache
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeUrl, status, reloadKey]);
+
+  // Track the last good position for fail-over resume (position-memory.ts).
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const onTime = () => positionMemoryRef.current.onProgress(contentKeyRef.current, v.currentTime);
+    const onSeeked = () => positionMemoryRef.current.onSeeked(contentKeyRef.current, v.currentTime);
+    v.addEventListener("timeupdate", onTime);
+    v.addEventListener("seeked", onSeeked);
+    return () => {
+      v.removeEventListener("timeupdate", onTime);
+      v.removeEventListener("seeked", onSeeked);
+    };
+  }, [activeUrl, status]);
 
   // Keep playback rate when source switches
   useEffect(() => {

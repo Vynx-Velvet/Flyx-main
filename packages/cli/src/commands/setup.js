@@ -6,10 +6,11 @@
  */
 
 const { ask, askPassword, confirm, select, step } = require("../lib/prompts");
-const { writeEnv, readEnv, envExists, ensureDataDir } = require("../lib/env-file");
+const { writeEnv, envExists, ensureDataDir } = require("../lib/env-file");
 const { hashPassword } = require("../lib/password");
 const { createAccount } = require("../lib/store");
 const { randomString, randomPassword } = require("../lib/random");
+const { resolvePassword } = require("../lib/password-input");
 const { getLANURLs, getLocalURL } = require("../lib/network");
 const { PORT } = require("../lib/paths");
 
@@ -105,10 +106,17 @@ async function runSetup(options = {}) {
 
   step(3, TOTAL_STEPS, "Network");
 
-  const network = options.network || (nonInteractive ? "lan" : await select("  Network mode:", [
+  // Default is loopback only. LAN exposure is opt-in: chosen interactively
+  // or requested explicitly with --network lan.
+  let network = options.network || (nonInteractive ? "localhost" : await select("  Network mode:", [
     { label: "This computer only (localhost)", value: "localhost" },
     { label: "Whole home network — phones, TVs, other devices", value: "lan" },
   ]));
+  if (network === "local") network = "localhost";
+  if (network !== "localhost" && network !== "lan") {
+    console.error(`  ❌ Unknown --network "${network}". Use "localhost" or "lan".`);
+    process.exit(1);
+  }
   const hostname = network === "lan" ? "0.0.0.0" : "127.0.0.1";
 
   if (network === "lan") {
@@ -133,30 +141,42 @@ async function runSetup(options = {}) {
     while (username.length < 3) {
       username = await ask("  Username must be at least 3 characters");
     }
-    if (options.password) {
-      password = options.password;
-    } else if (nonInteractive) {
+    let generated = false;
+    password = await resolvePassword(options, "  Admin password (min 8 chars)", { prompt: !nonInteractive });
+    if (password === null) {
       password = randomPassword();
-    } else {
-      password = await askPassword("  Admin password (min 8 chars)");
-      while (password.length < 8) {
-        console.log("  Password must be at least 8 characters.");
-        password = await askPassword("  Admin password");
-      }
+      generated = true;
     }
-    console.log(`  ➤ Admin account: ${username}\n`);
+    while (password.length < 8) {
+      if (nonInteractive) {
+        console.error("  ❌ Password must be at least 8 characters.");
+        process.exit(1);
+      }
+      console.log("  Password must be at least 8 characters.");
+      password = await askPassword("  Admin password");
+    }
+    console.log(`  ➤ Admin account: ${username}`);
+    if (generated) {
+      console.log(`  ➤ Password: ${password}`);
+      console.log("  ⚠️  Save this password — you'll need it to log in!");
+    }
+    console.log("");
   } else {
     // Private mode — auto-generate credentials
     console.log("  Since this is a private instance, we'll create an account for you.\n");
     const displayName = options.username || (nonInteractive ? "You" : await ask("  Your display name", { defaultValue: "You" }));
     username = displayName.toLowerCase().replace(/\s+/g, "-");
-    if (options.password) {
-      password = options.password;
-    } else {
-      password = randomPassword();
+    // Explicit --password / FLYX_PASSWORD wins; otherwise generate one
+    // (private mode never prompts).
+    password = await resolvePassword(options, "", { prompt: false });
+    const generated = password === null;
+    if (generated) password = randomPassword();
+    if (password.length < 8) {
+      console.error("  ❌ Password must be at least 8 characters.");
+      process.exit(1);
     }
     console.log(`  ➤ Username: ${username}`);
-    console.log(`  ➤ Password: ${password}`);
+    console.log(`  ➤ Password: ${generated ? password : "(as provided)"}`);
     console.log("  ⚠️  Save this password — you'll need it to log in!\n");
   }
 
@@ -193,39 +213,10 @@ async function runSetup(options = {}) {
   });
   console.log("  ✅ Configuration saved.");
 
-  // Sync to standalone build if it exists
-  const { STANDALONE_DIR } = require("../lib/paths");
-  if (STANDALONE_DIR) {
-    const standaloneEnvPath = require("path").join(STANDALONE_DIR, "packages", "app", ".env");
-    try {
-      let existing = "";
-      if (require("fs").existsSync(standaloneEnvPath)) {
-        existing = require("fs").readFileSync(standaloneEnvPath, "utf-8");
-      }
-      const existingVars = {};
-      for (const line of existing.split("\n")) {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith("#")) {
-          const eq = trimmed.indexOf("=");
-          if (eq > 0) existingVars[trimmed.slice(0, eq)] = trimmed.slice(eq + 1);
-        }
-      }
-      const finalVars = { ...existingVars };
-      const ourVars = { TMDB_API_KEY: tmdbKey, JWT_SECRET: jwtSecret, HOST_KEY: hostKey, HOSTNAME: hostname, PORT: String(PORT) };
-      for (const [k, v] of Object.entries(ourVars)) {
-        if (k === "TMDB_API_KEY" && (!v || !v.trim())) continue;
-        finalVars[k] = v;
-      }
-      let content = "# Flyx environment — managed by flyx setup\n\n";
-      for (const [k, v] of Object.entries(finalVars)) {
-        content += `${k}=${v}\n`;
-      }
-      require("fs").writeFileSync(standaloneEnvPath, content, "utf-8");
-      console.log("  ✅ Synced to build.");
-    } catch (err) {
-      // Non-fatal — standalone dir might not exist yet
-    }
-  }
+  // NOTE: secrets are NOT written into .flyx-standalone/packages/app/.env —
+  // that tree is packed by electron-builder and is world-readable. The CLI
+  // injects the data-dir .env into the server's environment at spawn time
+  // (lib/server.js), so the standalone .env only ever holds placeholders.
 
   // ── Create admin account ────────────────────────────────────────
   try {
@@ -254,13 +245,19 @@ async function runSetup(options = {}) {
 
   if (!SERVER_SCRIPT || !fs.existsSync(SERVER_SCRIPT)) {
     console.log("  Building the server (this may take a minute)...\n");
-    const { execSync } = require("child_process");
+    const { execFileSync } = require("child_process");
     try {
-      // Pass the env vars we just wrote — the build needs TMDB_API_KEY etc.
-      const envVars = readEnv();
-      execSync("node scripts/build-standalone.mjs", {
+      // Build with DUMMY values only — the data-dir .env (real secrets) must
+      // never reach the build; scripts/build-standalone.mjs sets its own
+      // placeholders too. Real config is injected at spawn time.
+      execFileSync(process.execPath, ["scripts/build-standalone.mjs"], {
         cwd: path.resolve(__dirname, "..", "..", "..", ".."),
-        env: { ...process.env, ...envVars },
+        env: {
+          ...process.env,
+          TMDB_API_KEY: "dummy-key-for-build",
+          JWT_SECRET: "dummy-secret-for-build-0123456789abcdef",
+          HOST_KEY: "dummy-host-key-for-build",
+        },
         stdio: "inherit",
       });
       console.log("");

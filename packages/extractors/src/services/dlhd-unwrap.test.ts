@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { deflateSync, gzipSync } from "node:zlib";
 import {
+  DLHDUnwrapError,
+  MAX_TS_BYTES,
   looksLikeTS,
   pngIendTS,
   pngPixelTS,
@@ -137,5 +139,57 @@ describe("unwrapDLHDSegment", () => {
 
   it("throws when nothing resembles a transport stream", () => {
     expect(() => unwrapDLHDSegment(new Uint8Array(400))).toThrow(/not found/);
+  });
+});
+
+describe("unwrapDLHDSegment resource limits", () => {
+  // ~70 KB of gzip that inflates past the 64 MB cap.
+  const bomb = new Uint8Array(gzipSync(Buffer.alloc(MAX_TS_BYTES + 1024 * 1024), { level: 1 }));
+
+  function rawPNG(w: number, h: number, idat: Uint8Array): Uint8Array {
+    const ihdr = concat(u32be(w), u32be(h), new Uint8Array([8, 2, 0, 0, 0]));
+    return concat(PNG_SIG, chunk("IHDR", ihdr), chunk("IDAT", idat), chunk("IEND", new Uint8Array(0)));
+  }
+
+  it("rejects a gzip bomb behind TIKTIKTSGZ", () => {
+    const blob = concat(asciiBytes("TIKTIKTSGZ"), bomb);
+    const t0 = Date.now();
+    expect(() => unwrapDLHDSegment(blob)).toThrow(DLHDUnwrapError);
+    expect(Date.now() - t0).toBeLessThan(5000);
+  });
+
+  it("rejects a gzip bomb packed into PNG pixels", () => {
+    const payload = concat(asciiBytes("TIKTIKPX"), u32be(bomb.length), bomb);
+    const w = 256;
+    const h = Math.ceil(payload.length / (w * 3));
+    const rgb = new Uint8Array(w * h * 3);
+    rgb.set(payload);
+    expect(() => unwrapDLHDSegment(encodePNG(rgb, w, h, 0))).toThrow(/size limit/);
+  });
+
+  it("rejects absurd IHDR dimensions without allocating", () => {
+    const png = rawPNG(100000, 100000, new Uint8Array(deflateSync(Buffer.alloc(16))));
+    expect(() => unwrapDLHDSegment(png)).toThrow(/dimensions/);
+    const wide = rawPNG(0xffffffff, 1, new Uint8Array(deflateSync(Buffer.alloc(16))));
+    expect(() => unwrapDLHDSegment(wide)).toThrow(DLHDUnwrapError);
+  });
+
+  it("rejects IDAT data that inflates past the declared image size", () => {
+    // 100x100 RGB declares 30,100 raw bytes; this IDAT inflates to 16 MB.
+    const png = rawPNG(100, 100, new Uint8Array(deflateSync(Buffer.alloc(16 * 1024 * 1024), { level: 1 })));
+    expect(() => unwrapDLHDSegment(png)).toThrow(/exceeds declared size/);
+  });
+
+  it("returns no pixels for truncated IDAT data", () => {
+    const png = rawPNG(100, 100, new Uint8Array(deflateSync(Buffer.alloc(100))));
+    expect(() => unwrapDLHDSegment(png)).toThrow(/no TS payload/);
+  });
+
+  it("errors carry a 502 status for the proxy", () => {
+    try {
+      unwrapDLHDSegment(new Uint8Array(400));
+    } catch (err) {
+      expect((err as DLHDUnwrapError).status).toBe(502);
+    }
   });
 });

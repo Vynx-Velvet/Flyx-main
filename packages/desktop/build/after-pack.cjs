@@ -13,6 +13,10 @@
  *           normal right-click → Open path instead.
  *  Linux/macOS — make sure the launcher and the bundled ffmpeg carry the
  *           executable bit (extraResources copies don't always preserve it).
+ *  All     — secret guard: fail the build if the packaged server tree
+ *           contains any .env other than the dummy packages/app/.env that
+ *           scripts/build-desktop.mjs writes (a real .env holds the TMDB
+ *           token / user secrets and must never ship in a public installer).
  *
  * The real work is in `runAfterPack(ctx, deps)` with injectable exec/chmod so
  * it can be unit-tested on any OS.
@@ -39,6 +43,58 @@ function bundledBinaries(appOutDir, platform, appName) {
   return list;
 }
 
+// Exactly what scripts/build-desktop.mjs writes (step 5b).
+const DUMMY_ENV = "TMDB_API_KEY=dummy-key-for-build\nFLYX_DESKTOP=true\n";
+const ENV_TEMPLATE_RE = /\.(example|sample|template|defaults)$/i;
+
+function serverResourcesDir(appOutDir, platform, appName) {
+  if (platform === "darwin") {
+    return path.join(appOutDir, `${appName}.app`, "Contents", "Resources", "server");
+  }
+  return path.join(appOutDir, "resources", "server");
+}
+
+/**
+ * Throw if `serverDir` holds any .env* file other than the dummy
+ * packages/app/.env (templates like .env.example are fine).
+ *
+ * @returns {string[]} the .env files that were checked
+ */
+function assertNoRealEnv(serverDir, deps = {}) {
+  const readdir = deps.readdir || ((d) => fs.readdirSync(d, { withFileTypes: true }));
+  const readFile = deps.readFile || ((f) => fs.readFileSync(f, "utf8"));
+  const exists = deps.exists || ((p) => fs.existsSync(p));
+  if (!exists(serverDir)) return [];
+
+  const found = [];
+  const stack = [serverDir];
+  while (stack.length) {
+    const dir = stack.pop();
+    for (const entry of readdir(dir)) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(full);
+      } else if (/^\.env(\..*)?$/i.test(entry.name) && !ENV_TEMPLATE_RE.test(entry.name)) {
+        found.push(full);
+      }
+    }
+  }
+
+  const dummyPath = path.join(serverDir, "packages", "app", ".env");
+  const bad = [];
+  for (const file of found) {
+    if (file === dummyPath && readFile(file).replace(/\r\n/g, "\n") === DUMMY_ENV) continue;
+    bad.push(path.relative(serverDir, file));
+  }
+  if (bad.length) {
+    throw new Error(
+      `[after-pack] refusing to package: real .env file(s) in the server payload: ${bad.join(", ")}. ` +
+        "Run scripts/build-desktop.mjs (it writes a dummy .env) and make sure no other .env is copied.",
+    );
+  }
+  return found;
+}
+
 /**
  * @param {{ appOutDir: string, electronPlatformName: string, packager: { appInfo: { productFilename: string } } }} ctx
  * @param {{ execFile?: Function, chmod?: Function, exists?: Function, log?: Function }} [deps]
@@ -53,6 +109,11 @@ function runAfterPack(ctx, deps = {}) {
   const platform = ctx.electronPlatformName;
   const appName = ctx.packager.appInfo.productFilename;
   const result = { signed: false, chmodded: [] };
+
+  // Every platform: never ship a real .env (throws → build fails).
+  if (!deps.skipEnvCheck) {
+    assertNoRealEnv(serverResourcesDir(ctx.appOutDir, platform, appName), deps.envCheck);
+  }
 
   if (platform !== "darwin" && platform !== "linux") return result;
 
@@ -90,3 +151,5 @@ module.exports = async function afterPack(ctx) {
 };
 module.exports.runAfterPack = runAfterPack;
 module.exports.bundledBinaries = bundledBinaries;
+module.exports.assertNoRealEnv = assertNoRealEnv;
+module.exports.serverResourcesDir = serverResourcesDir;

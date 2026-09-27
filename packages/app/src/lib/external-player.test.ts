@@ -10,6 +10,7 @@ import {
   playlistFilename,
   vlcRouteQuery,
   vlcRouteUrl,
+  validateHandoffUrl,
 } from "./external-player";
 
 describe("hostStreamUrl", () => {
@@ -182,5 +183,40 @@ describe("normalizeExternalPlayerMode", () => {
     expect(normalizeExternalPlayerMode("manual")).toBe("manual");
     expect(normalizeExternalPlayerMode(undefined)).toBe("manual");
     expect(normalizeExternalPlayerMode("vlc")).toBe("manual");
+  });
+});
+
+describe("validateHandoffUrl", () => {
+  it("accepts plain http(s) URLs and host proxy paths", () => {
+    expect(validateHandoffUrl("https://cdn.example/a.m3u8?t=1")).toBe("https://cdn.example/a.m3u8?t=1");
+    expect(validateHandoffUrl("/api/stream/proxy?url=x")).toBe("/api/stream/proxy?url=x");
+    expect(validateHandoffUrl("/api/livetv/playlist?url=x")).toBe("/api/livetv/playlist?url=x");
+  });
+
+  it("rejects injection, other schemes and other local paths", () => {
+    for (const bad of [
+      "https://cdn.example/a.m3u8\nsmb://evil/share",
+      "https://cdn.example/a\r#EXTVLCOPT:x",
+      "https://cdn.example/a\u2028b",
+      "https://cdn.example/a b",
+      "smb://evil/share",
+      "file:///etc/passwd",
+      "javascript:alert(1)",
+      "https://user:pw@cdn.example/a",
+      "/api/settings",
+      "//evil.example/a",
+      "",
+      null,
+    ]) {
+      expect(validateHandoffUrl(bad), JSON.stringify(bad)).toBeNull();
+    }
+  });
+});
+
+describe("buildVlcPlaylist injection guard", () => {
+  it("keeps a hostile URL on one line", () => {
+    const body = buildVlcPlaylist({ title: "T", url: "http://h/a\nsmb://evil/x" });
+    const entries = body.split("\n").filter((l) => l && !l.startsWith("#"));
+    expect(entries).toEqual(["http://h/a%0Asmb://evil/x"]);
   });
 });

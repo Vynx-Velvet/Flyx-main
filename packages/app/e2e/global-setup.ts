@@ -1,49 +1,39 @@
 /**
- * Playwright auth setup — ensures the test user is authenticated
- * before tests run. Auto-creates the default account via the
- * auto-login endpoint configured in .env.
+ * Playwright auth setup — signs the test user in once and saves the
+ * session cookie for every spec (playwright.config.ts → globalSetup +
+ * use.storageState).
  *
- * Run before tests via playwright.config.ts → globalSetup.
+ * Pages require a session, and anonymous visitors are never auto-signed
+ * into an existing account, so the suite logs in with a real account:
+ *   FLYX_TEST_USER / FLYX_TEST_PASSWORD   (same vars as the live vitest suites)
  */
-import { chromium } from "@playwright/test";
+import { request } from "@playwright/test";
 import path from "path";
 
+export const AUTH_STATE_PATH = path.join(__dirname, ".auth-state.json");
+
 export default async function globalSetup() {
-  const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3000";
-  const browser = await chromium.launch();
-  const context = await browser.newContext();
-  const page = await context.newPage();
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000";
+  const username = process.env.FLYX_TEST_USER;
+  const password = process.env.FLYX_TEST_PASSWORD;
+  if (!username || !password) {
+    throw new Error(
+      "[Auth Setup] Set FLYX_TEST_USER and FLYX_TEST_PASSWORD to an account on the server under test.",
+    );
+  }
 
+  const ctx = await request.newContext({ baseURL });
   try {
-    // Navigate to any protected page — the middleware will redirect
-    // to /api/auth/auto-login, which creates the account and sets the cookie
-    await page.goto(`${baseURL}/manga`);
-
-    // Wait for the redirect chain to complete (auto-login → / → then we
-    // navigate back to /manga). The page should eventually render.
-    await page.waitForLoadState("domcontentloaded");
-
-    // If we're on the landing page, auto-login may have failed.
-    // Check the diagnostic endpoint.
-    const currentUrl = page.url();
-    console.log(`[Auth Setup] Current URL after redirect: ${currentUrl}`);
-
-    if (currentUrl.includes("/login")) {
-      console.warn("[Auth Setup] Redirected to login — auto-login may have failed");
-      // Try checking the auto-login diagnostic
-      await page.goto(`${baseURL}/api/auth/auto-login?check=1`);
-      const body = await page.textContent();
-      console.log(`[Auth Setup] Auto-login diagnostic: ${body}`);
-    }
-
-    // Save the auth state (cookies) for reuse across tests
-    await context.storageState({
-      path: path.join(__dirname, ".auth-state.json"),
+    const res = await ctx.post("/api/auth/login", {
+      data: { username, password },
+      headers: { Origin: new URL(baseURL).origin },
     });
-    console.log("[Auth Setup] Auth state saved");
-  } catch (err) {
-    console.error("[Auth Setup] Failed:", (err as Error).message);
+    if (!res.ok()) {
+      throw new Error(`[Auth Setup] Login failed: HTTP ${res.status()} ${await res.text()}`);
+    }
+    await ctx.storageState({ path: AUTH_STATE_PATH });
+    console.log(`[Auth Setup] Signed in as ${username}; auth state saved`);
   } finally {
-    await browser.close();
+    await ctx.dispose();
   }
 }

@@ -31,6 +31,40 @@ extraResources:
 asar: true
 npmRebuild: false
 
+# Electron fuses — flipped by electron-builder after afterPack, right before
+# signing (app-builder-lib 26 `electronFuses`, passed to @electron/fuses).
+electronFuses:
+  # MUST stay true: on Windows/Linux the embedded server runs as
+  # process.execPath + ELECTRON_RUN_AS_NODE=1 (server-manager.js, also the
+  # utilityProcess fallback), and the updater's relaunch helper does the
+  # same (main.js launchDetachedAfterDelay). The env var is only honoured
+  # for the Flyx binary itself; server .env keys can't set it (env filter).
+  runAsNode: true
+  # Encrypt the Chromium cookie store with the OS keychain/DPAPI. Existing
+  # plaintext cookies stay readable and are encrypted on next write.
+  enableCookieEncryption: true
+  # Nothing in Flyx (main process or server child) relies on NODE_OPTIONS /
+  # NODE_EXTRA_CA_CERTS; turning them off also covers the RunAsNode child.
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  # asar: true above → the app code is in app.asar, so it can be pinned.
+  # (Validation is enforced on macOS + Windows; the server payload lives in
+  # extraResources and is NOT covered by asar integrity.)
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  loadBrowserProcessSpecificV8Snapshot: false
+  grantFileProtocolExtraPrivileges: false
+  # Flipping fuses edits the binary AFTER build/after-pack.cjs ad-hoc signed
+  # the .app, which would leave Apple silicon with a broken signature
+  # ("Flyx is damaged"). This re-runs `codesign --sign - --force --deep` on
+  # the .app after flipping. No-op for the Windows/Linux binaries.
+  resetAdHocDarwinSignature: true
+
+# Code signing: no certificate yet. Do NOT set win.verifyUpdateCodeSignature /
+# publisherName until builds are signed — electron-updater would then reject
+# every (unsigned) update. Update integrity comes from latest.yml sha512
+# (electron-updater) and from src/github-updater.js verifyDownload().
+
 win:
   target:
     - target: nsis
@@ -41,6 +75,12 @@ win:
 
 nsis:
   oneClick: false
+  # perMachine is left at its default (false): the assisted installer asks
+  # "just me" vs "all users". NOTE (ACL): an all-users install into a custom
+  # folder outside Program Files (e.g. C:\Flyx) inherits that folder's ACLs,
+  # which are often user-writable — any local user could then replace
+  # binaries that other users run. electron-builder has no option to lock
+  # the ACL; recommend Program Files for all-users installs.
   allowToChangeInstallationDirectory: true
   artifactName: Flyx-Setup-${version}.${ext}
 

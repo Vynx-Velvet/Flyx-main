@@ -112,8 +112,10 @@ export default function SecuritySettings() {
       setMessage("New password must be at least 8 characters.");
       return;
     }
-    // Non-admin must provide current password
-    if (!user?.isAdmin && !currentPw) {
+    // Everyone re-enters their current password, except the desktop app's
+    // own window (the server exempts master requests).
+    const needsCurrent = !user?.isMaster;
+    if (needsCurrent && !currentPw) {
       setMessage("Current password is required.");
       return;
     }
@@ -121,7 +123,7 @@ export default function SecuritySettings() {
     setMessage("");
     try {
       const body: Record<string, string> = { newPassword: newPw };
-      if (!user?.isAdmin) body.currentPassword = currentPw;
+      if (needsCurrent) body.currentPassword = currentPw;
       const res = await fetch("/api/auth/password", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -450,7 +452,7 @@ export default function SecuritySettings() {
             <div className={styles.settingInfo}>
               <span className={styles.settingLabel}>Your Password</span>
               <span className={styles.settingDesc}>
-                {user?.isAdmin
+                {user?.isMaster
                   ? "Set a password to sign in from your phone, TV, or tablet. No old password needed."
                   : "Change the password you use to sign in."}
               </span>
@@ -466,7 +468,7 @@ export default function SecuritySettings() {
 
         {showChangePw && (
           <div style={{ padding: "0.5rem 0", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {!user?.isAdmin && (
+            {!user?.isMaster && (
               <input
                 type="password"
                 placeholder="Current password"

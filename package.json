@@ -1,6 +1,6 @@
 {
   "name": "flyx",
-  "version": "3.2.4",
+  "version": "3.2.5",
   "private": true,
   "description": "Flyx 3.0 — Privacy-first streaming platform",
   "workspaces": [
@@ -31,8 +31,8 @@
     "test:e2e:manga-api": "vitest run --project=app",
     "test:e2e:reader": "playwright test --config=packages/app/playwright.config.ts",
     "test:e2e:manga": "npm run test:e2e:extractor && npm run test:e2e:manga-api && npm run test:e2e:reader",
-    "lint": "eslint packages/*/src --ext .ts,.tsx",
-    "lint:fix": "eslint packages/*/src --ext .ts,.tsx --fix",
+    "lint": "eslint packages",
+    "lint:fix": "eslint packages --fix",
     "type-check": "node ./node_modules/turbo/bin/turbo run type-check",
     "format": "prettier --write \"packages/*/src/**/*.{ts,tsx,css}\"",
     "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx,css}\"",
@@ -40,8 +40,8 @@
     "generate:provider": "tsx tools/scripts/generate-providers.ts",
     "validate:priorities": "tsx tools/scripts/validate-priorities.ts",
     "deploy:local": "cd packages/app && next build && next start",
-    "deploy:cloudflare": "cd packages/app && next build && npx @opennextjs/cloudflare build && npx wrangler deploy",
-    "deploy:landing": "npx wrangler pages deploy landing --project-name flyx-landing --branch master",
+    "deploy:cloudflare": "cd packages/app && next build && npx --yes @opennextjs/cloudflare@1.20.6 build && npx --yes wrangler@4.141.0 deploy",
+    "deploy:landing": "npx --yes wrangler@4.141.0 pages deploy landing --project-name flyx-landing --branch master",
     "deploy:all": "npm run deploy:cloudflare",
     "cli": "node packages/cli/cli.js",
     "cli:link": "npm link --workspace @flyx/cli",
@@ -54,14 +54,18 @@
     "ffmpeg:fetch": "node scripts/fetch-ffmpeg.mjs"
   },
   "devDependencies": {
-    "@types/node": "^20.14.0",
+    "@next/eslint-plugin-next": "^16.3.6",
+    "@types/node": "^22.19.0",
     "eslint": "^9.39.0",
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
     "prettier": "^3.5.0",
     "turbo": "^2.5.0",
     "typescript": "^5.9.0",
-    "vitest": "^3.1.0"
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^5.0.2"
   },
   "engines": {
     "node": ">=20.0.0"

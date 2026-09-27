@@ -6,7 +6,8 @@
  * so VLC on any device (the host PC, a phone, a LAN laptop) pulls bytes
  * from the host the same way the in-app player does — the host injects the
  * Referer/Origin/User-Agent headers the CDNs demand and rewrites HLS
- * playlists, and VLC never needs a cookie because /api/stream is public.
+ * playlists. VLC carries no cookie, so the URL it gets is signed by the
+ * host (/api/stream/vlc mints it — see lib/security/proxy-sign.ts).
  *
  * Everything here is dependency-free so it can be unit-tested and shared
  * between the API route (server) and the player (browser).
@@ -60,16 +61,52 @@ export function hostStreamUrl(origin: string, source: HandoffSource): string {
   const url = (source.url || "").trim();
   if (!url) return "";
 
-  // Already proxied (a relative /api/stream/proxy?… from the player) —
-  // just make it absolute instead of double-wrapping.
-  if (url.startsWith("/api/stream/proxy")) return `${base}${url}`;
-  if (/^https?:\/\/[^/]+\/api\/stream\/proxy/i.test(url)) return url;
+  // Already proxied (a relative /api/stream/proxy?… from the player, or a
+  // Live TV /api/livetv/playlist?…) — just make it absolute instead of
+  // double-wrapping.
+  if (HOST_PROXY_PATHS.some((p) => url.startsWith(p))) return `${base}${url}`;
+  if (/^https?:\/\/[^/]+\/api\/(?:stream\/proxy|livetv\/playlist)/i.test(url)) return url;
 
   const params = new URLSearchParams();
   params.set("url", url);
   if (source.referer) params.set("referer", source.referer);
   if (source.origin) params.set("origin", source.origin);
   return `${base}/api/stream/proxy?${params.toString()}`;
+}
+
+/** Host-served proxy endpoints a hand-off URL may already point at. */
+export const HOST_PROXY_PATHS: ReadonlyArray<string> = ["/api/stream/proxy", "/api/livetv/playlist"];
+
+/** Control characters, whitespace and Unicode line separators. */
+// eslint-disable-next-line no-control-regex -- strips control chars on purpose
+const UNSAFE_URL_CHARS = /[\u0000-\u0020\u007f-\u009f\u2028\u2029]/;
+
+/**
+ * Validate a caller-supplied hand-off stream URL. Accepts an absolute
+ * http(s) URL, or a root-relative host proxy path (HOST_PROXY_PATHS).
+ * Whitespace/control characters are rejected outright — a newline would
+ * inject extra entries (smb://, file://…) into the generated .m3u.
+ * Returns the URL unchanged, or null if it is not acceptable.
+ */
+export function validateHandoffUrl(raw: string | null | undefined): string | null {
+  if (!raw || raw.length > 8192 || UNSAFE_URL_CHARS.test(raw)) return null;
+  if (raw.startsWith("/")) {
+    if (raw.startsWith("//")) return null;
+    try {
+      const u = new URL(raw, "http://flyx.invalid");
+      return HOST_PROXY_PATHS.includes(u.pathname) ? raw : null;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (u.username || u.password) return null;
+    return raw;
+  } catch {
+    return null;
+  }
 }
 
 /** Identity for a title the route can re-resolve on the host. */
@@ -140,17 +177,24 @@ export function handoffTitle(item: {
  * at the in-app position; `network-caching` keeps LAN HLS from stuttering.
  */
 export function buildVlcPlaylist(entry: HandoffPlaylistInput): string {
-  const title = entry.title.replace(/[\r\n]+/g, " ").trim() || "Flyx";
+  const title =
+    entry.title
+      .replace(/[\r\n\u0085\u2028\u2029]+/g, " ")
+      // eslint-disable-next-line no-control-regex -- strips control chars on purpose
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .trim() || "Flyx";
   const lines = ["#EXTM3U", `#EXTINF:-1,${title}`, "#EXTVLCOPT:network-caching=3000"];
   const start = Math.floor(entry.startTime ?? 0);
   if (start > 0) lines.push(`#EXTVLCOPT:start-time=${start}`);
-  lines.push(entry.url);
+  // Defence in depth: the entry must stay one line whatever the caller did.
+  lines.push(entry.url.replace(new RegExp(UNSAFE_URL_CHARS.source, "g"), (c) => encodeURIComponent(c)));
   return lines.join("\n") + "\n";
 }
 
 /** Filename for a downloaded playlist ("Show — S1 E4.m3u"). */
 export function playlistFilename(title: string): string {
   const cleaned = title
+    // eslint-disable-next-line no-control-regex -- strips control chars on purpose
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
     .replace(/\s+/g, " ")
     .trim()

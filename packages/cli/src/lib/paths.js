@@ -12,7 +12,14 @@ const PORT = 3891;
 
 function getDataDir() {
   if (process.env.FLYX_DATA_DIR) {
-    return path.resolve(process.env.FLYX_DATA_DIR);
+    // Must be an absolute path: a relative value would silently resolve
+    // against whatever directory the CLI happens to be run from (and
+    // `flyx reset` deletes files inside the data dir).
+    const raw = process.env.FLYX_DATA_DIR;
+    if (!path.isAbsolute(raw)) {
+      throw new Error(`FLYX_DATA_DIR must be an absolute path (got "${raw}")`);
+    }
+    return path.resolve(raw);
   }
   if (process.platform === "win32") {
     const localAppData =
@@ -37,9 +44,8 @@ function getStandaloneDir() {
   const repo = path.resolve(__dirname, "..", "..", "..", "..");
   const dev = path.join(repo, ".flyx-standalone");
   if (fs.existsSync(dev)) return dev;
-  // CWD fallback
-  const alt = path.join(process.cwd(), ".flyx-standalone");
-  if (fs.existsSync(alt)) return alt;
+  // No process.cwd() fallback: running `flyx start` from an arbitrary
+  // directory must never execute a .flyx-standalone/ server found there.
   return null;
 }
 

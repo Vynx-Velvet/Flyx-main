@@ -8,6 +8,8 @@
  */
 
 import { useState, useEffect, useCallback, useRef, type RefObject } from 'react';
+import { resolveCastStreamUrl } from '@/lib/external-player-client';
+import type { HandoffSource } from '@/lib/external-player';
 
 declare global {
   interface Window {
@@ -125,6 +127,13 @@ export interface CastState {
 
 export interface CastMedia {
   url: string;
+  /**
+   * The raw source behind `url` (CDN URL + Referer/Origin, or a host proxy
+   * path). When set, a Chromecast is handed a signed absolute host-proxy
+   * URL on the LAN instead of `url` — the receiver can't resolve relative
+   * URLs, send our cookie, or set Referer, and most CDNs lack CORS.
+   */
+  source?: HandoffSource;
   title: string;
   subtitle?: string;
   posterUrl?: string;
@@ -162,6 +171,17 @@ const detectChrome = () =>
   typeof window !== 'undefined' &&
   /chrome|crios|chromium/i.test(navigator.userAgent) &&
   !/edg/i.test(navigator.userAgent);
+
+/** True for a URL served by this Flyx host's own API (e.g. /api/stream/proxy). */
+function isHostApiUrl(url: string): boolean {
+  if (!url || typeof window === 'undefined') return false;
+  try {
+    const u = new URL(url, window.location.href);
+    return u.origin === window.location.origin && u.pathname.startsWith('/api/');
+  } catch {
+    return false;
+  }
+}
 
 function loadCastSDK(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -490,11 +510,13 @@ export function useCast(options: UseCastOptions = {}) {
       }
     }
 
-    // 3) Remote Playback API (skip blob/MSE sources)
+    // 3) Remote Playback API (skip blob/MSE sources, and our own proxy:
+    //    the receiver would get a cookie-authorized, often 127.0.0.1 URL —
+    //    the Cast SDK path below hands it a signed LAN URL instead)
     const remote = video.remote;
     const src = video.src || video.currentSrc || options.streamUrl || '';
     const isBlob = src.startsWith('blob:');
-    if (remote && !isIOSRef.current && !isBlob) {
+    if (remote && !isIOSRef.current && !isBlob && !isHostApiUrl(src)) {
       try {
         await remote.prompt();
         return true;
@@ -584,9 +606,44 @@ export function useCast(options: UseCastOptions = {}) {
       // AirPlay / Remote Playback use the local video element source
       return true;
     }
+    let castUrl = media.url;
+    const source: HandoffSource | null = media.source?.url
+      ? media.source
+      : isHostApiUrl(media.url)
+        ? { url: media.url }
+        : null;
+    if (source) {
+      // Sources that play only through our proxy (Referer/Origin, or the
+      // player already proxies them) can't be cast any other way.
+      const needsHost =
+        !!source.referer || !!source.origin || isHostApiUrl(source.url) || isHostApiUrl(media.url);
+      try {
+        castUrl = await resolveCastStreamUrl(source);
+      } catch (err) {
+        const code = (err as { code?: string }).code;
+        if (!needsHost && code === 'lan-sharing-off' && /^https?:\/\//i.test(source.url)) {
+          // A plain CDN URL may still play directly (if it sends CORS).
+          castUrl = source.url;
+        } else {
+          const msg =
+            err instanceof Error && err.message ? err.message : 'Could not prepare the stream for casting.';
+          setState((prev) => ({ ...prev, lastError: msg }));
+          onErrorRef.current?.(msg);
+          // Nothing can play on the receiver — end the session instead of
+          // leaving a connected-but-idle Chromecast behind.
+          try {
+            castSessionRef.current?.stop(() => {}, () => {});
+          } catch {
+            /* ignore */
+          }
+          return false;
+        }
+      }
+    }
+    if (!castSessionRef.current) return false;
     try {
       const contentType = media.contentType || 'application/x-mpegURL';
-      const mediaInfo = new window.chrome.cast.media.MediaInfo!(media.url, contentType);
+      const mediaInfo = new window.chrome.cast.media.MediaInfo!(castUrl, contentType);
       const metadata = new window.chrome.cast.media.GenericMediaMetadata!();
       metadata.title = media.title;
       if (media.subtitle) metadata.subtitle = media.subtitle;

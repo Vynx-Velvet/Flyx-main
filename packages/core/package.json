@@ -1,6 +1,6 @@
 {
   "name": "@flyx/core",
-  "version": "3.2.4",
+  "version": "3.2.5",
   "private": true,
   "description": "Flyx shared types, error hierarchy, unified cache, and utilities",
   "main": "./src/index.ts",
@@ -20,6 +20,9 @@
   },
   "devDependencies": {
     "typescript": "^5.9.0",
-    "vitest": "^3.1.0"
+    "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "undici": "^7.30.0"
   }
 }

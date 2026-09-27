@@ -94,7 +94,17 @@ fi
 echo ""
 echo -e "  [3/4] Installing dependencies (this may take a minute)..."
 
-npm install
+# npm ci installs exactly what package-lock.json pins (no silent upgrades).
+npm ci
+
+# The lockfile is generated on Windows, so npm omits this platform's
+# Tailwind/lightningcss native binaries. Install them at the lockfile's
+# versions (same workaround as .github/workflows/desktop-build.yml).
+NATIVE_SPECS=$(node -e 'const p=require("./package-lock.json").packages||{};const out=[];for(const n of ["lightningcss","@tailwindcss/oxide"]){const e=p["node_modules/"+n];if(e&&/^[0-9A-Za-z.+-]+$/.test(e.version||""))out.push(n+"@"+e.version)}console.log(out.join(" "))')
+if [ -n "$NATIVE_SPECS" ]; then
+    # shellcheck disable=SC2086
+    npm install --no-save --ignore-scripts $NATIVE_SPECS
+fi
 echo -e "  ${GREEN}✓${NC}  Dependencies installed"
 
 # ── Link CLI ───────────────────────────────────────────────────────

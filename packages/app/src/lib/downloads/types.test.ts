@@ -14,6 +14,32 @@ describe("sanitizeFilename", () => {
     expect(sanitizeFilename("")).toBe("download");
     expect(sanitizeFilename("***")).toBe("download");
   });
+
+  it("never yields a bare dot path or trailing dots/spaces", () => {
+    expect(sanitizeFilename("..")).toBe("download");
+    expect(sanitizeFilename("../..")).toBe("download");
+    expect(sanitizeFilename("Title. . ")).toBe("Title");
+  });
+
+  it("prefixes Windows reserved device names, with or without extension", () => {
+    for (const n of ["CON", "con", "PRN", "AUX", "NUL", "COM1", "com9", "LPT1", "LPT9"]) {
+      expect(sanitizeFilename(n)).toBe(`_${n}`);
+      expect(sanitizeFilename(`${n}.mp4`)).toBe(`_${n}.mp4`);
+    }
+    expect(sanitizeFilename("CONAN")).toBe("CONAN");
+    expect(sanitizeFilename("Console.mp4")).toBe("Console.mp4");
+    expect(buildFilename({ kind: "video", tmdbId: 1, mediaType: "movie", title: "Nul" })).toBe("_Nul.mp4");
+  });
+
+  it("caps the length while keeping the extension", () => {
+    const long = `${"x".repeat(400)}.mp4`;
+    const out = sanitizeFilename(long);
+    expect(out.length).toBeLessThanOrEqual(150);
+    expect(out.endsWith(".mp4")).toBe(true);
+    const built = buildFilename({ kind: "video", tmdbId: 1, mediaType: "tv", season: 1, episode: 2, title: "y".repeat(400) });
+    expect(built.length).toBeLessThanOrEqual(150);
+    expect(built.endsWith(" - S01E02.mp4")).toBe(true);
+  });
 });
 
 describe("buildFilename", () => {

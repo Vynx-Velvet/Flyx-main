@@ -73,19 +73,49 @@ export interface DownloadJob {
   updatedAt: number;
 }
 
-/** Strip path-hostile characters so titles can become filenames. */
-export function sanitizeFilename(name: string): string {
-  const cleaned = String(name || "")
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
+/** Longest filename we produce (well under every filesystem's 255 limit). */
+export const MAX_FILENAME_LENGTH = 150;
+
+/** Windows device names — reserved with or without an extension ("CON", "nul.txt"). */
+const WINDOWS_RESERVED = /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])$/i;
+
+/**
+ * Strip path-hostile characters so titles can become filenames: no path
+ * separators or control characters, no trailing dots/spaces (Windows drops
+ * them, so "..", "a." and "a " misbehave), no reserved device names, and
+ * capped in length (keeping a short extension intact).
+ */
+export function sanitizeFilename(name: string, maxLength = MAX_FILENAME_LENGTH): string {
+  let cleaned = String(name || "")
+    // eslint-disable-next-line no-control-regex -- strips control chars on purpose
+    .replace(/[<>:"/\\|?*\u0000-\u001f\u007f]/g, "")
     .replace(/\s+/g, " ")
-    .trim();
-  return cleaned || "download";
+    .trim()
+    .replace(/[. ]+$/, "");
+
+  const chars = Array.from(cleaned);
+  if (chars.length > maxLength) {
+    const ext = /\.[A-Za-z0-9]{1,8}$/.exec(cleaned)?.[0] ?? "";
+    cleaned = chars
+      .slice(0, maxLength - ext.length)
+      .join("")
+      .replace(/[. ]+$/, "") + ext;
+  }
+
+  if (!cleaned) return "download";
+  // "CON", "con.mp4", "Nul .txt" … are all device names on Windows.
+  const stem = cleaned.split(".")[0]!.trim();
+  if (WINDOWS_RESERVED.test(stem)) cleaned = `_${cleaned}`;
+  return cleaned;
 }
+
+const TITLE_MAX_LENGTH = MAX_FILENAME_LENGTH - 30;
 
 /** Human/disk filename for a downloadable item (shared by queue + direct stream). */
 export function buildFilename(item: DownloadItemInput): string {
   if (item.kind === "video") {
-    const t = sanitizeFilename(item.title || "Video");
+    // Leave room for the " - S01E02 (Dub).mp4" suffix within the length cap.
+    const t = sanitizeFilename(item.title || "Video", TITLE_MAX_LENGTH);
     const audioSuffix = item.language === "dub" ? " (Dub)" : item.language === "sub" ? " (Sub)" : "";
     if (item.mediaType === "tv" && item.season && item.episode) {
       const e = String(item.episode).padStart(2, "0");
@@ -96,7 +126,7 @@ export function buildFilename(item: DownloadItemInput): string {
     }
     return `${t}${audioSuffix}.mp4`;
   }
-  const t = sanitizeFilename(item.title || "Manga");
+  const t = sanitizeFilename(item.title || "Manga", TITLE_MAX_LENGTH);
   return `${t} - Chapter ${item.chapter}.cbz`;
 }
 

@@ -7,39 +7,84 @@
  *
  * Query params:
  *   url — The encoded subtitle file URL to proxy
+ *
+ * Security: session-or-signature auth, OpenSubtitles hosts only (checked on
+ * every redirect hop, SSRF-safe), 2 MB body cap, bounded LRU cache.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { convertSRTtoVTT, normalizeVTT } from "@/lib/subtitles/srt";
+import { proxyAuthorization } from "@/lib/security/proxy-sign";
+import { BlockedUrlError, BodyTooLargeError, readTextLimited, safeFetch } from "@/lib/security/safe-fetch";
+import { BoundedCache, PROXY_SECURITY_HEADERS, applySignedCors, proxyJsonError, proxyUnauthorized, signedPreflight } from "@/lib/media-proxy";
+
+export const runtime = "nodejs";
 
 const UA = "Flyx/3.0 (https://github.com/Vynx-Velvet/Flyx-main)";
 
-/** Cache proxied subtitles for 1 hour (in-memory). */
-const cache = new Map<string, { data: string; contentType: string; ts: number }>();
-const CACHE_TTL = 60 * 60 * 1000;
+/** Subtitle hosts this proxy may fetch from (and their subdomains). */
+const ALLOWED_HOSTS = ["opensubtitles.com", "opensubtitles.org"];
+const MAX_SUBTITLE_BYTES = 2 * 1024 * 1024;
+
+function checkHost(url: URL): void {
+  const host = url.hostname.toLowerCase();
+  if (!ALLOWED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) {
+    throw new BlockedUrlError("Subtitle host not allowed");
+  }
+}
+
+/** Cache proxied subtitles for 1 hour (in-memory, LRU-bounded). */
+const cache = new BoundedCache<string>({
+  maxEntries: 200,
+  maxBytes: 64 * 1024 * 1024,
+  ttlMs: 60 * 60 * 1000,
+  sizeOf: (v) => v.length * 2,
+});
+
+function vttResponse(body: string): NextResponse {
+  return new NextResponse(body, {
+    headers: {
+      ...PROXY_SECURITY_HEADERS,
+      "Content-Type": "text/vtt; charset=utf-8",
+      "Cache-Control": "private, max-age=3600",
+    },
+  });
+}
 
 export async function GET(request: NextRequest) {
+  const via = await proxyAuthorization(request);
+  if (!via) return proxyUnauthorized();
+  return applySignedCors(await handleGet(request), via);
+}
+
+export function OPTIONS(request: NextRequest) {
+  return signedPreflight(request);
+}
+
+async function handleGet(request: NextRequest): Promise<NextResponse> {
+
   const url = request.nextUrl.searchParams.get("url");
   if (!url) {
-    return NextResponse.json({ error: "url param is required" }, { status: 400 });
+    return proxyJsonError({ error: "url param is required" }, 400);
   }
 
   // Check cache
   const cached = cache.get(url);
-  if (cached && Date.now() - cached.ts < CACHE_TTL) {
-    return new NextResponse(cached.data, {
-      headers: { "Content-Type": cached.contentType, "Cache-Control": "public, max-age=3600" },
-    });
-  }
+  if (cached !== undefined) return vttResponse(cached);
 
   try {
-    const res = await fetch(url, { headers: { "User-Agent": UA } });
+    const res = await safeFetch(
+      url,
+      { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(15_000) },
+      { checkUrl: checkHost },
+    );
     if (!res.ok) {
-      return NextResponse.json({ error: `Upstream HTTP ${res.status}` }, { status: 502 });
+      await res.body?.cancel().catch(() => {});
+      return proxyJsonError({ error: `Upstream HTTP ${res.status}` }, 502);
     }
 
     const contentType = res.headers.get("content-type") ?? "application/octet-stream";
-    let body = await res.text();
+    let body = await readTextLimited(res, MAX_SUBTITLE_BYTES);
 
     // Convert SRT to VTT if needed
     const isSRT =
@@ -51,18 +96,16 @@ export async function GET(request: NextRequest) {
     body = isSRT ? convertSRTtoVTT(body) : body;
     body = normalizeVTT(body);
 
-    // Cache it
-    cache.set(url, { data: body, contentType: "text/vtt", ts: Date.now() });
-
-    return new NextResponse(body, {
-      headers: {
-        "Content-Type": "text/vtt; charset=utf-8",
-        "Cache-Control": "public, max-age=3600",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
+    cache.set(url, body);
+    return vttResponse(body);
   } catch (err) {
+    if (err instanceof BlockedUrlError) {
+      return proxyJsonError({ error: "Subtitle URL not allowed" }, 403);
+    }
+    if (err instanceof BodyTooLargeError) {
+      return proxyJsonError({ error: "Subtitle file too large" }, 502);
+    }
     console.error("[subtitles/proxy]", err);
-    return NextResponse.json({ error: "Failed to proxy subtitle" }, { status: 500 });
+    return proxyJsonError({ error: "Failed to proxy subtitle" }, 500);
   }
 }

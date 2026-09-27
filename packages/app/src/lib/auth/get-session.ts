@@ -3,12 +3,39 @@
  *
  * Use in server components and API routes to get the
  * current authenticated user.
+ *
+ * The JWT only proves "this was issued by us for account X at token version
+ * N". Everything else comes from the account store: a deleted account or a
+ * bumped tokenVersion (password change/reset) revokes the token, and
+ * username/isAdmin are the STORED values — a demoted admin's old token
+ * doesn't keep admin rights. Node runtime only (reads store.json); the edge
+ * middleware does signature-only checks and defers to handlers.
  */
 
 import { cookies } from "next/headers";
 import { verifyJWT, type JWTPayload } from "./jwt";
+import { getAccountAuth } from "@/lib/db";
 
 const COOKIE_NAME = "flyx_token";
+
+/** Validate a raw token against the account store. */
+export async function sessionFromToken(token: string | undefined | null): Promise<JWTPayload | null> {
+  if (!token) return null;
+  const claims = await verifyJWT(token);
+  if (!claims || typeof claims.sub !== "string") return null;
+
+  const account = getAccountAuth(claims.sub);
+  if (!account) return null;
+  const tv = typeof claims.tv === "number" ? claims.tv : 0;
+  if (tv !== account.tokenVersion) return null;
+
+  return {
+    sub: account.id,
+    username: account.username,
+    isAdmin: account.isAdmin,
+    tv: account.tokenVersion,
+  };
+}
 
 /**
  * Get the current session from the request cookies.
@@ -17,9 +44,7 @@ const COOKIE_NAME = "flyx_token";
 export async function getSession(): Promise<JWTPayload | null> {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get(COOKIE_NAME)?.value;
-    if (!token) return null;
-    return verifyJWT(token);
+    return await sessionFromToken(cookieStore.get(COOKIE_NAME)?.value);
   } catch {
     return null;
   }

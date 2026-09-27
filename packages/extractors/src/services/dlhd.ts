@@ -203,7 +203,29 @@ function originOf(url: string, fallback: string): string {
 // be probed directly with one small request before falling back to scraping.
 
 const RESOLVE_TTL_MS = 10 * 60 * 1000;
+/** Upper bound on remembered channels (DLHD lists well under 1,000). */
+const RESOLVE_CACHE_MAX = 500;
 const resolveCache = new Map<string, { result: ExtractionResult; at: number }>();
+
+/** DLHD channel ids are short decimal numbers ("51", "303", "1234"). */
+const CHANNEL_ID_RE = /^\d{1,6}$/;
+
+/** True when `channelId` is a well-formed DLHD channel id. */
+export function isValidDLHDChannelId(channelId: string): boolean {
+  return CHANNEL_ID_RE.test(channelId);
+}
+
+function cacheResolution(channelId: string, result: ExtractionResult): void {
+  // Map iteration order is insertion order: re-insert to mark as most recent,
+  // then evict expired entries and the oldest beyond the cap.
+  resolveCache.delete(channelId);
+  resolveCache.set(channelId, { result, at: Date.now() });
+  const now = Date.now();
+  for (const [key, entry] of resolveCache) {
+    if (resolveCache.size <= RESOLVE_CACHE_MAX && now - entry.at < RESOLVE_TTL_MS) break;
+    resolveCache.delete(key);
+  }
+}
 let lastEdge: { origin: string; playerOrigin: string; at: number } | null = null;
 
 async function probeEdge(channelId: string): Promise<ExtractionResult | null> {
@@ -234,6 +256,7 @@ async function probeEdge(channelId: string): Promise<ExtractionResult | null> {
  * when we have not learned an edge yet (caller falls back to a full resolve).
  */
 export async function probeDLHDEdge(channelId: string): Promise<"online" | "offline" | null> {
+  if (!isValidDLHDChannelId(channelId)) return null;
   if (!lastEdge || Date.now() - lastEdge.at > 6 * 60 * 60 * 1000) return null;
   const url = `${lastEdge.origin}/premium${channelId}/index.m3u8?_=${Date.now()}`;
   try {
@@ -264,14 +287,17 @@ function rememberEdge(result: ExtractionResult) {
 export async function extractDLHD(
   channelId: string,
 ): Promise<ExtractionResult> {
-  if (!channelId) return { sources: [], subtitles: [] };
+  // Reject anything that is not a DLHD channel id before it reaches a URL
+  // or the resolution cache.
+  if (!isValidDLHDChannelId(channelId)) return { sources: [], subtitles: [] };
 
   const cached = resolveCache.get(channelId);
   if (cached && Date.now() - cached.at < RESOLVE_TTL_MS) return cached.result;
+  if (cached) resolveCache.delete(channelId);
 
   const result = await extractDLHDUncached(channelId);
   if (result.sources.length) {
-    resolveCache.set(channelId, { result, at: Date.now() });
+    cacheResolution(channelId, result);
     rememberEdge(result);
   }
   return result;

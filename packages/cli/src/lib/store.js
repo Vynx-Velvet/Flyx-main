@@ -7,38 +7,75 @@
  */
 
 const fs = require("fs");
-const path = require("path");
 const crypto = require("crypto");
 const { DATA_DIR, storePath } = require("./paths");
 
 function ensureDir() {
   if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
   }
 }
 
+class CorruptStoreError extends Error {
+  constructor(message, backupPath) {
+    super(message);
+    this.name = "CorruptStoreError";
+    this.backupPath = backupPath;
+  }
+}
+
+function emptyStore() {
+  return { version: 1, accounts: [], settings: {} };
+}
+
+/**
+ * Read store.json. A missing file is an empty store. A file that exists but
+ * can't be parsed is NEVER silently replaced — that would wipe every account
+ * and make the next account created an admin. Instead it is copied to
+ * store.json.corrupt-<timestamp> and a CorruptStoreError is thrown.
+ */
 function readStore() {
   ensureDir();
-  if (!fs.existsSync(storePath)) {
-    const empty = { version: 1, accounts: [], settings: {} };
-    writeStore(empty);
-    return empty;
-  }
+  let raw;
   try {
-    const raw = fs.readFileSync(storePath, "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    console.warn("[flyx] Corrupt store.json, starting fresh");
-    const empty = { version: 1, accounts: [], settings: {} };
-    writeStore(empty);
-    return empty;
+    raw = fs.readFileSync(storePath, "utf-8");
+  } catch (err) {
+    if (err && err.code === "ENOENT") {
+      const empty = emptyStore();
+      writeStore(empty);
+      return empty;
+    }
+    throw err;
   }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    data = null;
+  }
+  if (!data || typeof data !== "object" || !Array.isArray(data.accounts)) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const backupPath = `${storePath}.corrupt-${stamp}`;
+    try {
+      fs.copyFileSync(storePath, backupPath, fs.constants.COPYFILE_EXCL);
+      try { fs.chmodSync(backupPath, 0o600); } catch {}
+    } catch {}
+    throw new CorruptStoreError(
+      `store.json is unreadable or corrupt (${storePath}).
+` +
+        `   A copy was saved to ${backupPath}.
+` +
+        `   Fix or restore the file by hand; Flyx will not overwrite it.`,
+      backupPath,
+    );
+  }
+  return data;
 }
 
 function writeStore(data) {
   ensureDir();
   const tmp = storePath + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf-8");
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), { encoding: "utf-8", mode: 0o600 });
   try { fs.chmodSync(tmp, 0o600); } catch {}
   fs.renameSync(tmp, storePath);
 }
@@ -100,6 +137,7 @@ function getAccountCount() {
 }
 
 module.exports = {
+  CorruptStoreError,
   readStore,
   writeStore,
   createAccount,

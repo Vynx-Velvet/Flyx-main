@@ -9,6 +9,7 @@
  * Use ONLY for known problematic hosts — not for general-purpose fetching.
  */
 
+import type { LookupFunction } from "node:net";
 import { Agent } from "undici";
 
 /** Domains known to reject Node.js TLS fingerprints or have broken TLS. */
@@ -58,35 +59,65 @@ function getAgent(): Agent {
 }
 
 /**
+ * Agents that resolve through a caller-supplied `lookup` (e.g. an SSRF guard
+ * that rejects private addresses at connect time). One pair per lookup fn.
+ */
+const _lookupAgents = new WeakMap<LookupFunction, { relaxed: Agent; strict: Agent }>();
+
+function getLookupAgent(lookup: LookupFunction, relaxed: boolean): Agent {
+  let pair = _lookupAgents.get(lookup);
+  if (!pair) {
+    pair = {
+      relaxed: new Agent({ connect: { rejectUnauthorized: false, lookup } }),
+      strict: new Agent({ connect: { lookup } }),
+    };
+    _lookupAgents.set(lookup, pair);
+  }
+  return relaxed ? pair.relaxed : pair.strict;
+}
+
+export type RelaxedFetchInit = RequestInit & {
+  timeout?: number;
+  /**
+   * DNS lookup used for the connection, for relaxed AND ordinary hosts.
+   * Pass an address-validating lookup to pin the connect-time IP.
+   */
+  lookup?: LookupFunction;
+};
+
+/**
  * Wraps fetch() with TLS relaxation for known problematic hosts.
  * For all other hosts, delegates to the standard global fetch().
  */
-export async function relaxedFetch(
-  url: string,
-  init?: RequestInit & { timeout?: number },
-): Promise<Response> {
+export async function relaxedFetch(url: string, init?: RelaxedFetchInit): Promise<Response> {
+  const { lookup, ...rest } = init ?? {};
   let hostname: string;
   try {
     hostname = new URL(url).hostname;
   } catch {
-    return fetch(url, init as RequestInit);
+    return fetch(url, rest as RequestInit);
   }
 
   if (!isRelaxedHost(hostname)) {
-    return fetch(url, init as RequestInit);
+    if (!lookup) return fetch(url, rest as RequestInit);
+    return fetch(url, {
+      ...(rest as RequestInit),
+      // @ts-expect-error — undici dispatcher is supported at Node.js runtime
+      dispatcher: getLookupAgent(lookup, false),
+    });
   }
 
-  const dispatcher = getAgent();
+  const dispatcher = lookup ? getLookupAgent(lookup, true) : getAgent();
 
-  let signal = init?.signal ?? undefined;
-  if (init?.timeout && !signal) {
+  let signal = rest.signal ?? undefined;
+  if (rest.timeout && !signal) {
     const c = new AbortController();
-    setTimeout(() => c.abort(), init.timeout);
+    setTimeout(() => c.abort(), rest.timeout);
     signal = c.signal;
   }
 
   return fetch(url, {
-    ...(init as RequestInit),
+    ...(rest as RequestInit),
     // @ts-expect-error — undici dispatcher is supported at Node.js runtime
     dispatcher,
     signal,

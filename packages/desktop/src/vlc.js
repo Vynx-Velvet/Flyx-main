@@ -8,9 +8,16 @@
  * back to writing an extended .m3u playlist and opening it with whatever
  * the OS associates with playlists — usually VLC when it is installed.
  *
+ * Only URLs on our OWN server's stream routes are accepted (see
+ * isAllowedStreamUrl) — the IPC is reachable from the renderer, and VLC
+ * will happily open file:, smb:, or arbitrary remote URLs otherwise. The
+ * playlist fallback uses a random filename in a Flyx-only temp subfolder;
+ * the renderer-supplied title never becomes part of a path.
+ *
  * All process/filesystem access is injectable so the logic is unit-testable.
  */
 
+const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -102,15 +109,16 @@ function buildPlaylist({ url, title, startTime }) {
   return lines.join("\n") + "\n";
 }
 
-function writePlaylist(dir, title, body, writeFile) {
-  const safe =
-    String(title || "flyx-stream")
-      .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 80) || "flyx-stream";
-  const file = path.join(dir, `${safe}.m3u`);
-  (writeFile || fs.writeFileSync)(file, body, "utf8");
+/**
+ * Write the playlist to <tempDir>/flyx-vlc/flyx-<random>.m3u. The name is
+ * random (never derived from the renderer's title) and created exclusively
+ * ("wx"), so it can't clobber or be pre-planted as another file.
+ */
+function writePlaylist(tempDir, body, deps = {}) {
+  const dir = path.join(tempDir, "flyx-vlc");
+  (deps.mkdir || ((d) => fs.mkdirSync(d, { recursive: true })))(dir);
+  const file = path.join(dir, `flyx-${crypto.randomBytes(12).toString("hex")}.m3u`);
+  (deps.writeFile || ((f, b) => fs.writeFileSync(f, b, { encoding: "utf8", flag: "wx" })))(file, body);
   return file;
 }
 
@@ -118,14 +126,40 @@ function isHttpUrl(url) {
   return typeof url === "string" && /^https?:\/\/\S+$/i.test(url);
 }
 
+// The app hands VLC /api/stream/proxy?… (movies/TV, via /api/stream/vlc)
+// and /api/livetv/… playlists — both served by our own server.
+const STREAM_PATH_RE = /^\/api\/(stream|livetv)\//;
+const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost"]);
+
+/**
+ * Only our own server's stream routes: http://127.0.0.1:<port> (or
+ * localhost:<port>) + /api/stream/… or /api/livetv/…, no credentials.
+ * Returns the normalised URL string, or null when not allowed.
+ */
+function isAllowedStreamUrl(url, port) {
+  if (!isHttpUrl(url) || !port) return null;
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "http:") return null;
+  if (!LOCAL_HOSTS.has(u.hostname)) return null;
+  if (u.port !== String(port)) return null;
+  if (u.username || u.password) return null;
+  if (!STREAM_PATH_RE.test(u.pathname)) return null;
+  return u.toString();
+}
+
 /**
  * Open `url` in VLC. Resolves with { ok, method: "spawn" | "playlist", path?, error? }.
  * Never throws.
  */
 async function launch(payload, deps = {}) {
-  const url = payload && payload.url;
-  if (!isHttpUrl(url)) {
-    return { ok: false, error: "Stream URL must be http(s)" };
+  const url = isAllowedStreamUrl(payload && payload.url, deps.port);
+  if (!url) {
+    return { ok: false, error: "Stream URL must be an http stream on this Flyx server" };
   }
   const title = (payload.title && String(payload.title)) || "Flyx";
   const startTime = payload.startTime;
@@ -161,7 +195,7 @@ async function launch(payload, deps = {}) {
   }
   try {
     const dir = deps.tempDir || os.tmpdir();
-    const file = writePlaylist(dir, title, buildPlaylist({ url, title, startTime }), deps.writeFile);
+    const file = writePlaylist(dir, buildPlaylist({ url, title, startTime }), deps);
     const failure = await openPath(file);
     if (failure) {
       return { ok: false, method: "playlist", path: file, error: String(failure) };
@@ -180,4 +214,5 @@ module.exports = {
   writePlaylist,
   launch,
   isHttpUrl,
+  isAllowedStreamUrl,
 };

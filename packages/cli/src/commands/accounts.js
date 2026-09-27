@@ -12,14 +12,9 @@ const {
   findAccount,
   deleteAccount,
   updatePassword,
-  getAccountCount,
 } = require("../lib/store");
-const { ask, askPassword, confirm } = require("../lib/prompts");
-const { checkHealth } = require("../lib/server");
-
-function warnIfRunning() {
-  // We'll check inline in each command
-}
+const { confirm } = require("../lib/prompts");
+const { resolvePassword } = require("../lib/password-input");
 
 async function addAccount(username, options = {}) {
   if (!username) {
@@ -37,15 +32,11 @@ async function addAccount(username, options = {}) {
     process.exit(1);
   }
 
-  let password;
-  if (options.password) {
-    password = options.password;
-  } else {
-    password = await askPassword("Password (min 8 chars)");
-    if (!password) {
-      console.error("❌ Password is required.");
-      process.exit(1);
-    }
+  // --password (warns), FLYX_PASSWORD, or a hidden prompt.
+  const password = await resolvePassword(options, "Password (min 8 chars)");
+  if (!password) {
+    console.error("❌ Password is required (set FLYX_PASSWORD or run interactively).");
+    process.exit(1);
   }
 
   if (password.length < 8) {
@@ -131,12 +122,8 @@ async function resetPassword(username, options = {}) {
     process.exit(1);
   }
 
-  let password;
-  if (options.password) {
-    password = options.password;
-  } else {
-    password = await askPassword("New password (min 8 chars)");
-  }
+  // --password (warns), FLYX_PASSWORD, or a hidden prompt.
+  const password = await resolvePassword(options, "New password (min 8 chars)");
 
   if (!password || password.length < 8) {
     console.error("❌ Password must be at least 8 characters.");

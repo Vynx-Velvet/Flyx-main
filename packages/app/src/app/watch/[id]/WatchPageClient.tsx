@@ -7,11 +7,10 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { getProviderSettings, saveProviderSettings, SYNC_DATA_CHANGED_EVENT } from '@/lib/sync';
 import { ExtensionGate } from '@/components/ExtensionGate';
 import { getPlayerPreferences } from '@/lib/utils/player-preferences';
-import { openInVlc, copyStreamUrl } from '@/lib/external-player-client';
+import { openInVlc, copyStreamUrl, resolveHostStreamUrl } from '@/lib/external-player-client';
 import {
   buildVlcPlaylist,
   handoffTitle,
-  hostStreamUrl,
   playlistFilename,
   type ExternalPlayerMode,
 } from '@/lib/external-player';
@@ -378,7 +377,7 @@ function WatchContent() {
   // Fetch next episode info when component mounts or episode changes
   useEffect(() => {
     setNextEpisode(null);
-    console.log('[WatchPage] Fetching next episode info for:', { contentId, mediaType, seasonId, episodeId });
+    console.log('[WatchPage] Fetching next episode info');
     fetchNextEpisodeInfo();
   }, [fetchNextEpisodeInfo]);
 
@@ -681,7 +680,7 @@ function WatchContent() {
     } finally {
       setLoadingProvider(false);
     }
-  }, [contentId, mediaType, seasonId, episodeId, malId, malTitle]);
+  }, [contentId, mediaType, seasonId, episodeId, malId, malTitle, audioPref, sourceMatchesAudioPref, title]);
 
   // Fetch mobile stream when needed - only on initial mount or content change
   const hasFetchedStreamRef = useRef(false);
@@ -735,7 +734,14 @@ function WatchContent() {
       window.setTimeout(() => setMobileVlcMessage(null), 3500);
     };
     if (action === 'copy' || action === 'playlist') {
-      const url = hostStreamUrl(window.location.origin, source);
+      // External players carry no session cookie — the host signs the URL.
+      let url: string;
+      try {
+        url = await resolveHostStreamUrl({ source });
+      } catch (err) {
+        note(err instanceof Error ? err.message : 'Could not prepare the stream link');
+        return;
+      }
       if (action === 'copy') {
         const ok = await copyStreamUrl(url);
         if (!ok) console.info('[WatchPage] stream link:', url);

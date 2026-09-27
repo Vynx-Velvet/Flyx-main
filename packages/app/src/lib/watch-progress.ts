@@ -13,6 +13,7 @@
  */
 
 import type { WatchProgress } from "@/lib/services/user-tracking";
+import { accountKey, ACCOUNT_SCOPE_EVENT } from "@/lib/account-storage";
 
 export const WATCH_PROGRESS_KEY = "flyx_watch_progress";
 export const WATCH_PROGRESS_EVENT = "flyx-watch-progress-changed";
@@ -211,13 +212,38 @@ export function resumeHref(entry: ProgressEntry, opts: { title?: string } = {}):
 
 // ── Bound to window.localStorage ─────────────────────────────────
 
+/**
+ * window.localStorage, with WATCH_PROGRESS_KEY mapped to the signed-in
+ * account's own key (see lib/account-storage). Null until the account is
+ * known — reads are empty and writes dropped rather than landing in a key
+ * shared by every account on this browser.
+ */
 function storage(): ProgressStorage | null {
   if (typeof window === "undefined") return null;
+  const key = accountKey(WATCH_PROGRESS_KEY);
+  if (!key) return null;
   try {
-    return window.localStorage;
+    const ls = window.localStorage;
+    return {
+      getItem: (k) => ls.getItem(k === WATCH_PROGRESS_KEY ? key : k),
+      setItem: (k, v) => ls.setItem(k === WATCH_PROGRESS_KEY ? key : k, v),
+    };
   } catch {
     return null;
   }
+}
+
+// Once the account resolves, tell resume surfaces to re-read (the Continue
+// Watching rail reloads on lib/sync's SYNC_DATA_CHANGED_EVENT).
+if (typeof window !== "undefined") {
+  window.addEventListener(ACCOUNT_SCOPE_EVENT, () => {
+    broadcast();
+    try {
+      window.dispatchEvent(new Event("sync-data-changed"));
+    } catch {
+      /* ignore */
+    }
+  });
 }
 
 function broadcast() {

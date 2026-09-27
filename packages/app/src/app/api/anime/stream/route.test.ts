@@ -9,12 +9,15 @@
  *
  * Each test that hits the API uses a 120s timeout.
  *
- * Requires the Next.js dev server running on localhost:3000.
+ * Live test: needs a running Flyx server (FLYX_TEST_BASE_URL, default
+ * http://127.0.0.1:3000) and FLYX_TEST_USER / FLYX_TEST_PASSWORD. Skipped when
+ * no server is up unless FLYX_TEST_REQUIRE_LIVE=1. See src/test/live-server.ts.
  */
 
 import { describe, it, expect } from "vitest";
+import { liveFetch, liveSuiteEnabled } from "@/test/live-server";
 
-const BASE_URL = "http://localhost:3000";
+const serverUp = await liveSuiteEnabled();
 
 // Well-known MAL IDs
 const KNOWN_MAL_IDS = {
@@ -22,30 +25,30 @@ const KNOWN_MAL_IDS = {
   attackOnTitan: 16498,
 };
 
-describe("GET /api/anime/stream", () => {
+describe.skipIf(!serverUp)("GET /api/anime/stream", () => {
   // ── Parameter validation (fast — no API calls) ────────────────────
 
   it("returns 400 when malId is missing", async () => {
-    const res = await fetch(`${BASE_URL}/api/anime/stream`);
+    const res = await liveFetch(`/api/anime/stream`);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toBeDefined();
   });
 
   it("returns 400 for invalid malId", async () => {
-    const res = await fetch(`${BASE_URL}/api/anime/stream?malId=abc`);
+    const res = await liveFetch(`/api/anime/stream?malId=abc`);
     expect(res.status).toBe(400);
   });
 });
 
 // ── Live extraction tests (require dev server + API access) ──────────
 
-describe("GET /api/anime/stream (live)", () => {
+describe.skipIf(!serverUp)("GET /api/anime/stream (live)", () => {
   it(
     "returns sources for a known anime with provider=animex",
     async () => {
-      const res = await fetch(
-        `${BASE_URL}/api/anime/stream?malId=${KNOWN_MAL_IDS.onePunchMan}&episode=1&provider=animex`,
+      const res = await liveFetch(
+        `/api/anime/stream?malId=${KNOWN_MAL_IDS.onePunchMan}&episode=1&provider=animex`,
       );
       expect(res.status).toBe(200);
       const body = await res.json();

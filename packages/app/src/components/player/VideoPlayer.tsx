@@ -42,8 +42,8 @@ import PlayerHelpModal, {
   markPlayerHelpSeen,
 } from './PlayerHelpModal';
 import { CastButton, CastOverlay, CastErrorBanner, IconHelp, IconCast } from './CastUI';
-import { openInVlc, copyStreamUrl } from '@/lib/external-player-client';
-import { buildVlcPlaylist, handoffTitle, hostStreamUrl, playlistFilename } from '@/lib/external-player';
+import { openInVlc, copyStreamUrl, resolveHostStreamUrl } from '@/lib/external-player-client';
+import { buildVlcPlaylist, handoffTitle, playlistFilename } from '@/lib/external-player';
 import { usePlaybackRecovery } from './usePlaybackRecovery';
 import { IconVlc } from './VlcButton';
 
@@ -144,7 +144,7 @@ export default function VideoPlayer({
   const [showNext, setShowNext] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [dismissedNext, setDismissedNext] = useState(false);
-  const [showKbdHint, setShowKbdHint] = useState(false);
+  const [showKbdHint] = useState(false);
   const [skipVisible, setSkipVisible] = useState<'intro' | 'outro' | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [castErrorDismissed, setCastErrorDismissed] = useState(false);
@@ -797,27 +797,34 @@ export default function VideoPlayer({
   const vlcEnabled = prefs.current.externalPlayer !== 'off';
   const [vlcBusy, setVlcBusy] = useState(false);
   const [showExternal, setShowExternal] = useState(false);
-  // Absolute host URL for the current source — for "copy link" / playlist.
-  const currentHostUrl = useCallback((): string | null => {
+  // Absolute, host-signed URL for the current source — for "copy link" /
+  // playlist (external players carry no session cookie).
+  const currentHostUrl = useCallback(async (): Promise<string | null> => {
     const current = sources[sourceIndex];
     if (!current) return null;
-    return hostStreamUrl(window.location.origin, {
-      url: current.rawUrl || current.url,
-      referer: current.referer,
-      origin: current.origin,
-    });
+    try {
+      return await resolveHostStreamUrl({
+        source: {
+          url: current.rawUrl || current.url,
+          referer: current.referer,
+          origin: current.origin,
+        },
+      });
+    } catch {
+      return null;
+    }
   }, [sources, sourceIndex]);
   const handleCopyStreamLink = useCallback(async () => {
     setShowExternal(false);
-    const url = currentHostUrl();
+    const url = await currentHostUrl();
     if (!url) return;
     const ok = await copyStreamUrl(url);
     if (!ok) console.info('[player] stream link:', url);
     showToast(ok ? 'Stream link copied' : 'Could not copy — link printed to console');
   }, [currentHostUrl, showToast]);
-  const handleDownloadPlaylist = useCallback(() => {
+  const handleDownloadPlaylist = useCallback(async () => {
     setShowExternal(false);
-    const url = currentHostUrl();
+    const url = await currentHostUrl();
     if (!url) return;
     const label = handoffTitle({ title, mediaType, season, episode });
     const body = buildVlcPlaylist({ title: label, url, startTime: videoRef.current?.currentTime || 0 });

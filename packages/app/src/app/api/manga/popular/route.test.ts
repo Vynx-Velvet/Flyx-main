@@ -4,16 +4,19 @@
  * Tests GET /api/manga/popular — validates all browse types
  * (popular, latest, action, romance, fantasy) and parameter validation.
  *
- * Requires the Next.js dev server running on localhost:3000.
+ * Live test: needs a running Flyx server (FLYX_TEST_BASE_URL, default
+ * http://127.0.0.1:3000) and FLYX_TEST_USER / FLYX_TEST_PASSWORD. Skipped when
+ * no server is up unless FLYX_TEST_REQUIRE_LIVE=1. See src/test/live-server.ts.
  */
 
 import { describe, it, expect } from "vitest";
+import { liveFetch, liveSuiteEnabled } from "@/test/live-server";
 
-const BASE_URL = "http://localhost:3000";
+const serverUp = await liveSuiteEnabled();
 
-describe("GET /api/manga/popular", () => {
+describe.skipIf(!serverUp)("GET /api/manga/popular", () => {
   it("returns manga cards for default type (popular)", async () => {
-    const res = await fetch(`${BASE_URL}/api/manga/popular?limit=10`);
+    const res = await liveFetch(`/api/manga/popular?limit=10`);
     expect(res.status).toBe(200);
 
     const body = (await res.json()) as {
@@ -34,7 +37,7 @@ describe("GET /api/manga/popular", () => {
   });
 
   it("supports type=latest", async () => {
-    const res = await fetch(`${BASE_URL}/api/manga/popular?limit=10&type=latest`);
+    const res = await liveFetch(`/api/manga/popular?limit=10&type=latest`);
     expect(res.status).toBe(200);
 
     const body = (await res.json()) as {
@@ -46,7 +49,7 @@ describe("GET /api/manga/popular", () => {
   });
 
   it("supports type=action", async () => {
-    const res = await fetch(`${BASE_URL}/api/manga/popular?limit=10&type=action`);
+    const res = await liveFetch(`/api/manga/popular?limit=10&type=action`);
     expect(res.status).toBe(200);
 
     const body = (await res.json()) as {
@@ -57,8 +60,8 @@ describe("GET /api/manga/popular", () => {
   });
 
   it("supports type=romance", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/manga/popular?limit=10&type=romance`
+    const res = await liveFetch(
+      `/api/manga/popular?limit=10&type=romance`
     );
     expect(res.status).toBe(200);
 
@@ -70,8 +73,8 @@ describe("GET /api/manga/popular", () => {
   });
 
   it("supports type=fantasy", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/manga/popular?limit=10&type=fantasy`
+    const res = await liveFetch(
+      `/api/manga/popular?limit=10&type=fantasy`
     );
     expect(res.status).toBe(200);
 
@@ -83,7 +86,7 @@ describe("GET /api/manga/popular", () => {
   });
 
   it("respects the limit parameter (cap of 40)", async () => {
-    const res = await fetch(`${BASE_URL}/api/manga/popular?limit=100`);
+    const res = await liveFetch(`/api/manga/popular?limit=100`);
     const body = (await res.json()) as {
       data: unknown[];
       total: number;
@@ -91,7 +94,7 @@ describe("GET /api/manga/popular", () => {
     expect(body.data.length).toBeLessThanOrEqual(40);
 
     // Also test low limit
-    const res2 = await fetch(`${BASE_URL}/api/manga/popular?limit=3`);
+    const res2 = await liveFetch(`/api/manga/popular?limit=3`);
     const body2 = (await res2.json()) as {
       data: unknown[];
       total: number;
@@ -100,7 +103,7 @@ describe("GET /api/manga/popular", () => {
   });
 
   it("returns unique IDs (deduplicated results)", async () => {
-    const res = await fetch(`${BASE_URL}/api/manga/popular?limit=20`);
+    const res = await liveFetch(`/api/manga/popular?limit=20`);
     const body = (await res.json()) as {
       data: { id: string }[];
     };
@@ -114,8 +117,8 @@ describe("GET /api/manga/popular", () => {
 
   it("different types return different results", async () => {
     const [popular, romance] = await Promise.all([
-      fetch(`${BASE_URL}/api/manga/popular?limit=10`).then((r) => r.json()),
-      fetch(`${BASE_URL}/api/manga/popular?limit=10&type=romance`).then(
+      liveFetch(`/api/manga/popular?limit=10`).then((r) => r.json()),
+      liveFetch(`/api/manga/popular?limit=10&type=romance`).then(
         (r) => r.json()
       ),
     ]);

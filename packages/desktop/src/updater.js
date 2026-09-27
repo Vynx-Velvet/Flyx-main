@@ -24,6 +24,9 @@ function initUpdater({ onDownloaded } = {}) {
   // Lazy require so dev/portable never even load the module
   autoUpdater = require("electron-updater").autoUpdater;
 
+  // Integrity: electron-updater verifies the installer against the sha512
+  // in the release's latest.yml before installing — keep it that way (no
+  // custom verifyUpdateCodeSignature / allowDowngrade overrides here).
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.logger = {

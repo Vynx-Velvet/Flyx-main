@@ -13,13 +13,28 @@
  *   3. Direct fetch without Referer (some CDNs prefer anonymous)
  *   4. Direct fetch with CDN origin as referer
  *   5. Native https.get (different TLS stack than undici)
+ *
+ * Security: session-or-signature auth (VLC opens the signed playlist URL
+ * minted by /api/livetv/stream); every upstream hop is checked with
+ * assertPublicUrl; bodies are size-capped; every URI written into the
+ * rewritten playlist is signed so cookie-less players can follow it.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { get as httpsGet } from "https";
 import { get as httpGet } from "http";
-import { relaxedFetch, needsRelaxedTLS } from "@flyx/core/utils";
-import { prefetchSegments } from "@/lib/livetv/segment-cache";
+import { needsRelaxedTLS } from "@flyx/core/utils";
+import { prefetchSegments, safeRelaxedFetch } from "@/lib/livetv/segment-cache";
+import { proxyAuthorization, signProxyUrl } from "@/lib/security/proxy-sign";
+import { BlockedUrlError, assertPublicUrl, guardedLookup, readTextLimited } from "@/lib/security/safe-fetch";
+import {
+  PROXY_SECURITY_HEADERS,
+  applySignedCors,
+  proxyJsonError,
+  proxyUnauthorized,
+  rewriteHlsPlaylist,
+  signedPreflight,
+} from "@/lib/media-proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,17 +45,11 @@ const UA =
 // per request whenever something else owned it.
 const SERVICE_URL = (process.env.DLHD_SERVICE_URL || "").trim() || null;
 
-function resolveRelative(
-  relative: string,
-  baseUrl: string,
-): string {
-  if (relative.startsWith("http://") || relative.startsWith("https://")) {
-    return relative;
-  }
-  const base = new URL(baseUrl);
-  const dir = base.pathname.substring(0, base.pathname.lastIndexOf("/") + 1);
-  return `${base.origin}${dir}${relative}`;
-}
+/** Live playlists are tiny; anything bigger is not a playlist. */
+const MAX_PLAYLIST_BYTES = 4 * 1024 * 1024;
+
+/** Tags whose URI="…" names another playlist (not a segment/key). */
+const PLAYLIST_URI_TAGS = new Set(["EXT-X-MEDIA", "EXT-X-I-FRAME-STREAM-INF", "EXT-X-RENDITION-REPORT"]);
 
 function isPlaylist(line: string): boolean {
   return line.trim().includes(".m3u8");
@@ -77,17 +86,30 @@ function nativeGet(url: string, referer: string, cookies?: string, timeoutMs = 1
       const opts = {
         headers,
         rejectUnauthorized: !relaxed,
+        // Re-validate the address actually connected to (DNS rebinding).
+        lookup: guardedLookup,
       };
 
       const req = get(target, opts, (res) => {
         // Handle redirects
         if ([301, 302, 303, 307, 308].includes(res.statusCode ?? 0) && res.headers.location) {
           if (++redirects > MAX_REDIRECTS) { resolve(null); return; }
-          const redirectUrl = new URL(res.headers.location, target instanceof URL ? target : new URL(target));
+          let redirectUrl: URL;
+          try {
+            redirectUrl = new URL(res.headers.location, target instanceof URL ? target : new URL(target));
+          } catch {
+            res.resume();
+            resolve(null);
+            return;
+          }
           // Update referer for redirect
           headers.Referer = target.toString();
           res.resume(); // drain
-          doRequest(redirectUrl);
+          // Every hop must resolve to a public address (no LAN/loopback).
+          assertPublicUrl(redirectUrl).then(
+            () => doRequest(redirectUrl),
+            () => resolve(null),
+          );
           return;
         }
 
@@ -98,7 +120,16 @@ function nativeGet(url: string, referer: string, cookies?: string, timeoutMs = 1
         }
 
         const chunks: Buffer[] = [];
-        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        let total = 0;
+        res.on("data", (chunk: Buffer) => {
+          total += chunk.length;
+          if (total > MAX_PLAYLIST_BYTES) {
+            req.destroy();
+            resolve(null);
+            return;
+          }
+          chunks.push(chunk);
+        });
         res.on("end", () => {
           const text = Buffer.concat(chunks).toString("utf-8");
           resolve(text);
@@ -111,7 +142,10 @@ function nativeGet(url: string, referer: string, cookies?: string, timeoutMs = 1
       req.end();
     }
 
-    doRequest(url);
+    assertPublicUrl(u).then(
+      () => doRequest(url),
+      () => resolve(null),
+    );
   });
 }
 
@@ -135,7 +169,7 @@ async function fetchViaService(
     );
     clearTimeout(t);
     if (!r.ok) return null;
-    const text = await r.text();
+    const text = await readTextLimited(r, MAX_PLAYLIST_BYTES);
     return { ok: true, status: 200, text };
   } catch {
     return null;
@@ -178,14 +212,14 @@ async function fetchPlaylist(
     try {
       const c = new AbortController();
       const t = setTimeout(() => c.abort(), 12000);
-      const r = await relaxedFetch(url, {
+      const r = await safeRelaxedFetch(url, {
         headers: baseHeaders,
         signal: c.signal,
       });
       clearTimeout(t);
 
       if (r.ok) {
-        const text = await r.text();
+        const text = await readTextLimited(r, MAX_PLAYLIST_BYTES);
         if (text.trim().startsWith("#EXTM3U")) {
           console.log(`[Playlist] ✓ Relaxed-TLS fetch succeeded (attempt ${attempt + 1})`);
           return { text, strategy: `relaxed-fetch${cookies ? "+cookies" : ""}` };
@@ -213,14 +247,14 @@ async function fetchPlaylist(
     const t = setTimeout(() => c.abort(), 12000);
     const noRefHeaders: Record<string, string> = { "User-Agent": UA, Accept: "*/*" };
     if (cookies) noRefHeaders["Cookie"] = cookies;
-    const r = await relaxedFetch(url, {
+    const r = await safeRelaxedFetch(url, {
       headers: noRefHeaders,
       signal: c.signal,
     });
     clearTimeout(t);
 
     if (r.ok) {
-      const text = await r.text();
+      const text = await readTextLimited(r, MAX_PLAYLIST_BYTES);
       if (text.trim().startsWith("#EXTM3U")) {
         console.log(`[Playlist] ✓ No-referer relaxed fetch succeeded`);
         return { text, strategy: "no-referer" };
@@ -239,14 +273,14 @@ async function fetchPlaylist(
       const t = setTimeout(() => c.abort(), 12000);
       const cdnHeaders: Record<string, string> = { "User-Agent": UA, Referer: baseOrigin, Origin: baseOrigin, Accept: "*/*" };
       if (cookies) cdnHeaders["Cookie"] = cookies;
-      const r = await relaxedFetch(url, {
+      const r = await safeRelaxedFetch(url, {
         headers: cdnHeaders,
         signal: c.signal,
       });
       clearTimeout(t);
 
       if (r.ok) {
-        const text = await r.text();
+        const text = await readTextLimited(r, MAX_PLAYLIST_BYTES);
         if (text.trim().startsWith("#EXTM3U")) {
           console.log(`[Playlist] ✓ CDN-origin relaxed fetch succeeded`);
           return { text, strategy: "cdn-origin" };
@@ -277,16 +311,24 @@ async function fetchPlaylist(
 }
 
 export async function GET(request: NextRequest) {
+  const via = await proxyAuthorization(request);
+  if (!via) return proxyUnauthorized();
+  return applySignedCors(await handleGet(request), via);
+}
+
+export function OPTIONS(request: NextRequest) {
+  return signedPreflight(request);
+}
+
+async function handleGet(request: NextRequest): Promise<NextResponse> {
+
   const { searchParams } = new URL(request.url);
   const m3u8Url = searchParams.get("url");
   const origin = searchParams.get("origin") || "";
   const cookie = searchParams.get("cookie") || "";
 
   if (!m3u8Url) {
-    return NextResponse.json(
-      { error: "Missing url parameter" },
-      { status: 400 },
-    );
+    return proxyJsonError({ error: "Missing url parameter" }, 400);
   }
 
   // searchParams already percent-decodes once; decoding again would corrupt
@@ -295,13 +337,17 @@ export async function GET(request: NextRequest) {
   const decodedOrigin = origin;
   const decodedCookie = cookie;
   if (!/^https?:\/\//i.test(decodedUrl)) {
-    return NextResponse.json(
-      { error: "Invalid playlist URL" },
-      { status: 400 },
-    );
+    return proxyJsonError({ error: "Invalid playlist URL" }, 400);
+  }
+  try {
+    await assertPublicUrl(decodedUrl);
+  } catch {
+    return proxyJsonError({ error: "Playlist URL not allowed" }, 403);
   }
 
-  // Build cookie query suffix for sub-playlist and segment URLs
+  // Build cookie query suffix for sub-playlist and segment URLs. The DLHD
+  // CDN wants the session cookies captured at extraction time; they only
+  // come from /api/livetv/stream (inside a signed URL) and are never logged.
   const cookieParam = decodedCookie
     ? `&cookie=${encodeURIComponent(decodedCookie)}`
     : "";
@@ -324,12 +370,12 @@ export async function GET(request: NextRequest) {
 
     if (result?.strategy === "offline") {
       console.warn(`[Playlist] Channel offline (404) for ${decodedUrl.substring(0, 80)}`);
-      return NextResponse.json(
+      return proxyJsonError(
         {
           error: "Channel is offline right now",
           detail: "This channel has no live stream at the moment. Event channels only go live while the event is on.",
         },
-        { status: 404 },
+        404,
       );
     }
 
@@ -337,12 +383,12 @@ export async function GET(request: NextRequest) {
       console.error(
         `[Playlist] All strategies failed for ${decodedUrl.substring(0, 80)}`,
       );
-      return NextResponse.json(
+      return proxyJsonError(
         {
           error: "CDN unreachable — all fetch strategies failed",
           detail: "The video CDN is blocking requests. The stream token may have expired or the CDN may be down.",
         },
-        { status: 502 },
+        502,
       );
     }
 
@@ -358,50 +404,22 @@ export async function GET(request: NextRequest) {
     const segmentProxyBase = "/api/livetv/segment";
     const upstreamSegments: string[] = [];
 
-    playlist = playlist
-      .split("\n")
-      .map((line) => {
-        const trimmed = line.trim();
+    const proxied = (base: string, resolved: string) =>
+      signProxyUrl(
+        `${base}?url=${encodeURIComponent(resolved)}&origin=${encodeURIComponent(decodedOrigin)}${cookieParam}`,
+      );
 
-        // Rewrite #EXT-X-KEY URI
-        if (trimmed.startsWith("#EXT-X-KEY") && trimmed.includes('URI="')) {
-          return trimmed.replace(
-            /URI="([^"]+)"/,
-            (_m, uri: string) => {
-              const resolved = resolveRelative(uri, decodedUrl);
-              return `URI="${segmentProxyBase}?url=${encodeURIComponent(resolved)}&origin=${encodeURIComponent(decodedOrigin)}${cookieParam}"`;
-            },
-          );
-        }
-
-        // Rewrite #EXT-X-MAP URI (fMP4 init segments)
-        if (trimmed.startsWith("#EXT-X-MAP") && trimmed.includes('URI="')) {
-          return trimmed.replace(
-            /URI="([^"]+)"/,
-            (_m, uri: string) => {
-              const resolved = resolveRelative(uri, decodedUrl);
-              return `URI="${segmentProxyBase}?url=${encodeURIComponent(resolved)}&origin=${encodeURIComponent(decodedOrigin)}${cookieParam}"`;
-            },
-          );
-        }
-
-        // Skip comments and tags
-        if (trimmed.startsWith("#") || trimmed === "") {
-          return line;
-        }
-
-        // This is a URL line - resolve to absolute and proxy
-        const resolved = resolveRelative(trimmed, decodedUrl);
-
-        if (isPlaylist(resolved)) {
-          return `${playlistProxyBase}?url=${encodeURIComponent(resolved)}&origin=${encodeURIComponent(decodedOrigin)}${cookieParam}`;
-        }
-
-        // Media segment (any non-playlist URL line — DLHD's are image URLs)
-        upstreamSegments.push(resolved);
-        return `${segmentProxyBase}?url=${encodeURIComponent(resolved)}&origin=${encodeURIComponent(decodedOrigin)}${cookieParam}`;
-      })
-      .join("\n");
+    // Every URI (bare lines and any tag's URI="…") goes back through our
+    // proxies, signed; non-http(s) URIs are dropped by rewriteHlsPlaylist.
+    playlist = rewriteHlsPlaylist(playlist, decodedUrl, (resolved, ctx) => {
+      if (ctx.kind === "tag") {
+        return proxied(PLAYLIST_URI_TAGS.has(ctx.tag) ? playlistProxyBase : segmentProxyBase, resolved);
+      }
+      if (isPlaylist(resolved)) return proxied(playlistProxyBase, resolved);
+      // Media segment (any non-playlist URL line — DLHD's are image URLs)
+      upstreamSegments.push(resolved);
+      return proxied(segmentProxyBase, resolved);
+    });
 
     // Pre-warm the segments hls.js will ask for first: the newest ones at
     // the live edge. They are ~2 MB images that must be fully downloaded and
@@ -419,17 +437,20 @@ export async function GET(request: NextRequest) {
     return new NextResponse(playlist, {
       status: 200,
       headers: {
+        ...PROXY_SECURITY_HEADERS,
         "Content-Type": "application/vnd.apple.mpegurl",
-        "Access-Control-Allow-Origin": "*",
         "Cache-Control": "no-cache, no-store, must-revalidate",
       },
     });
   } catch (error) {
+    if (error instanceof BlockedUrlError) {
+      return proxyJsonError({ error: "Upstream URL not allowed" }, 403);
+    }
     const isTimeout = error instanceof DOMException && error.name === "AbortError";
     console.error(`[Playlist] ${isTimeout ? "Timed out" : "Error"}:`, isTimeout ? decodedUrl.substring(0, 80) : error);
-    return NextResponse.json(
+    return proxyJsonError(
       { error: isTimeout ? "CDN request timed out" : "Playlist proxy error" },
-      { status: isTimeout ? 504 : 500 },
+      isTimeout ? 504 : 500,
     );
   }
 }

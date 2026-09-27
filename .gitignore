@@ -12,6 +12,8 @@ out/
 # Testing
 coverage/
 .nyc_output/
+test-results/
+playwright-report/
 
 # Environment
 .env
@@ -57,7 +59,8 @@ probe*.mjs
 *.pem
 
 # Git Bash crash dumps
-bash.exe.stackdump
+*.stackdump
 
 # Local-only notes (announcements, drafts)
 local/
+packages/app/e2e/.auth-state.json

@@ -14,6 +14,7 @@
 
 import type { StreamSource } from "@flyx/core";
 import { qualityScore } from "./source-picker";
+import { buildLocalProxyUrl } from "./proxy-url";
 
 /** Standard tiers a variant is labelled with, by the larger of height and 16:9-width-height. */
 const TIERS = [2160, 1440, 1080, 720, 480, 360, 240];
@@ -136,15 +137,11 @@ export function pickVariant(variants: HlsVariant[], quality: string | undefined)
  * The master must be fetched exactly like the player fetches it: through our
  * own stream proxy, which adds provider tokens (VidSrc's IP-bound `token=`),
  * Referer/Origin and relaxed TLS. A direct fetch gets "401 no token" and the
- * dialog would fall back to "Auto".
+ * dialog would fall back to "Auto". The proxy URL is signed because this
+ * server-side fetch carries no session cookie.
  */
 function localProxyUrl(source: StreamSource): string {
-  const port = process.env.PORT || "3891";
-  const params = new URLSearchParams();
-  params.set("url", source.url);
-  if (source.referer) params.set("referer", source.referer);
-  if (source.origin) params.set("origin", source.origin);
-  return `http://127.0.0.1:${port}/api/stream/proxy?${params.toString()}`;
+  return buildLocalProxyUrl(source, 10 * 60);
 }
 
 /** Fetch and parse a master playlist. Empty array on any failure or for media playlists. */

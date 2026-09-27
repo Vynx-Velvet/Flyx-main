@@ -4,13 +4,16 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSetting, setSetting, getAllSettings } from "@/lib/db";
+import { setSetting, getAllSettings } from "@/lib/db";
 import { getSession } from "@/lib/auth/get-session";
+
+export const runtime = "nodejs";
 
 export async function GET() {
   const settings = getAllSettings();
-  // Include host key from env so the admin can share it
-  if (process.env.HOST_KEY) {
+  // Include host key from env so the admin can share it — admins only: it
+  // lets anyone who holds it create accounts.
+  if (process.env.HOST_KEY && (await getSession())?.isAdmin) {
     settings.host_key = process.env.HOST_KEY;
   }
   return NextResponse.json({ settings });
@@ -26,7 +29,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const { key, value } = body;
 
-    if (!key || value === undefined) {
+    if (!key || typeof key !== "string" || value === undefined) {
       return NextResponse.json({ error: "key and value are required" }, { status: 400 });
     }
 

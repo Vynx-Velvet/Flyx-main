@@ -3,12 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { postLoginPath } from "@/lib/auth/redirect-target";
 import { Suspense } from "react";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") ?? "/";
+  // Same-origin page paths only — "?redirect=//evil.com" (or "/<TAB>/evil.com",
+  // which the URL parser folds into "//evil.com") must not leave the app.
+  const redirectTo = postLoginPath(searchParams.get("redirect")) ?? "/";
   const { login } = useAuth();
 
   const [mode, setMode] = useState<"signin" | "register">("signin");

@@ -16,6 +16,7 @@ import {
   ensureDownloadDir,
   getDownloadDir,
   buildFilename,
+  sanitizeFilename,
   type DownloadItemInput,
   type DownloadJob,
 } from "./types";
@@ -164,6 +165,16 @@ function patch(id: string, p: Partial<DownloadJob>, { immediate = false } = {}):
 }
 
 async function runJob(id: string): Promise<void> {
+  // Release the queue slot on every path, including early returns.
+  try {
+    await runJobInner(id);
+  } finally {
+    state.active -= 1;
+    pump();
+  }
+}
+
+async function runJobInner(id: string): Promise<void> {
   const job = state.jobs.get(id);
   if (!job) return;
 
@@ -175,7 +186,15 @@ async function runJob(id: string): Promise<void> {
     return;
   }
 
-  const dest = path.join(dir, job.filename || `${id}.download`);
+  // Absolute (never starts with "-", so ffmpeg can't read it as an option)
+  // and confined to the download folder: the filename is sanitized, but
+  // re-check in case it came from somewhere else.
+  const root = path.resolve(dir);
+  const dest = path.resolve(root, sanitizeFilename(job.filename || `${id}.download`));
+  if (path.dirname(dest) !== root) {
+    patch(id, { status: "error", error: "Invalid download filename" }, { immediate: true });
+    return;
+  }
   const controller = new AbortController();
   state.controllers.set(id, controller);
 
@@ -241,8 +260,6 @@ async function runJob(id: string): Promise<void> {
     }
   } finally {
     state.controllers.delete(id);
-    state.active -= 1;
-    pump();
   }
 }
 
@@ -291,6 +308,8 @@ export function cancelJob(id: string): boolean {
   if (job.status === "queued") {
     const idx = state.queue.indexOf(id);
     if (idx !== -1) state.queue.splice(idx, 1);
+    // Already picked up (e.g. still extracting or waiting for an ffmpeg slot).
+    state.controllers.get(id)?.abort();
     patch(id, { status: "cancelled" }, { immediate: true });
     return true;
   }

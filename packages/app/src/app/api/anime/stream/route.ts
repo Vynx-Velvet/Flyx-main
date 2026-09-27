@@ -11,8 +11,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pipeline } from "@/lib/extraction";
 import type { ExtractionRequest } from '@flyx/core';
-import { ExtractionPipeline } from '@flyx/extractors';
-import { providerRegistry } from '@flyx/providers';
 import { addLog } from '@/lib/log-store';
 
 // Auto-register all providers

@@ -389,7 +389,7 @@ function HeroBanner({
   return (
     <header className="anime-detail-hero">
       <div className="anime-detail-hero-bg" aria-hidden>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
+        { }
         <img src={poster} alt="" className="anime-detail-hero-bg-img" />
         <div className="anime-detail-hero-bg-scrim" />
       </div>
@@ -407,7 +407,7 @@ function HeroBanner({
             transition={{ duration: 0.35 }}
             className="anime-detail-poster-wrap"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            { }
             <img
               src={poster}
               alt={anime.title}
@@ -636,7 +636,7 @@ function EpisodesTab({
                   className="anime-ep-row"
                 >
                   <div className="anime-ep-thumb">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    { }
                     <img src={poster} alt="" aria-hidden />
                     <span className="anime-ep-play">
                       <PlayIcon className="h-3 w-3" />
@@ -770,7 +770,7 @@ function CharacterCard({ c }: { c: JikanCharacter }) {
 
   return (
     <div className="anime-char-card">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
+      { }
       <img src={img} alt={c.character.name} loading="lazy" />
       <div className="min-w-0">
         <div className="anime-char-name">{c.character.name}</div>
@@ -917,7 +917,7 @@ function RelatedPoster({
             {!loaded && (
               <div className="skeleton absolute inset-0 z-[1] rounded-none" />
             )}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            { }
             <img
               ref={imgRef}
               src={item.image}

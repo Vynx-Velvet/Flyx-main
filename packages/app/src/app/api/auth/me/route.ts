@@ -5,11 +5,12 @@
  * Used by the client-side useAuth hook.
  */
 
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/get-session";
 import { findAccountById } from "@/lib/db";
+import { isMasterRequest } from "@/lib/request-master";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
     if (!session) {
@@ -26,6 +27,7 @@ export async function GET() {
         id: account.id,
         username: account.username,
         isAdmin: account.isAdmin,
+        isMaster: isMasterRequest(request),
       },
     });
   } catch {

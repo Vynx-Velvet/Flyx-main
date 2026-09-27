@@ -45,12 +45,16 @@ async function runStart(options = {}) {
 
   // Spawn
   console.log("Starting Flyx...");
-  const { child } = spawnServer({ port, hostname: options.hostname });
+  const startedAt = new Date().toISOString();
+  const { child, bootNonce } = spawnServer({ port, hostname: options.hostname });
 
   writeState({
     version: 1,
     pid: child.pid,
-    startedAt: new Date().toISOString(),
+    // Compared against /api/health uptime before `flyx stop` signals this pid.
+    startedAt,
+    // Proves identity to /api/health (see lib/server.js verifyFlyxProcess).
+    bootNonce,
     port,
     mode: daemon ? "daemon" : "foreground",
   });

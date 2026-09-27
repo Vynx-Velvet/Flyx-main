@@ -22,7 +22,8 @@ export function useWatchProgress() {
     const refresh = () => setEntries(getAllWatchProgress());
     refresh();
     const onStorage = (e: StorageEvent) => {
-      if (!e.key || e.key === WATCH_PROGRESS_KEY) refresh();
+      // Keys are per-account (`flyx_watch_progress:<accountId>`).
+      if (!e.key || e.key === WATCH_PROGRESS_KEY || e.key.startsWith(`${WATCH_PROGRESS_KEY}:`)) refresh();
     };
     window.addEventListener(WATCH_PROGRESS_EVENT, refresh);
     window.addEventListener("storage", onStorage);

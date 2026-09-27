@@ -143,7 +143,7 @@ function Reader({ mangaId, chapterNumber }: { mangaId: string; chapterNumber: nu
 
   // Double tap detection
   const lastTap = useRef(0);
-  const onTouchEnd = useCallback((e: React.TouchEvent) => {
+  const onTouchEnd = useCallback((_e: React.TouchEvent) => {
     const now = Date.now();
     if (now - lastTap.current < 350) flash(); // double tap
     lastTap.current = now;
@@ -214,7 +214,7 @@ function Reader({ mangaId, chapterNumber }: { mangaId: string; chapterNumber: nu
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, [pages]);
+  }, [pages, loading]);
 
   useEffect(() => {
     if (initialLoad.current || loading || pages.length === 0 || !scrollRef.current) return;
@@ -235,7 +235,7 @@ function Reader({ mangaId, chapterNumber }: { mangaId: string; chapterNumber: nu
     if (t.closest("button") || t.closest("input") || t.closest("a")) return;
     const pct = (e.clientX - (e.currentTarget as HTMLElement).getBoundingClientRect().left) / (e.currentTarget as HTMLElement).offsetWidth;
     if (pct < 0.2) prev(); else if (pct > 0.8) next();
-  }, [next, prev, flash]);
+  }, [next, prev]);
 
   const onPtrDown = useCallback((e: React.PointerEvent) => { swipeX.current = e.clientX; }, []);
   const onPtrUp = useCallback((e: React.PointerEvent) => {
@@ -398,14 +398,14 @@ function Reader({ mangaId, chapterNumber }: { mangaId: string; chapterNumber: nu
 
                 {/* Mobile: compact single row */}
                 <div className="flex sm:hidden items-center gap-2 px-3 py-3">
-                  <button onClick={goBack} className="rounded-xl p-2.5 text-white/45 hover:text-white/80 hover:bg-white/[0.04] transition-all shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center">
+                  <button onClick={goBack} aria-label="Back to details" className="rounded-xl p-2.5 text-white/45 hover:text-white/80 hover:bg-white/[0.04] transition-all shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center">
                     <ArrowLeftIcon />
                   </button>
                   <div className="flex-1 min-w-0 text-center">
                     <p className="text-sm font-semibold text-white/80 font-[family-name:var(--font-display)]">Ch. {chapterNumber}</p>
                     <p className="text-[11px] text-white/25 tabular-nums">{page} / {pages.length}</p>
                   </div>
-                  <button onClick={() => setSidebar(true)} className="rounded-xl p-2.5 text-white/45 hover:text-white/80 hover:bg-white/[0.04] transition-all shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center">
+                  <button onClick={() => setSidebar(true)} aria-label="Chapters" className="rounded-xl p-2.5 text-white/45 hover:text-white/80 hover:bg-white/[0.04] transition-all shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center">
                     <ListIcon />
                   </button>
                 </div>

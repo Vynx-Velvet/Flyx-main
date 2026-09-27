@@ -54,7 +54,7 @@ export function saveProviderSettings(partial: Partial<ProviderSettings>): void {
  * Returns whether the initial sync is complete and the last sync timestamp.
  */
 export function useSyncContext(): SyncContextValue {
-  const [isInitialSyncComplete, setIsInitialSyncComplete] = useState(true);
+  const [isInitialSyncComplete] = useState(true);
   const [lastSyncTime, setLastSyncTime] = useState(Date.now());
 
   const triggerSync = useCallback(() => {

@@ -45,15 +45,32 @@ describe("paths", () => {
     expect(SERVER_SCRIPT).toBe(path.join(dir, "packages", "app", "server.js"));
   });
 
-  it("prefers resourcesPath/server when packaged", async () => {
-    // In plain Node process.defaultApp is unset, so isPackaged() is true —
-    // emulate a packaged app by pointing resourcesPath at a resources dir.
+  it("uses resourcesPath/server when packaged", async () => {
     const res = fs.mkdtempSync(path.join(os.tmpdir(), "flyx-res-"));
     fs.mkdirSync(path.join(res, "server", "packages", "app"), { recursive: true });
     fs.writeFileSync(path.join(res, "server", "packages", "app", "server.js"), "// stub\n");
-    process.resourcesPath = res;
-    const { STANDALONE_DIR, SERVER_SCRIPT } = await import("../src/paths.js");
-    expect(STANDALONE_DIR).toBe(path.join(res, "server"));
-    expect(SERVER_SCRIPT).toBe(path.join(res, "server", "packages", "app", "server.js"));
+    const { getStandaloneDir } = await import("../src/paths.js");
+    expect(getStandaloneDir({ packaged: true, resourcesPath: res })).toBe(path.join(res, "server"));
+  });
+
+  it("packaged builds ignore FLYX_STANDALONE_DIR and the CWD and fail closed", async () => {
+    const res = fs.mkdtempSync(path.join(os.tmpdir(), "flyx-res-empty-"));
+    const planted = fs.mkdtempSync(path.join(os.tmpdir(), "flyx-planted-"));
+    fs.mkdirSync(path.join(planted, ".flyx-standalone", "packages", "app"), { recursive: true });
+    const { getStandaloneDir } = await import("../src/paths.js");
+    expect(
+      getStandaloneDir({
+        packaged: true,
+        resourcesPath: res, // no server/ inside
+        env: { FLYX_STANDALONE_DIR: planted },
+        cwd: planted,
+      }),
+    ).toBeNull();
+    expect(getStandaloneDir({ packaged: true, resourcesPath: undefined, env: {}, cwd: planted })).toBeNull();
+  });
+
+  it("isPackaged is false outside Electron (tests / plain Node)", async () => {
+    const { isPackaged } = await import("../src/paths.js");
+    expect(isPackaged()).toBe(false);
   });
 });

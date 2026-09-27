@@ -1,12 +1,40 @@
+# Dependencies / build output
 node_modules
+**/node_modules
 .next
+**/.next
 .turbo
+**/.turbo
 dist
+**/dist
+out
+**/*.tsbuildinfo
+
+# Secrets — never send any .env to the build context
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Flyx local data / build trees (.flyx, .flyx-standalone, .flyx-dev-data…)
+.flyx*
+**/.flyx*
+local/
+
+# Test + tooling output
+coverage
+**/coverage
+test-results
+**/test-results
+playwright-report
+**/playwright-report
 *.log
-.env.local
-packages/*/node_modules
-packages/*/.next
-packages/*/dist
+**/*.log
+*.stackdump
+
+# VCS / misc
 .git
+.github
 *.pyc
 __pycache__
+*.pem

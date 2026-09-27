@@ -27,6 +27,40 @@ const MARK_TSGZ = Buffer.from("TIKTIKTSGZ", "ascii");
 const MARK_RAW = Buffer.from("TIKTIKRAW", "ascii");
 const MARK_PIX = Buffer.from("TIKTIKPX", "ascii");
 
+/**
+ * Resource limits. Segment bodies are attacker-controllable (they come from a
+ * third-party CDN via a public route), so every decompression and allocation
+ * is bounded. Real DLHD segments are a few MB of TS; these leave ample room.
+ */
+/** Max decompressed size of a gzip'd TS payload. */
+export const MAX_TS_BYTES = 64 * 1024 * 1024;
+/** Max pixel count of a pixel-packed PNG (16M px → ≤48 MB RGB). */
+export const MAX_PNG_PIXELS = 16 * 1024 * 1024;
+
+/** Thrown when a segment is malformed or exceeds a resource limit. */
+export class DLHDUnwrapError extends Error {
+  /** HTTP status the proxy should answer with. */
+  readonly status = 502;
+  constructor(message: string) {
+    super(message);
+    this.name = "DLHDUnwrapError";
+  }
+}
+
+function boundedGunzip(bytes: Uint8Array): Buffer {
+  try {
+    return gunzipSync(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), {
+      maxOutputLength: MAX_TS_BYTES,
+    });
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === "ERR_BUFFER_TOO_LARGE" || err instanceof RangeError) {
+      throw new DLHDUnwrapError("DLHD segment: gzip payload exceeds size limit");
+    }
+    throw new DLHDUnwrapError(`DLHD segment: bad gzip payload (${(err as Error).message})`);
+  }
+}
+
 /** True when `bytes` already starts like an MPEG-TS stream. */
 export function looksLikeTS(bytes: Uint8Array): boolean {
   return (
@@ -118,6 +152,7 @@ export function pngRGB(bytes: Uint8Array): Uint8Array | null {
     const type = ascii(bytes, off + 4, 4);
     const data = bytes.subarray(off + 8, off + 8 + len);
     if (type === "IHDR") {
+      if (len < 13) return null;
       const hd = dataView(data);
       w = hd.getUint32(0);
       h = hd.getUint32(4);
@@ -132,10 +167,30 @@ export function pngRGB(bytes: Uint8Array): Uint8Array | null {
     off += 12 + len;
   }
   if (!w || !h || depth !== 8 || interlace || (ctype !== 2 && ctype !== 6)) return null;
+  // Validate dimensions before trusting them for any allocation.
+  if (w > MAX_PNG_PIXELS || h > MAX_PNG_PIXELS || w * h > MAX_PNG_PIXELS) {
+    throw new DLHDUnwrapError(`DLHD segment: PNG dimensions ${w}x${h} exceed limit`);
+  }
+  if (!idats.length) return null;
 
-  const raw = inflateSync(Buffer.concat(idats.map((d) => Buffer.from(d.buffer, d.byteOffset, d.byteLength))));
   const bpp = ctype === 6 ? 4 : 3;
   const stride = w * bpp;
+  // A valid PNG inflates to exactly h * (1 + stride) bytes; never allow more.
+  const expected = h * (stride + 1);
+  let raw: Buffer;
+  try {
+    raw = inflateSync(
+      Buffer.concat(idats.map((d) => Buffer.from(d.buffer, d.byteOffset, d.byteLength))),
+      { maxOutputLength: expected },
+    );
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === "ERR_BUFFER_TOO_LARGE" || err instanceof RangeError) {
+      throw new DLHDUnwrapError("DLHD segment: PNG image data exceeds declared size");
+    }
+    return null;
+  }
+  if (raw.length < expected) return null;
   const rgb = new Uint8Array(w * h * 3);
   let src = 0;
   let dst = 0;
@@ -182,7 +237,7 @@ export function pngPixelTS(bytes: Uint8Array): Uint8Array | null {
   if (n <= 0 || 12 + n > rgb.length) return null;
   const gz = rgb.subarray(12, 12 + n);
   if (gz.length < 2 || gz[0] !== 0x1f || gz[1] !== 0x8b) return null;
-  const ts = new Uint8Array(gunzipSync(Buffer.from(gz.buffer, gz.byteOffset, gz.byteLength)));
+  const ts = new Uint8Array(boundedGunzip(gz));
   return ts.length && ts[0] === TS_SYNC ? ts : null;
 }
 
@@ -208,7 +263,7 @@ export function unwrapDLHDSegment(input: Uint8Array): Uint8Array {
   if (isPNG(bytes)) {
     const px = pngPixelTS(bytes);
     if (px) return px;
-    throw new Error("DLHD segment: PNG carries no TS payload");
+    throw new DLHDUnwrapError("DLHD segment: PNG carries no TS payload");
   }
 
   const rawAt = indexOfMarker(bytes, MARK_RAW);
@@ -220,12 +275,12 @@ export function unwrapDLHDSegment(input: Uint8Array): Uint8Array {
   const gzAt = indexOfMarker(bytes, MARK_TSGZ);
   if (gzAt >= 0) {
     const gz = bytes.subarray(gzAt + MARK_TSGZ.length);
-    return new Uint8Array(gunzipSync(Buffer.from(gz.buffer, gz.byteOffset, gz.byteLength)));
+    return new Uint8Array(boundedGunzip(gz));
   }
 
   for (let i = 0; i + TS_PACKET < bytes.length; i++) {
     if (bytes[i] === TS_SYNC && bytes[i + TS_PACKET] === TS_SYNC) return bytes.subarray(i);
   }
 
-  throw new Error("DLHD segment: TS payload not found");
+  throw new DLHDUnwrapError("DLHD segment: TS payload not found");
 }

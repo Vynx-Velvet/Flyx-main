@@ -8,27 +8,38 @@ on:
       - main
   workflow_dispatch:
 
+# Least privilege by default. Only the `release` job (tag pushes) gets
+# contents: write, and it runs no npm install / build scripts — it only
+# uploads artifacts produced by the read-only `build` job.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: ${{ matrix.os }}
-    # Tag builds publish the GitHub release via GITHUB_TOKEN — needs write.
-    # (Repo default token permissions are often read-only.)
     permissions:
-      contents: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
+      # Third-party actions are pinned to full commit SHAs (tag in comment).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           # latest 22.x (>= 22.12 required — Electron's install script uses require(ESM))
           node-version: 22
           cache: npm
 
+      # Install scripts stay enabled: electron, esbuild and sharp fetch their
+      # platform binaries in postinstall, and the build needs all three.
+      # This job's token is read-only, so a malicious install script can't
+      # push or publish.
       - name: Install dependencies
         run: npm ci
 
@@ -49,24 +60,17 @@ jobs:
           JWT_SECRET: dummy-secret-for-build-0123456789abcdef
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-      - name: Package (publish on tag)
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: npm run dist:publish --workspace=@flyx/desktop
+      # Package only — never publish from this job. `publish: github` in
+      # electron-builder.yml still makes electron-builder construct the
+      # publisher (and write latest*.yml update metadata), which wants a
+      # token; the read-only GITHUB_TOKEN is enough for that.
+      - name: Package
+        run: npm run dist --workspace=@flyx/desktop -- --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
-      - name: Package (branch push — artifacts only)
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        run: npm run dist --workspace=@flyx/desktop
-        env:
-          # publish: github is configured in electron-builder.yml, which
-          # makes plain `dist` construct the publisher — it needs a token
-          # even though nothing is uploaded on branch builds.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: flyx-desktop-${{ matrix.os }}
           if-no-files-found: error
@@ -75,5 +79,38 @@ jobs:
             packages/desktop/dist/*.dmg
             packages/desktop/dist/*.AppImage
             packages/desktop/dist/*.deb
-            packages/desktop/dist/*.yml
+            packages/desktop/dist/latest*.yml
             packages/desktop/dist/*.blockmap
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    # The only job with write access. No checkout of build tooling, no npm:
+    # it just uploads the artifacts the build matrix produced, the same
+    # files electron-builder's `--publish always` used to upload
+    # (installers, blockmaps and latest*.yml for electron-updater).
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: flyx-desktop-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ls -la release-assets
+          # electron-builder names the release after the version (tag minus "v").
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-assets/* --clobber
+          else
+            gh release create "$TAG" release-assets/* --verify-tag --title "${TAG#v}" --notes ""
+          fi

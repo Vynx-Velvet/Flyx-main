@@ -16,10 +16,12 @@ import {
   writeFileSync,
   renameSync,
   chmodSync,
+  unlinkSync,
 } from "fs";
 import { join } from "path";
 import { getSession } from "@/lib/auth/get-session";
 import { isMasterRequest } from "@/lib/request-master";
+import { ENV_KEY_RE, isBlockedEnvKey, isSafeEnvValue } from "@/lib/security/env-safety";
 
 export const runtime = "nodejs";
 
@@ -33,9 +35,6 @@ const LOCKED_KEYS = new Set([
 
 // Values for keys that look sensitive are masked in GET responses.
 const SECRET_RE = /(SECRET|TOKEN|PASSWORD|KEY|MASTER)/i;
-
-// Env var names must be sane shell-safe identifiers.
-const KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function isLocked(key: string): boolean {
   return LOCKED_KEYS.has(key);
@@ -128,10 +127,28 @@ export async function PATCH(request: NextRequest) {
   const set = body?.set && typeof body.set === "object" ? body.set : {};
   const remove = Array.isArray(body?.remove) ? body.remove : [];
 
-  // Validate before mutating anything.
-  for (const key of Object.keys(set)) {
-    if (!KEY_RE.test(key)) {
+  // Validate before mutating anything. Names must be shell-safe identifiers
+  // and never process/loader controls (NODE_OPTIONS, ELECTRON_*, PATH… —
+  // every .env key lands in the server's environment); values must stay on
+  // one line (a newline would smuggle in extra keys).
+  for (const [key, value] of Object.entries(set)) {
+    if (!ENV_KEY_RE.test(key)) {
       return NextResponse.json({ ok: false, error: `Invalid variable name: ${key}` }, { status: 400 });
+    }
+    if (isBlockedEnvKey(key)) {
+      return NextResponse.json(
+        { ok: false, error: `"${key}" cannot be set from Flyx` },
+        { status: 400 },
+      );
+    }
+    if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+      return NextResponse.json({ ok: false, error: `Invalid value for ${key}` }, { status: 400 });
+    }
+    if (!isSafeEnvValue(String(value))) {
+      return NextResponse.json(
+        { ok: false, error: `Value for ${key} must not contain line breaks` },
+        { status: 400 },
+      );
     }
     if (isLocked(key)) {
       return NextResponse.json(
@@ -142,7 +159,7 @@ export async function PATCH(request: NextRequest) {
   }
   for (const key of remove) {
     if (typeof key !== "string") continue;
-    if (!KEY_RE.test(key)) {
+    if (!ENV_KEY_RE.test(key)) {
       return NextResponse.json({ ok: false, error: `Invalid variable name: ${key}` }, { status: 400 });
     }
     if (isLocked(key)) {
@@ -167,7 +184,12 @@ export async function PATCH(request: NextRequest) {
   // Atomic write (tmp + rename) — the desktop env watcher fires on rename
   // and restarts the server so the new values take effect.
   const tmp = envPath + ".tmp";
-  writeFileSync(tmp, serializeEnv(vars), "utf-8");
+  try {
+    unlinkSync(tmp); // `mode` only applies when the file is created
+  } catch {
+    /* no stale tmp */
+  }
+  writeFileSync(tmp, serializeEnv(vars), { encoding: "utf-8", mode: 0o600 });
   try {
     chmodSync(tmp, 0o600);
   } catch {

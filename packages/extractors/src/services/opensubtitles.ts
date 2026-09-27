@@ -24,7 +24,18 @@ const DEFAULT_LANGS = ["eng", "spa", "fre", "ger", "por", "ita", "jpn", "kor", "
 
 // ── IMDB ID lookup ────────────────────────────────────────────
 
-let _imdbCache = new Map<number, string | null>();
+const _imdbCache = new Map<number, string | null>();
+/** Bounded: keys are request-supplied TMDB ids. */
+const IMDB_CACHE_MAX = 5000;
+
+function imdbCacheSet(key: number, value: string | null): void {
+  _imdbCache.set(key, value);
+  while (_imdbCache.size > IMDB_CACHE_MAX) {
+    const oldest = _imdbCache.keys().next().value;
+    if (oldest === undefined) break;
+    _imdbCache.delete(oldest);
+  }
+}
 
 async function tmdbToImdb(tmdbId: number, mediaType: "movie" | "tv"): Promise<string | null> {
   const cacheKey = tmdbId * 10 + (mediaType === "tv" ? 1 : 0);
@@ -34,23 +45,23 @@ async function tmdbToImdb(tmdbId: number, mediaType: "movie" | "tv"): Promise<st
   try {
     const tmdbKey = process.env.TMDB_API_KEY;
     if (!tmdbKey) {
-      _imdbCache.set(cacheKey, null);
+      imdbCacheSet(cacheKey, null);
       return null;
     }
 
     const url = `https://api.themoviedb.org/3/${mediaType}/${tmdbId}/external_ids?api_key=${tmdbKey}`;
     const res = await fetch(url, { headers: { "User-Agent": UA } });
     if (!res.ok) {
-      _imdbCache.set(cacheKey, null);
+      imdbCacheSet(cacheKey, null);
       return null;
     }
 
     const data = await res.json();
     const imdbId = data.imdb_id ?? null;
-    _imdbCache.set(cacheKey, imdbId);
+    imdbCacheSet(cacheKey, imdbId);
     return imdbId;
   } catch {
-    _imdbCache.set(cacheKey, null);
+    imdbCacheSet(cacheKey, null);
     return null;
   }
 }

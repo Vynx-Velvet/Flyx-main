@@ -7,9 +7,14 @@
  *    (process.execPath + ELECTRON_RUN_AS_NODE=1) — no system Node needed.
  *  - No PID/state files, no console output (Electron has no TTY).
  *  - Supports restart() for HOSTNAME/PORT re-binds.
+ *  - Boot nonce: every launch generates a random FLYX_BOOT_NONCE that only
+ *    our server child knows. The health poll sends it back and requires
+ *    `bootOk: true`, so a different local process squatting on the port
+ *    can never be mistaken for our server (and handed the master cookie).
  */
 
 const { spawn } = require("child_process");
+const crypto = require("crypto");
 const { EventEmitter } = require("events");
 const fs = require("fs");
 const http = require("http");
@@ -22,11 +27,16 @@ const {
   serverLog,
   logsDir,
 } = require("./paths");
-const { readEnv } = require("./env-store");
+const { readEnv, filterServerEnv } = require("./env-store");
 
 const HEALTH_POLL_MS = 1000;
 const HEALTH_TIMEOUT_MS = 60000;
 const HEALTH_PATH = "/api/health";
+
+// Per-launch secret shared only with our own server child (env) — see the
+// header comment. Never logged, never shown to the renderer.
+const BOOT_NONCE = crypto.randomBytes(16).toString("hex");
+const BOOT_HEADER = "x-flyx-boot-check";
 
 // ── Active child state ──────────────────────────────────────────
 
@@ -50,37 +60,52 @@ function log(message) {
 
 // ── Health check ─────────────────────────────────────────────────
 
-function checkHealth(port) {
+/**
+ * GET /api/health with the boot nonce. `bootOk` is true only when the
+ * server echoed `bootOk: true` — i.e. it has our FLYX_BOOT_NONCE in its env.
+ */
+function checkHealth(port, { nonce = BOOT_NONCE } = {}) {
   return new Promise((resolve) => {
     const req = http.get(
       `http://127.0.0.1:${port || PORT}${HEALTH_PATH}`,
-      { timeout: 2000 },
+      { timeout: 2000, headers: { [BOOT_HEADER]: nonce } },
       (res) => {
         let body = "";
         res.on("data", (d) => (body += d));
         res.on("end", () => {
+          let data = null;
           try {
-            resolve({ ok: res.statusCode === 200, data: JSON.parse(body) });
-          } catch {
-            resolve({ ok: res.statusCode === 200, data: null });
-          }
+            data = JSON.parse(body);
+          } catch {}
+          const ok = res.statusCode === 200;
+          resolve({ ok, bootOk: ok && Boolean(data) && data.bootOk === true, data });
         });
       },
     );
-    req.on("error", () => resolve({ ok: false, data: null }));
+    req.on("error", () => resolve({ ok: false, bootOk: false, data: null }));
     req.on("timeout", () => {
       req.destroy();
-      resolve({ ok: false, data: null });
+      resolve({ ok: false, bootOk: false, data: null });
     });
   });
 }
 
-async function pollUntilReady(port, { onTick } = {}) {
+/**
+ * Poll until OUR server answers. A 200 without `bootOk` is some other
+ * process on the port (or a server that isn't ours) — keep waiting; if it
+ * never changes the caller gets `ready: false` and shows the error dialog.
+ */
+async function pollUntilReady(port, { onTick, nonce, timeoutMs = HEALTH_TIMEOUT_MS } = {}) {
   const start = Date.now();
-  while (Date.now() - start < HEALTH_TIMEOUT_MS) {
-    const { ok, data } = await checkHealth(port);
+  let impostorLogged = false;
+  while (Date.now() - start < timeoutMs) {
+    const { ok, bootOk, data } = await checkHealth(port, nonce ? { nonce } : undefined);
     const elapsed = Date.now() - start;
-    if (ok) return { ready: true, data, elapsed };
+    if (bootOk) return { ready: true, data, elapsed };
+    if (ok && !impostorLogged) {
+      impostorLogged = true;
+      log(`health on port ${port} answered without the boot nonce — not our server (yet)`);
+    }
     if (onTick) onTick(elapsed);
     await new Promise((r) => setTimeout(r, HEALTH_POLL_MS));
   }
@@ -216,10 +241,18 @@ function spawnServer({ port, hostname, onExit } = {}) {
   }
 
   const p = port || PORT;
-  const h = hostname || "0.0.0.0";
-  const env = readEnv();
+  const h = hostname || "127.0.0.1";
 
   ensureLogsDir();
+
+  // Data-dir .env keys that control how Node/Electron start (NODE_OPTIONS,
+  // ELECTRON_*, PATH, LD_PRELOAD, FLYX_FFMPEG_PATH, …) never reach the
+  // child: .env is writable by the web app, so honouring them would turn a
+  // settings write into code execution on the next restart.
+  const { env, skipped } = filterServerEnv(readEnv());
+  if (skipped.length) {
+    log(`ignoring unsafe .env keys for the server: ${skipped.join(", ")}`);
+  }
 
   // Merge AppData .env OVER process.env, but only for keys that have
   // non-empty values — a blank TMDB key in AppData should not overwrite
@@ -231,9 +264,10 @@ function spawnServer({ port, hostname, onExit } = {}) {
     }
   }
 
-  // Also read the standalone .env (has the FLYX_DESKTOP marker)
+  // Also read the standalone .env (has the FLYX_DESKTOP marker). Same key
+  // rules — it ships with the app, but it costs nothing to hold it to them.
   const standaloneEnvPath = path.join(STANDALONE_DIR, "packages", "app", ".env");
-  let standaloneEnv = {};
+  const standaloneRaw = {};
   if (fs.existsSync(standaloneEnvPath)) {
     const raw = fs.readFileSync(standaloneEnvPath, "utf-8");
     for (const line of raw.split("\n")) {
@@ -243,9 +277,10 @@ function spawnServer({ port, hostname, onExit } = {}) {
       if (eq === -1) continue;
       const k = trimmed.slice(0, eq);
       const v = trimmed.slice(eq + 1);
-      if (v && v.trim()) standaloneEnv[k] = v;
+      if (v && v.trim()) standaloneRaw[k] = v;
     }
   }
+  const standaloneEnv = filterServerEnv(standaloneRaw).env;
 
   // Ship the bundled ffmpeg binary to the server (extraResources copies it
   // to <STANDALONE_DIR>/ffmpeg). The server's downloader also falls back to
@@ -264,9 +299,11 @@ function spawnServer({ port, hostname, onExit } = {}) {
     // forkUtilityProcess() strips this again for a utility process — there
     // it turns the helper into plain Node and kills the server at boot.
     ELECTRON_RUN_AS_NODE: "1",
-    HOSTNAME: filteredEnv.HOSTNAME || env.HOSTNAME || h,
+    HOSTNAME: filteredEnv.HOSTNAME || h,
     PORT: String(p),
     NODE_ENV: "production",
+    // After every spread: .env can never pin or leak the boot nonce.
+    FLYX_BOOT_NONCE: BOOT_NONCE,
   };
 
   const cwd = path.join(STANDALONE_DIR, "packages", "app");
@@ -313,6 +350,20 @@ function spawnServer({ port, hostname, onExit } = {}) {
 
 // ── Stop ─────────────────────────────────────────────────────────
 
+/**
+ * True once the child has reported exit (child_process sets exitCode /
+ * signalCode before emitting "exit"; the utility-process adapter mirrors
+ * that). After this its pid may already belong to an unrelated process —
+ * never signal or taskkill it.
+ */
+function hasExited(child) {
+  if (!child) return true;
+  return (
+    (child.exitCode !== null && child.exitCode !== undefined) ||
+    (child.signalCode !== null && child.signalCode !== undefined)
+  );
+}
+
 function isProcessAlive(pid) {
   try {
     process.kill(pid, 0);
@@ -326,8 +377,9 @@ function stopServer(child) {
   return new Promise((resolve) => {
     const target = child || activeChild;
     const pid = target && target.pid;
-    // A utility-process host that already reported exit needs no signal.
-    if (target && target.utility && target.exitCode !== null) {
+    // A child that already reported exit needs no signal — and its pid may
+    // have been reused by an unrelated process (PID reuse → wrong tree killed).
+    if (!target || hasExited(target)) {
       resolve({ stopped: true, forced: false });
       return;
     }
@@ -346,6 +398,7 @@ function stopServer(child) {
 
     let forced = false;
     const grace = setTimeout(() => {
+      if (hasExited(target)) return; // exited during the grace period
       forced = true;
       try { process.kill(pid, "SIGKILL"); } catch {}
       // On Windows, also try taskkill for process tree
@@ -356,9 +409,10 @@ function stopServer(child) {
       }
     }, 5000);
 
-    // Poll for exit
+    // Poll for exit (the exit event is authoritative; the pid probe covers
+    // an exit whose event hasn't been delivered yet)
     const check = setInterval(() => {
-      if (!isProcessAlive(pid)) {
+      if (hasExited(target) || !isProcessAlive(pid)) {
         clearTimeout(grace);
         clearInterval(check);
         resolve({ stopped: true, forced });
@@ -379,20 +433,30 @@ function stopServer(child) {
 /**
  * Stop the current server and start a fresh one (used when the
  * user changes network mode — HOSTNAME requires a re-bind).
+ *
+ * `beforeSpawn(port)` (optional, async) runs once the old server is gone
+ * and may return a different port — main.js re-probes the port there so a
+ * process that grabbed it in the meantime is never talked to.
  */
-async function restart({ port, hostname, onExit } = {}) {
+async function restart({ port, hostname, onExit, beforeSpawn } = {}) {
   const oldChild = activeChild;
   const oldStream = activeLogStream;
   if (oldChild) {
     await stopServer(oldChild);
     try { oldStream.end(); } catch {}
   }
-  return spawnServer({ port, hostname, onExit });
+  let p = port;
+  if (typeof beforeSpawn === "function") {
+    const picked = await beforeSpawn(port);
+    if (picked) p = picked;
+  }
+  return spawnServer({ port: p, hostname, onExit });
 }
 
 module.exports = {
   isRunning,
   isProcessAlive,
+  hasExited,
   checkHealth,
   pollUntilReady,
   spawnServer,
@@ -404,4 +468,6 @@ module.exports = {
   forkUtilityProcess,
   decodeUtilityExitCode,
   HEALTH_TIMEOUT_MS,
+  BOOT_NONCE,
+  BOOT_HEADER,
 };

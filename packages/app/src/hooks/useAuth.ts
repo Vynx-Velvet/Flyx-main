@@ -6,6 +6,8 @@ interface User {
   id: string;
   username: string;
   isAdmin: boolean;
+  /** True in the desktop app's own window (exempt from re-entering the current password). */
+  isMaster?: boolean;
 }
 
 interface UseAuthReturn {

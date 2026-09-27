@@ -7,9 +7,31 @@
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
-import type { Readable } from "node:stream";
+import { pipeline as streamPipeline, Transform, type Readable } from "node:stream";
 import fs from "node:fs";
 import path from "node:path";
+import { acquireFfmpeg, MAX_VIDEO_BYTES } from "./limits";
+import { isLocalProxyUrl } from "./proxy-url";
+
+/**
+ * Protocols ffmpeg may open for the network input (and anything the HLS
+ * demuxer opens from it: variant playlists, segments, AES keys). `file` is
+ * deliberately absent — a hostile playlist must not be able to read local
+ * files. The whitelist is an input option, so it does not affect the output.
+ */
+export const INPUT_PROTOCOL_WHITELIST = "http,https,tcp,tls,crypto";
+
+/** Strip CR/LF and other control characters so a value can't inject extra headers. */
+export function sanitizeHeaderValue(value: string): string {
+  // eslint-disable-next-line no-control-regex -- strips control chars on purpose
+  return String(value).replace(/[\u0000-\u001f\u007f]/g, "").trim();
+}
+
+function assertProxyInput(input: string): void {
+  if (!isLocalProxyUrl(input)) {
+    throw new Error("ffmpeg input must be the local stream proxy");
+  }
+}
 
 export function resolveFfmpeg(): string | null {
   const explicit = process.env.FLYX_FFMPEG_PATH;
@@ -30,7 +52,7 @@ export function hasFfmpeg(): Promise<boolean> {
   return new Promise((resolve) => {
     let child;
     try {
-      child = spawn(bin, ["-version"], { stdio: "ignore" });
+      child = spawn(/*turbopackIgnore: true*/ bin, ["-version"], { stdio: "ignore" });
     } catch {
       resolve(false);
       return;
@@ -67,6 +89,10 @@ interface RunOptions {
   signal?: AbortSignal;
   /** Skip the `-c copy` attempts and re-encode straight to H.264/AAC. */
   reencode?: boolean;
+  /** Abort once the output exceeds this many bytes (default MAX_VIDEO_BYTES). */
+  maxBytes?: number;
+  /** remuxToStream: called once when the ffmpeg process has exited (or failed to start). */
+  onExit?: () => void;
 }
 
 export type RemuxMode = "copy" | "copy-bsf" | "encode";
@@ -87,9 +113,11 @@ export function buildRemuxArgs(
   input: string,
   output: string,
   headers: Record<string, string>,
-  opts: { stream?: boolean } = {},
+  opts: { stream?: boolean; maxBytes?: number } = {},
 ): string[] {
   const headerStr = Object.entries(headers)
+    .filter(([k]) => /^[A-Za-z0-9-]+$/.test(k))
+    .map(([k, v]) => [k, sanitizeHeaderValue(v || "")] as const)
     .filter(([, v]) => v)
     .map(([k, v]) => `${k}: ${v}`)
     .join("\r\n");
@@ -102,6 +130,7 @@ export function buildRemuxArgs(
   ];
   if (headerStr) args.push("-headers", headerStr + "\r\n");
 
+  args.push("-protocol_whitelist", INPUT_PROTOCOL_WHITELIST);
   args.push("-i", input);
 
   if (mode === "encode") {
@@ -122,9 +151,21 @@ export function buildRemuxArgs(
     "-max_muxing_queue_size", "9999",
   );
   if (opts.stream) args.push("-f", "mp4");
+  if (!opts.stream && opts.maxBytes && opts.maxBytes > 0) {
+    args.push("-fs", String(Math.floor(opts.maxBytes)));
+  }
   args.push(output);
 
   return args;
+}
+
+function once(fn?: () => void): () => void {
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    fn?.();
+  };
 }
 
 function runOnce(args: string[], opts: RunOptions): Promise<number> {
@@ -134,7 +175,7 @@ function runOnce(args: string[], opts: RunOptions): Promise<number> {
   return new Promise((resolve, reject) => {
     let child;
     try {
-      child = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
+      child = spawn(/*turbopackIgnore: true*/ bin, args, { stdio: ["ignore", "pipe", "pipe"] });
     } catch (err) {
       reject(err);
       return;
@@ -206,8 +247,19 @@ export function remuxToStream(
   opts: RunOptions = {},
 ): Promise<{ stream: Readable; abort: () => void }> {
   const signal = opts.signal;
+  const maxBytes = opts.maxBytes ?? MAX_VIDEO_BYTES;
+  const onExit = once(opts.onExit);
   const bin = resolveFfmpeg();
-  if (!bin) return Promise.reject(new Error("ffmpeg is not available"));
+  if (!bin) {
+    onExit();
+    return Promise.reject(new Error("ffmpeg is not available"));
+  }
+  try {
+    assertProxyInput(input);
+  } catch (err) {
+    onExit();
+    return Promise.reject(err);
+  }
 
   const args = buildRemuxArgs(
     opts.reencode ? "encode" : "copy",
@@ -220,8 +272,9 @@ export function remuxToStream(
   return new Promise((resolve, reject) => {
     let child: ChildProcess;
     try {
-      child = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
+      child = spawn(/*turbopackIgnore: true*/ bin, args, { stdio: ["ignore", "pipe", "pipe"] });
     } catch (err) {
+      onExit();
       reject(err);
       return;
     }
@@ -248,17 +301,42 @@ export function remuxToStream(
 
     child.once("error", (err) => {
       cleanup();
+      onExit();
       reject(err);
     });
     child.once("spawn", () => {
-      resolve({ stream: child.stdout as Readable, abort: kill });
-      child.stdout?.once("close", cleanup);
+      // Count bytes on the way out and stop ffmpeg past the size cap.
+      let total = 0;
+      const counter = new Transform({
+        transform(chunk: Buffer, _enc, cb) {
+          total += chunk.length;
+          if (total > maxBytes) {
+            kill();
+            cb(new Error("download exceeds the maximum allowed size"));
+            return;
+          }
+          cb(null, chunk);
+        },
+      });
+      // If either side closes early (client disconnected / stream cancelled /
+      // ffmpeg failed) tear the whole chain down and kill ffmpeg, instead of
+      // leaving it blocked on the network.
+      streamPipeline(child.stdout as Readable, counter, (err) => {
+        if (err) kill();
+      });
+      counter.once("close", () => {
+        cleanup();
+        // Closed before the consumer read to the end → it went away.
+        if (!counter.readableEnded) kill();
+      });
+      resolve({ stream: counter, abort: kill });
       child.once("exit", () => {
         cleanup();
+        onExit();
         // Surface an early ffmpeg failure (bad URL / no streams) as a stream
         // error so the response terminates instead of hanging on a dead pipe.
         if (child.exitCode !== 0 && stderr) {
-          child.stdout?.destroy(
+          counter.destroy(
             new Error(
               stderr.trim().split("\n").slice(-3).join(" ") ||
                 `ffmpeg exited ${child.exitCode}`,
@@ -285,19 +363,37 @@ export async function remuxWithFfmpeg(
   headers: Record<string, string>,
   opts: RunOptions,
 ): Promise<void> {
+  assertProxyInput(input);
+  const maxBytes = opts.maxBytes ?? MAX_VIDEO_BYTES;
   const modes: RemuxMode[] = opts.reencode
     ? ["encode"]
     : ["copy", "copy-bsf", "encode"];
 
-  let lastErr: unknown;
-  for (const mode of modes) {
-    try {
-      await runOnce(buildRemuxArgs(mode, input, output, headers), opts);
+  // Shared with /api/downloads/stream: wait for an ffmpeg slot.
+  const release = await acquireFfmpeg(opts.signal);
+  try {
+    let lastErr: unknown;
+    for (const mode of modes) {
+      try {
+        await runOnce(buildRemuxArgs(mode, input, output, headers, { maxBytes }), opts);
+      } catch (err) {
+        if (opts.signal?.aborted) throw err;
+        lastErr = err;
+        continue;
+      }
+      // `-fs` stops ffmpeg cleanly at the cap; treat reaching it as a failure
+      // rather than delivering a silently truncated file.
+      let size = 0;
+      try {
+        size = fs.statSync(output).size;
+      } catch {
+        /* missing output: let the caller's checks surface it */
+      }
+      if (size >= maxBytes) throw new Error("download exceeds the maximum allowed size");
       return;
-    } catch (err) {
-      if (opts.signal?.aborted) throw err;
-      lastErr = err;
     }
+    throw lastErr instanceof Error ? lastErr : new Error("ffmpeg failed");
+  } finally {
+    release();
   }
-  throw lastErr instanceof Error ? lastErr : new Error("ffmpeg failed");
 }

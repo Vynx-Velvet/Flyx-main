@@ -31,6 +31,20 @@ const TYPE_COLORS: Record<ContentCardProps["mediaType"], string> = {
   manga: "#7dd3fc",
 };
 
+/**
+ * Poster CDNs that block hotlinking and must load through /api/manga/image.
+ * Matched on the hostname (not a substring) so only URLs that endpoint's
+ * host allowlist accepts are routed there.
+ */
+function isProxiedPosterHost(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "ytimgf.youtube-anime.com" || host.endsWith(".ytimgf.youtube-anime.com");
+  } catch {
+    return false;
+  }
+}
+
 export function ContentCard({
   tmdbId,
   title,
@@ -69,7 +83,7 @@ export function ContentCard({
   }, [posterUrl]);
 
   const showImage = Boolean(posterUrl) && !imageError;
-  const imageSource = posterUrl?.includes("ytimgf.youtube-anime.com")
+  const imageSource = posterUrl && isProxiedPosterHost(posterUrl)
     ? `/api/manga/image?url=${encodeURIComponent(posterUrl)}`
     : posterUrl;
 

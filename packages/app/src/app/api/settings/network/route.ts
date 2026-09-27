@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { existsSync, readFileSync, writeFileSync, renameSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "fs";
 import { join } from "path";
+import { getSession } from "@/lib/auth/get-session";
+import { isMasterRequest } from "@/lib/request-master";
 
 export const runtime = "nodejs";
+
+/**
+ * Reject callers that may not re-bind the server (403): an admin session is
+ * required, and on desktop also the master window (same rule as
+ * settings/env — a LAN admin must not flip the host's network exposure).
+ */
+async function forbidden(request: NextRequest): Promise<boolean> {
+  if (process.env.FLYX_DESKTOP === "true" && !isMasterRequest(request)) return true;
+  const session = await getSession();
+  return !session?.isAdmin;
+}
 
 /**
  * POST /api/settings/network
@@ -15,6 +28,9 @@ export const runtime = "nodejs";
  * other hosts must restart manually.
  */
 export async function POST(request: NextRequest) {
+  if (await forbidden(request)) {
+    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  }
   try {
     const body = await request.json();
     const { mode } = body;
@@ -57,9 +73,15 @@ export async function POST(request: NextRequest) {
     });
     if (!found) lines.push(`HOSTNAME=${hostname}`);
 
-    // Atomic write (tmp + rename) — the desktop env watcher fires on rename
+    // Atomic write (tmp + rename) — the desktop env watcher fires on rename.
+    // Owner-only: .env holds JWT_SECRET and the default password.
     const tmpPath = envPath + ".tmp";
-    writeFileSync(tmpPath, lines.join("\n").trimEnd() + "\n", "utf-8");
+    try {
+      unlinkSync(tmpPath); // `mode` only applies when the file is created
+    } catch {
+      /* no stale tmp */
+    }
+    writeFileSync(tmpPath, lines.join("\n").trimEnd() + "\n", { encoding: "utf-8", mode: 0o600 });
     renameSync(tmpPath, envPath);
 
     // Keep the running process's view consistent (informational only;

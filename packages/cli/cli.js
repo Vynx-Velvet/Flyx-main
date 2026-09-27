@@ -17,11 +17,18 @@
  */
 
 const { Command } = require("commander");
-const path = require("path");
-const fs = require("fs");
 
 // Suppress experimental warning spam from Node 22
 process.removeAllListeners("warning");
+
+// Resolve data paths up front so a bad FLYX_DATA_DIR (e.g. relative) fails
+// with a clear message instead of a stack trace.
+try {
+  require("./src/lib/paths");
+} catch (err) {
+  console.error(`❌ ${err.message}`);
+  process.exit(1);
+}
 
 const program = new Command();
 
@@ -38,9 +45,9 @@ program
   .description("Interactive first-time setup wizard")
   .option("--tmdb-key <key>", "TMDB API key")
   .option("--mode <mode>", "private or shared")
-  .option("--network <mode>", "localhost or lan")
+  .option("--network <mode>", "localhost (default) or lan — lan exposes Flyx to your whole network")
   .option("--username <name>", "Admin username")
-  .option("--password <pw>", "Admin password")
+  .option("--password <pw>", "Admin password (visible in shell history — prefer FLYX_PASSWORD)")
   .option("--host-key <key>", "Host key for account creation")
   .option("--force", "Overwrite existing config")
   .option("--no-start", "Don't offer to start after setup")
@@ -56,7 +63,7 @@ program
   .description("Start the Flyx server")
   .option("-d, --daemon", "Run in background")
   .option("-p, --port <port>", "Port to listen on", parseInt)
-  .option("--hostname <host>", "Hostname to bind to")
+  .option("--hostname <host>", "Hostname to bind to (default: .env HOSTNAME, else 127.0.0.1)")
   .action(async (options) => {
     const { default: start } = require("./src/commands/start");
     await start(options);
@@ -67,7 +74,7 @@ program
 program
   .command("stop")
   .description("Stop the Flyx server")
-  .option("--force", "Force kill")
+  .option("--force", "Kill immediately (the PID must still be verified as Flyx)")
   .action(async (options) => {
     const { default: stop } = require("./src/commands/stop");
     await stop(options);
@@ -107,7 +114,7 @@ accountsCmd
   .command("add <username>")
   .description("Create a new account")
   .option("--admin", "Make this user an admin")
-  .option("--password <pw>", "Password (will prompt if omitted)")
+  .option("--password <pw>", "Password (prefer FLYX_PASSWORD or the prompt; will prompt if omitted)")
   .option("--json", "Output as JSON")
   .action(async (username, options) => {
     const { addAccount } = require("./src/commands/accounts");
@@ -135,7 +142,7 @@ accountsCmd
 accountsCmd
   .command("reset-password <username>")
   .description("Reset a user's password")
-  .option("--password <pw>", "New password (will prompt if omitted)")
+  .option("--password <pw>", "New password (prefer FLYX_PASSWORD or the prompt; will prompt if omitted)")
   .action(async (username, options) => {
     const { resetPassword } = require("./src/commands/accounts");
     await resetPassword(username, options);
@@ -188,7 +195,7 @@ program
 program
   .command("reset")
   .description("Factory reset — delete all Flyx data")
-  .option("--yes", "Skip confirmation")
+  .option("--yes", "Skip the confirmation prompt (safety checks still apply)")
   .option("--keep-env", "Keep .env file")
   .action(async (options) => {
     const { default: reset } = require("./src/commands/reset");
@@ -212,7 +219,10 @@ if (process.argv.length <= 2) {
   Let's get everything set up — it only takes a minute.
 `);
     const { default: setup } = require("./src/commands/setup");
-    setup().then(() => process.exit(0));
+    setup().then(() => process.exit(0), (err) => {
+      console.error(`❌ ${err && err.message ? err.message : err}`);
+      process.exit(1);
+    });
     return;
   }
 
@@ -241,4 +251,7 @@ if (process.argv.length <= 2) {
   process.exit(0);
 }
 
-program.parse();
+program.parseAsync().catch((err) => {
+  console.error(`❌ ${err && err.message ? err.message : err}`);
+  process.exit(1);
+});

@@ -1,6 +1,6 @@
 {
   "name": "@flyx/app",
-  "version": "3.2.4",
+  "version": "3.2.5",
   "private": true,
   "description": "Flyx Next.js application — flat provider tree, SSR admin",
   "scripts": {
@@ -14,30 +14,25 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
-    "@consumet/extensions": "^1.8.8",
-    "@flyx/admin": "*",
     "@flyx/config": "*",
     "@flyx/core": "*",
-    "@flyx/db": "*",
     "@flyx/extractors": "*",
-    "@flyx/player": "*",
     "@flyx/providers": "*",
-    "@flyx/shared": "*",
-    "@flyx/sync": "*",
     "@swc/helpers": "^0.5.15",
     "@tailwindcss/postcss": "^4.3.3",
     "fflate": "^0.8.2",
     "framer-motion": "^12.0.0",
     "hls.js": "^1.6.0",
-    "next": "^16.2.10",
+    "next": "^16.3.6",
     "qrcode": "^1.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "undici": "^7.30.0",
     "zod": "^3.24.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "20.19.43",
+    "@types/node": "^22.19.0",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
@@ -45,6 +40,6 @@
     "postcss": "^8.5.19",
     "tailwindcss": "^4.3.3",
     "typescript": "6.0.3",
-    "vitest": "^3.1.0"
+    "vitest": "^5.0.2"
   }
 }

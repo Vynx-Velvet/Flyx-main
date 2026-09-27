@@ -15,6 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { pipeline } from "@/lib/extraction";
+import { getSession } from "@/lib/auth/get-session";
 import type { StreamSource } from "@flyx/core";
 import { parseDownloadItem } from "@/lib/downloads/stream-request";
 import { fetchVariants, isGenericQuality } from "@/lib/downloads/hls-variants";
@@ -24,6 +25,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  // Triggers extraction + signed server-side proxy fetches: signed-in users only.
+  if (!(await getSession())) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   let item;
   try {
     item = parseDownloadItem(new URL(request.url).searchParams);

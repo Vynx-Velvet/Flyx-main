@@ -49,20 +49,71 @@ function getLANURLs(port) {
   }));
 }
 
+/**
+ * URL the desktop window loads. Always the literal 127.0.0.1 — never
+ * "localhost", which Chromium may resolve to [::1] where a different local
+ * process could be listening on the same port (and would then receive the
+ * master cookie + the preload bridge). LAN URLs for other devices are
+ * getLANURLs().
+ */
 function getLocalURL(port) {
-  return `http://localhost:${port || PORT}`;
+  return `http://127.0.0.1:${port || PORT}`;
 }
 
-function isPortInUse(port) {
+// Loopback addresses probed before we bind: our server listens on
+// 127.0.0.1 (or 0.0.0.0), but anything already on the port — on either
+// loopback family — is treated as an impostor/collision.
+const LOOPBACK_HOSTS = ["127.0.0.1", "::1"];
+
+/** Can we bind `host:port`? Resolves "busy" | "free" | "unavailable" (no IPv6). */
+function probeListen(port, host) {
   return new Promise((resolve) => {
     const server = net.createServer();
-    server.once("error", () => resolve(true));
-    server.once("listening", () => {
-      server.close();
-      resolve(false);
+    server.once("error", (err) => {
+      const code = err && err.code;
+      // No IPv6 loopback on this machine — nothing can listen there either.
+      if (code === "EADDRNOTAVAIL" || code === "EAFNOSUPPORT" || code === "EINVAL") {
+        resolve("unavailable");
+      } else {
+        resolve("busy");
+      }
     });
-    server.listen(port, "127.0.0.1");
+    server.once("listening", () => {
+      server.close(() => resolve("free"));
+    });
+    server.listen({ port, host, exclusive: true });
   });
 }
 
-module.exports = { getLocalIPs, getLANURLs, getLocalURL, isPortInUse };
+/** Does something accept connections on `host:port`? */
+function probeConnect(port, host, timeoutMs = 500) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host });
+    const done = (result) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(result);
+    };
+    socket.setTimeout(timeoutMs, () => done(false));
+    socket.once("connect", () => done(true));
+    socket.once("error", () => done(false));
+  });
+}
+
+/**
+ * True when the port is taken on 127.0.0.1 OR ::1 — either a bind would
+ * fail, or something already accepts connections there (a wildcard or
+ * SO_REUSEADDR listener can let our own bind succeed while still sitting
+ * in front of it).
+ */
+async function isPortInUse(port) {
+  for (const host of LOOPBACK_HOSTS) {
+    if ((await probeListen(port, host)) === "busy") return true;
+  }
+  for (const host of LOOPBACK_HOSTS) {
+    if (await probeConnect(port, host)) return true;
+  }
+  return false;
+}
+
+module.exports = { getLocalIPs, getLANURLs, getLocalURL, isPortInUse, LOOPBACK_HOSTS };

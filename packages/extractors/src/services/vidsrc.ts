@@ -16,6 +16,7 @@
 
 import type { StreamSource, SubtitleTrack } from "@flyx/core";
 import { registerTokenUrls } from "./vidsrc-token-registry";
+import { MAX_WASM_BYTES, runWasmDecrypt } from "./wasm-sandbox";
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -42,48 +43,99 @@ interface VsApiResponse {
   [key: string]: unknown;
 }
 
-// ── WASM module cache ────────────────────────────────────────
+// ── WASM decryptor cache ─────────────────────────────────────
 
 /**
- * Cached WASM modules, keyed by the per-window integer `w`.
+ * Cached WASM binaries, keyed by the per-window integer `w`.
  * The decryptor changes every ~5 minutes; caching avoids re-fetching
  * the WASM binary for every stream request within the same window.
+ * Bounded: only the most recent few windows are kept.
  */
-const wasmCache = new Map<number, Promise<WebAssembly.Module>>();
+const WASM_CACHE_MAX = 8;
+const wasmCache = new Map<string, Promise<Uint8Array>>();
 
-async function getWasmModule(
-  vs: VsDecryptor,
-): Promise<WebAssembly.Module> {
-  const cached = wasmCache.get(vs.w);
+/** Hosts the decryptor may be downloaded from (the API host's domain). */
+const WASM_HOST_SUFFIX = ".vidsrcme.ru";
+const WASM_HOSTS = new Set([new URL(API_BASE).hostname]);
+
+/** Resolve + pin the upstream-chosen WASM URL to https on the VidSrc API domain. */
+export function validateWasmUrl(raw: string): URL {
+  const u = new URL(raw, API_BASE);
+  if (u.protocol !== "https:") throw new Error(`WASM URL must be https (${u.protocol})`);
+  if (u.username || u.password || (u.port && u.port !== "443")) {
+    throw new Error("WASM URL has unexpected credentials or port");
+  }
+  if (!WASM_HOSTS.has(u.hostname) && !u.hostname.endsWith(WASM_HOST_SUFFIX)) {
+    throw new Error(`WASM URL host not allowed: ${u.hostname}`);
+  }
+  return u;
+}
+
+async function fetchWasmBytes(url: URL): Promise<Uint8Array> {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), 15000);
+  try {
+    const r = await fetch(url, {
+      headers: {
+        "User-Agent": UA,
+        Referer: "https://cloudorchestranova.com/",
+      },
+      redirect: "error",
+      signal: c.signal,
+    });
+    if (!r.ok) throw new Error(`WASM fetch HTTP ${r.status}`);
+    const declared = Number(r.headers.get("content-length"));
+    if (declared > MAX_WASM_BYTES) throw new Error(`WASM too large (${declared} bytes)`);
+    if (!r.body) return new Uint8Array(await r.arrayBuffer());
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    const reader = r.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_WASM_BYTES) {
+        await reader.cancel().catch(() => {});
+        throw new Error("WASM too large");
+      }
+      chunks.push(value);
+    }
+    const out = new Uint8Array(total);
+    let off = 0;
+    for (const chunk of chunks) {
+      out.set(chunk, off);
+      off += chunk.byteLength;
+    }
+    return out;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function getWasmBytes(vs: VsDecryptor): Promise<Uint8Array> {
+  const key = String(vs.w);
+  const cached = wasmCache.get(key);
   if (cached) return cached;
 
   const p = (async () => {
-    let buffer: ArrayBuffer;
-
-    if (vs.wasm_url) {
-      const r = await fetch(vs.wasm_url, {
-        headers: {
-          "User-Agent": UA,
-          Referer: "https://cloudorchestranova.com/",
-        },
-      });
-      if (!r.ok) throw new Error(`WASM fetch HTTP ${r.status}`);
-      buffer = await r.arrayBuffer();
-    } else if (vs.wasm) {
+    if (vs.wasm_url) return fetchWasmBytes(validateWasmUrl(vs.wasm_url));
+    if (vs.wasm) {
       // Inline base64 fallback (rare)
-      buffer = Buffer.from(vs.wasm, "base64").buffer.slice(
-        Buffer.from(vs.wasm, "base64").byteOffset,
-        Buffer.from(vs.wasm, "base64").byteOffset +
-          Buffer.from(vs.wasm, "base64").byteLength,
-      );
-    } else {
-      throw new Error("No WASM source in vs decryptor");
+      if (vs.wasm.length > Math.ceil((MAX_WASM_BYTES * 4) / 3) + 4) throw new Error("Inline WASM too large");
+      return new Uint8Array(Buffer.from(vs.wasm, "base64"));
     }
-
-    return WebAssembly.compile(buffer);
+    throw new Error("No WASM source in vs decryptor");
   })();
 
-  wasmCache.set(vs.w, p);
+  wasmCache.set(key, p);
+  p.catch(() => {
+    if (wasmCache.get(key) === p) wasmCache.delete(key);
+  });
+  while (wasmCache.size > WASM_CACHE_MAX) {
+    const oldest = wasmCache.keys().next().value;
+    if (oldest === undefined) break;
+    wasmCache.delete(oldest);
+  }
   return p;
 }
 
@@ -98,40 +150,21 @@ async function getWasmModule(
  *   3. Call decrypt(ptr, len) → returns plaintext length
  *   4. Plaintext starts at ptr + 12 (12-byte nonce is prepended)
  *
+ * The module is upstream-supplied, so it runs in a resource-limited worker
+ * thread with a timeout (see wasm-sandbox.ts), never on the main thread.
+ *
  * Returns an array of stream URLs (newline-separated in the plaintext).
  */
 async function decryptStreamUrls(
   encB64: string,
   vs: VsDecryptor,
 ): Promise<string[]> {
-  const mod = await getWasmModule(vs);
-
-  const instance = await WebAssembly.instantiate(mod, {});
-  const exports = instance.exports as unknown as {
-    alloc: (size: number) => number;
-    decrypt: (ptr: number, len: number) => number;
-    memory: WebAssembly.Memory;
-  };
-
-  if (!exports.alloc || !exports.decrypt || !exports.memory) {
-    throw new Error("WASM module missing expected exports (alloc, decrypt, memory)");
-  }
+  const wasm = await getWasmBytes(vs);
 
   // Base64 decode the encrypted blob
-  const enc = Buffer.from(encB64, "base64");
+  const enc = new Uint8Array(Buffer.from(encB64, "base64"));
 
-  // Allocate WASM memory and copy in the encrypted data
-  const ptr = exports.alloc(enc.length);
-  const mem = new Uint8Array(exports.memory.buffer, ptr, enc.length);
-  mem.set(enc);
-
-  // Decrypt — returns plaintext length
-  const outLen = exports.decrypt(ptr, enc.length);
-
-  // Plaintext starts at ptr + 12 (ChaCha20 nonce is 12 bytes)
-  const decrypted = new TextDecoder().decode(
-    new Uint8Array(exports.memory.buffer, ptr + 12, outLen),
-  );
+  const decrypted = await runWasmDecrypt(wasm, enc);
 
   return decrypted
     .split("\n")

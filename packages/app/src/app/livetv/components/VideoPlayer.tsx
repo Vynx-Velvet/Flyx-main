@@ -25,18 +25,6 @@ interface VideoPlayerProps {
 }
 
 export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProps) {
-  // Listen for Flyx Bypass m3u8 interception messages
-  useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      if (e.data && typeof e.data === 'object' && e.data.url && typeof e.data.url === 'string') {
-                if (e.data.url.includes('.m3u8') || e.data.url.includes('.mpd')) {
-        }
-      }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, []);
-
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -618,7 +606,6 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
     stallCountRef.current = 0;
     setSelectedBackend(undefined);
     setAvailableBackends([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, event?.id, channel?.id]);
 
   useEffect(() => {
@@ -717,6 +704,12 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
   }, [showQualityMenu, showChannelMenu, showBackendMenu, isPlaying]);
 
   // Keyboard controls
+  const toggleFullscreen = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    document.fullscreenElement ? document.exitFullscreen?.() : container.requestFullscreen?.();
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -755,15 +748,9 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isFullscreen, onClose, showControlsTemporarily]);
+  }, [isOpen, isFullscreen, onClose, showControlsTemporarily, toggleFullscreen]);
 
   // Fullscreen
-  const toggleFullscreen = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    document.fullscreenElement ? document.exitFullscreen?.() : container.requestFullscreen?.();
-  }, []);
-
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onChange);

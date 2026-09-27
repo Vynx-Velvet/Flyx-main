@@ -1,62 +1,65 @@
 # Flyx 3.0 — Production Docker Image
-# Multi-stage build for minimal size
+# Multi-stage build.
+#
+# Base images are pinned by digest (node:22-bookworm-slim, multi-arch index,
+# resolved 2026-09-26). To update: pull the new tag and replace the digest.
+# Debian (glibc) rather than Alpine: the lockfile carries the linux-x64-gnu
+# Tailwind/lightningcss native binaries, not the musl ones.
 
 # ── Stage 1: Build ──────────────────────────────────────────────────────────
-FROM node:22-alpine AS builder
-
-RUN apk add --no-cache python3 curl
+FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS builder
 
 WORKDIR /app
 
-# Root workspace config
-COPY package.json package-lock.json turbo.json ./
-COPY packages/config/package.json packages/config/
-COPY packages/core/package.json packages/core/
-COPY packages/extractors/package.json packages/extractors/
-COPY packages/providers/package.json packages/providers/
-COPY packages/app/package.json packages/app/
+# Root workspace config + every workspace package (npm ci needs all
+# workspaces the lockfile lists). .dockerignore keeps node_modules, build
+# output and any .env files out of the context.
+COPY package.json package-lock.json turbo.json tsconfig.base.json .npmrc ./
+COPY packages ./packages
+COPY tools ./tools
+COPY scripts ./scripts
 
-RUN npm ci --omit=optional
+# The desktop workspace's Electron binary is never used in the container.
+RUN ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --no-audit --no-fund
 
-# Source
-COPY packages/config/src packages/config/src
-COPY packages/core/src packages/core/src
-COPY packages/extractors/src packages/extractors/src
-COPY packages/providers/src packages/providers/src
-COPY packages/app/src packages/app/src
-COPY packages/app/public packages/app/public
-COPY packages/app/next.config.ts packages/app/next.config.ts
-COPY packages/app/postcss.config.mjs packages/app/postcss.config.mjs
-COPY packages/app/tsconfig.json packages/app/tsconfig.json
+# Build Next.js with DUMMY secrets only (never baked into the image env).
+RUN cd packages/app && \
+    TMDB_API_KEY=dummy-key-for-build \
+    JWT_SECRET=dummy-secret-for-build-0123456789abcdef \
+    HOST_KEY=dummy-host-key-for-build \
+    npx next build
 
-# Build Next.js
-RUN cd packages/app && npm run build
+# Drop dev-only weight that the runtime never needs.
+RUN rm -rf packages/desktop packages/cli node_modules/electron node_modules/.cache
 
 # ── Stage 2: Production ─────────────────────────────────────────────────────
-FROM node:22-alpine AS runner
-
-RUN apk add --no-cache python3 curl
+FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS runner
 
 WORKDIR /app
 
-ENV NODE_ENV=production
-ENV PORT=3000
-ENV DLHD_SERVICE_URL=http://127.0.0.1:9876
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0 \
+    FLYX_DATA_DIR=/data
 
-# Copy built app
-COPY --from=builder /app/packages/app/.next packages/app/.next
-COPY --from=builder /app/packages/app/public packages/app/public
-COPY --from=builder /app/packages/app/next.config.ts packages/app/next.config.ts
-COPY --from=builder /app/packages/app/package.json packages/app/package.json
-COPY --from=builder /app/node_modules node_modules
-COPY --from=builder /app/package.json package.json
+# Built app + workspace sources (node_modules/@flyx/* are symlinks into
+# packages/, so the packages must be present at runtime too).
+COPY --from=builder --chown=root:root /app/package.json ./package.json
+COPY --from=builder --chown=root:root /app/node_modules ./node_modules
+COPY --from=builder --chown=root:root /app/packages ./packages
+COPY --from=builder --chown=root:root /app/scripts/docker-entrypoint.mjs ./scripts/docker-entrypoint.mjs
 
-# Copy Python extraction microservice
-COPY dlhd_service.py ./
+# Persistent data (store.json, generated .env with JWT_SECRET/HOST_KEY)
+# lives on a volume owned by the unprivileged `node` user.
+RUN mkdir -p /data && chown node:node /data && chmod 700 /data
+VOLUME ["/data"]
+
+USER node
 
 EXPOSE 3000
 
-# Start both the Python extraction service and Next.js
-CMD python3 dlhd_service.py & \
-    cd packages/app && \
-    npx next start --port 3000
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+
+WORKDIR /app/packages/app
+ENTRYPOINT ["node", "/app/scripts/docker-entrypoint.mjs"]

@@ -12,6 +12,9 @@ import type { ExtractionRequest, StreamSource } from "@flyx/core";
 import { remuxWithFfmpeg } from "./ffmpeg";
 import { pickBestSource } from "./source-picker";
 import { resolveSourceForQuality } from "./hls-variants";
+import { buildLocalProxyUrl } from "./proxy-url";
+import { MAX_VIDEO_BYTES } from "./limits";
+import { safeFetch } from "@/lib/security/safe-fetch";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -40,27 +43,25 @@ function toExtractionRequest(req: VideoDownloadRequest): ExtractionRequest {
   };
 }
 
-function buildProxyUrl(source: StreamSource): string {
-  const port = process.env.PORT || "3891";
-  const params = new URLSearchParams();
-  params.set("url", source.url);
-  if (source.referer) params.set("referer", source.referer);
-  if (source.origin) params.set("origin", source.origin);
-  return `http://127.0.0.1:${port}/api/stream/proxy?${params.toString()}`;
-}
-
 function streamToFile(
   url: string,
   headers: Record<string, string>,
   dest: string,
   onProgress: (p: { bytes: number; totalBytes: number }) => void,
   signal?: AbortSignal,
+  maxBytes = MAX_VIDEO_BYTES,
 ): Promise<void> {
-  return fetch(url, { headers, signal, redirect: "follow" }).then(async (res) => {
+  // The URL comes from a third-party provider: refuse private/loopback
+  // targets on every redirect hop.
+  return safeFetch(url, { headers, signal }).then(async (res) => {
     if (!res.ok || !res.body) {
       throw new Error(`upstream returned HTTP ${res.status}`);
     }
     const total = Number(res.headers.get("content-length") || 0);
+    if (total > maxBytes) {
+      await res.body.cancel().catch(() => {});
+      throw new Error("download exceeds the maximum allowed size");
+    }
     let bytes = 0;
     const out = createWriteStream(dest);
     const body = Readable.fromWeb(res.body as import("node:stream/web").ReadableStream);
@@ -75,9 +76,17 @@ function streamToFile(
       }
       body.on("data", (c: Buffer) => {
         bytes += c.length;
+        if (bytes > maxBytes) {
+          body.destroy(new Error("download exceeds the maximum allowed size"));
+          return;
+        }
         onProgress({ bytes, totalBytes: total });
       });
-      body.on("error", reject);
+      body.on("error", (err) => {
+        signal?.removeEventListener("abort", onAbort);
+        out.destroy();
+        reject(err);
+      });
       out.on("error", reject);
       out.on("finish", () => {
         signal?.removeEventListener("abort", onAbort);
@@ -99,16 +108,29 @@ export async function sourceNeedsReencode(source: StreamSource): Promise<boolean
   if (source.isHevc) return true;
   if (source.type !== "hls" && source.type !== "dash") return false;
   try {
-    const res = await fetch(source.url, {
+    const res = await safeFetch(source.url, {
       headers: {
         "User-Agent": source.userAgent || UA,
         ...(source.referer ? { Referer: source.referer } : {}),
         ...(source.origin ? { Origin: source.origin } : {}),
       },
-      redirect: "follow",
     });
-    if (!res.ok) return false;
-    const text = await res.text();
+    if (!res.ok || !res.body) return false;
+    // A manifest is small; only sniff the first 2 MB.
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let text = "";
+    let read = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      read += value.byteLength;
+      text += decoder.decode(value, { stream: true });
+      if (read > 2 * 1024 * 1024) {
+        await reader.cancel().catch(() => {});
+        break;
+      }
+    }
     return /(?:hvc1|hev1|hevc|dvh1|dvhe)/i.test(text);
   } catch {
     return false;
@@ -163,7 +185,7 @@ export async function downloadVideo(
   } else {
     const reencode = await sourceNeedsReencode(source);
     await remuxWithFfmpeg(
-      buildProxyUrl(source),
+      buildLocalProxyUrl(source),
       dest,
       {
         Referer: source.referer || "",

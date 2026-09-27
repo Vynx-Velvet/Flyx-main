@@ -16,11 +16,18 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { extractDLHD } from "@flyx/extractors/services";
+import { signProxyUrl } from "@/lib/security/proxy-sign";
+import { getSession } from "@/lib/auth/get-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  // This route mints signed proxy URLs, so it needs a real session.
+  if (!(await getSession())) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const channelId = searchParams.get("channel") || "";
   const provider = searchParams.get("provider") || "dlhd";
@@ -76,6 +83,9 @@ export async function GET(request: NextRequest) {
     if (cookies) {
       proxiedUrl += `&cookie=${encodeURIComponent(cookies)}`;
     }
+    // Signed so cookie-less players (VLC on the LAN, "copy link") can open
+    // it; the in-app player also carries the session cookie.
+    proxiedUrl = signProxyUrl(proxiedUrl);
 
     return NextResponse.json({
       success: true,
