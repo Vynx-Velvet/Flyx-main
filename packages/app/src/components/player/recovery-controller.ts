@@ -3,10 +3,17 @@
  * media element + hls.js instance. usePlaybackRecovery wraps this for React;
  * tests drive it with fake elements.
  *
+ * The watchdog only seeks when the playhead is stuck with media buffered
+ * ahead; a starved playhead is left to the loader (see stall-recovery.ts).
+ *
  * Policy for hls.js fatal errors:
  *   • buffer stall            → seek forward (escalating per spot)
  *   • fragment/key load error → seek just past that fragment, resume loading
- *   • other network error     → resume loading at the current position
+ *                               (give up if the source never played, or after
+ *                               MAX_FRAGMENT_SKIPS skips without recovering)
+ *   • manifest error          → give up (startLoad cannot reload a manifest)
+ *   • other network error     → resume loading at the current position, at
+ *                               most MAX_NETWORK_RESUMES times without progress
  *   • media error             → hls.recoverMediaError() (resumes in place),
  *                               at most MAX_MEDIA_ERROR_RECOVERIES per source
  *   • anything else           → give up
@@ -50,6 +57,10 @@ export interface RecoveryControllerOptions extends StallRecoveryOptions {
 }
 
 export const MAX_MEDIA_ERROR_RECOVERIES = 2;
+/** Fragment skips allowed before playback has recovered past the last one. */
+export const MAX_FRAGMENT_SKIPS = 3;
+/** startLoad() resumes for non-fragment network errors without progress in between. */
+export const MAX_NETWORK_RESUMES = 2;
 
 // String values of hls.js ErrorTypes / ErrorDetails we act on. Kept as
 // literals so this module has no runtime dependency on hls.js.
@@ -62,6 +73,12 @@ const SKIPPABLE_FRAGMENT_ERRORS = new Set([
   'fragParsingError',
   'keyLoadError',
   'keyLoadTimeOut',
+]);
+/** The playlist itself is gone — hls.startLoad() cannot bring it back. */
+const MANIFEST_ERRORS = new Set([
+  'manifestLoadError',
+  'manifestLoadTimeOut',
+  'manifestParsingError',
 ]);
 
 export interface RecoveryController {
@@ -81,6 +98,14 @@ export function createRecoveryController(options: RecoveryControllerOptions): Re
   const recovery = new StallRecovery(stallOptions);
   let mediaErrors = 0;
   let gaveUp = false;
+  // Has this source ever played? A source that dies before its first
+  // fragment is broken (e.g. every segment 403s) — skipping fragment after
+  // fragment would never fail over.
+  let played = false;
+  let fragSkips = 0;
+  let lastFragTarget = -1;
+  let networkResumes = 0;
+  let lastTickTime = -1;
 
   const giveUp = (resumeAt: number, reason: string) => {
     if (gaveUp) return;
@@ -93,7 +118,9 @@ export function createRecoveryController(options: RecoveryControllerOptions): Re
     const video = getVideo();
     if (!video) return;
     if (plan.kind === 'give-up') {
-      giveUp(plan.from + 1, `${why}: ${plan.attempts} skips did not help`);
+      // Starved: nothing was skipped, so the next source resumes right here.
+      if (plan.starved) giveUp(plan.from, `${why}: no data arrived (starved)`);
+      else giveUp(plan.from + 1, `${why}: ${plan.attempts} skips did not help`);
       return;
     }
     log(
@@ -136,6 +163,14 @@ export function createRecoveryController(options: RecoveryControllerOptions): Re
     tick() {
       const video = getVideo();
       if (!video || gaveUp) return;
+      const t = video.currentTime;
+      // Normal forward playback since the last tick (a jump is a seek).
+      if (!video.paused && !video.seeking && lastTickTime >= 0 && t > lastTickTime && t - lastTickTime < 2) {
+        played = true;
+        networkResumes = 0;
+        if (fragSkips && t > lastFragTarget + 5) fragSkips = 0;
+      }
+      lastTickTime = t;
       const plan = recovery.observe(snapshotOf(video as unknown as HTMLVideoElement));
       if (plan) apply(plan, 'stall watchdog');
     },
@@ -152,12 +187,31 @@ export function createRecoveryController(options: RecoveryControllerOptions): Re
 
       if (data.type === HLS_NETWORK_ERROR) {
         if (data.frag && SKIPPABLE_FRAGMENT_ERRORS.has(data.details)) {
+          if (!played) {
+            giveUp(at, `fragment ${data.details} before playback started`);
+            return;
+          }
+          fragSkips += 1;
+          if (fragSkips > MAX_FRAGMENT_SKIPS) {
+            giveUp(at, `fragment ${data.details}: ${MAX_FRAGMENT_SKIPS} fragment skips did not help`);
+            return;
+          }
           const target = fragmentSkipTarget(data.frag, at);
+          lastFragTarget = target;
           apply(
             { kind: 'seek', target, from: at, reason: 'skip', attempt: recovery.attemptsAtSpot + 1 },
             `fragment ${data.details}`,
           );
           recovery.noteSeek(target);
+          return;
+        }
+        if (MANIFEST_ERRORS.has(data.details)) {
+          giveUp(at, `network ${data.details}`);
+          return;
+        }
+        networkResumes += 1;
+        if (networkResumes > MAX_NETWORK_RESUMES) {
+          giveUp(at, `network ${data.details}: ${MAX_NETWORK_RESUMES} resumes did not help`);
           return;
         }
         log(`[player-recovery] network error ${data.details} - resuming at ${at.toFixed(1)}s`);
@@ -194,6 +248,11 @@ export function createRecoveryController(options: RecoveryControllerOptions): Re
       recovery.reset();
       mediaErrors = 0;
       gaveUp = false;
+      played = false;
+      fragSkips = 0;
+      lastFragTarget = -1;
+      networkResumes = 0;
+      lastTickTime = -1;
     },
   };
 }

@@ -3,6 +3,7 @@ import {
   StallRecovery,
   chooseTarget,
   fragmentSkipTarget,
+  hasDataAhead,
   readBuffered,
   skipOffset,
   type StallSnapshot,
@@ -15,7 +16,9 @@ function snap(over: Partial<StallSnapshot> = {}): StallSnapshot {
     ended: false,
     seeking: false,
     readyState: 2,
-    buffered: [{ start: 0, end: 100 }],
+    // Stuck WITH media ahead — the case the watchdog skips. A playhead at the
+    // end of its buffer is starved and is covered separately below.
+    buffered: [{ start: 0, end: 130 }],
     duration: 5400,
     ...over,
   };
@@ -65,6 +68,20 @@ describe("fragmentSkipTarget", () => {
   it("never goes backwards and copes with a missing fragment", () => {
     expect(fragmentSkipTarget({ start: 90, duration: 4 }, 100)).toBeCloseTo(100.1, 5);
     expect(fragmentSkipTarget(null, 100)).toBeCloseTo(100.1, 5);
+  });
+});
+
+describe("hasDataAhead", () => {
+  it("is true when the range under the playhead extends past it", () => {
+    expect(hasDataAhead(100, [{ start: 0, end: 130 }])).toBe(true);
+  });
+  it("is true when a hole is followed by a range within the lookahead", () => {
+    expect(hasDataAhead(100, [{ start: 0, end: 100 }, { start: 103, end: 140 }])).toBe(true);
+  });
+  it("is false when the playhead sits at the end of its buffer (starved)", () => {
+    expect(hasDataAhead(100, [{ start: 0, end: 100.2 }])).toBe(false);
+    expect(hasDataAhead(100, [{ start: 0, end: 100 }, { start: 130, end: 140 }])).toBe(false);
+    expect(hasDataAhead(100, [])).toBe(false);
   });
 });
 
@@ -165,10 +182,11 @@ describe("StallRecovery.observe", () => {
     r.observe(snap());
     c.tick(2900);
     r.noteSeek(400);
+    const buffered = [{ start: 395, end: 450 }];
     c.tick(2900);
-    expect(r.observe(snap({ currentTime: 400 }))).toBeNull();
+    expect(r.observe(snap({ currentTime: 400, buffered }))).toBeNull();
     c.tick(200);
-    expect(r.observe(snap({ currentTime: 400 }))).toMatchObject({ kind: "seek", target: 401 });
+    expect(r.observe(snap({ currentTime: 400, buffered }))).toMatchObject({ kind: "seek", target: 401 });
   });
 
   it("prefers hopping over a buffer hole on the first attempt", () => {
@@ -183,6 +201,52 @@ describe("StallRecovery.observe", () => {
     const plan = r.observe(snap({ buffered }));
     expect(plan).toMatchObject({ kind: "seek", reason: "hole" });
     expect((plan as { target: number }).target).toBeCloseTo(102.15, 5);
+  });
+});
+
+describe("StallRecovery.observe — starved playhead", () => {
+  const starved = { buffered: [{ start: 0, end: 100 }] };
+
+  it("never seeks while nothing is buffered ahead (the download is still running)", () => {
+    const c = clock();
+    const r = new StallRecovery({ now: c.now, stallMs: 3000 });
+    r.observe(snap(starved));
+    for (let i = 0; i < 50; i++) {
+      c.tick(500);
+      expect(r.observe(snap(starved))).toBeNull();
+    }
+  });
+
+  it("fails over at the same spot once starvation outlasts starvedGiveUpMs", () => {
+    const c = clock();
+    const r = new StallRecovery({ now: c.now, stallMs: 3000, starvedGiveUpMs: 30_000 });
+    r.observe(snap(starved));
+    c.tick(29_000);
+    expect(r.observe(snap(starved))).toBeNull();
+    c.tick(1_100);
+    expect(r.observe(snap(starved))).toEqual({ kind: "give-up", from: 100, attempts: 0, starved: true });
+  });
+
+  it("restarts the starvation clock whenever data trickles in", () => {
+    const c = clock();
+    const r = new StallRecovery({ now: c.now, stallMs: 3000, starvedGiveUpMs: 30_000 });
+    let t = 100;
+    r.observe(snap({ currentTime: t, buffered: [{ start: 0, end: t }] }));
+    for (let i = 0; i < 6; i++) {
+      c.tick(20_000); // long rebuffer…
+      expect(r.observe(snap({ currentTime: t, buffered: [{ start: 0, end: t }] }))).toBeNull();
+      t += 1; // …then a second of playback
+      expect(r.observe(snap({ currentTime: t, buffered: [{ start: 0, end: t }] }))).toBeNull();
+    }
+  });
+
+  it("skips as soon as the stuck playhead has media ahead again", () => {
+    const c = clock();
+    const r = new StallRecovery({ now: c.now, stallMs: 3000 });
+    r.observe(snap(starved));
+    c.tick(5000);
+    expect(r.observe(snap(starved))).toBeNull();
+    expect(r.observe(snap({ buffered: [{ start: 0, end: 112 }] }))).toMatchObject({ kind: "seek", target: 101 });
   });
 });
 

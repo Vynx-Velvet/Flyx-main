@@ -2,6 +2,18 @@
 
 All notable changes to Flyx are documented in this file.
 
+## [3.2.11] - 2026-10-11
+
+### Fixed
+
+- **Movies and shows stop freezing mid-playback.** The desktop app's built-in browser started claiming it could play streaming video on its own, so Flyx handed streams to it instead of its own player. That built-in player only loads about 10 seconds ahead, so any slow moment on the server froze the picture. Flyx now uses its own player again, which keeps up to a minute loaded ahead. In a test with an occasional slow server response, the built-in player froze for 19 seconds out of 90; Flyx's player didn't freeze at all.
+- **The buffer bar is accurate.** It used to show the end of the furthest piece of video ever loaded, even when nothing was loaded right after where you're watching. It now shows how much is actually ready to play.
+- **No more jumping ahead while a video is still loading.** When playback paused to load, Flyx skipped forward after 3 seconds, which threw away the part that was loading and cut out scenes. It now waits for the video to arrive, and only switches to another source, at the same spot, if nothing arrives for 30 seconds. A source whose video never starts loading now switches right away instead of retrying forever.
+- **VidSrc plays again.** VidSrc moved its player to a new address, and Flyx only accepted the old one. Flyx now follows VidSrc to whichever address it uses.
+- **Videasy plays again.** Videasy's own servers are still down, and its backup (VidSrc) was broken by the issue above. With VidSrc fixed, Videasy's "Neon (VidSrc fallback)" streams work again.
+- **2embed (MultiEmbed) only lists servers that actually play.** Most of its backup servers loaded but then refused to send any video, so you waited 10 to 15 seconds on each one. Flyx now checks each server before listing it.
+- **VidLove MP4s start with one connection instead of two.** VidLove's video host slows down sharply when it sees more than one connection at once, so Flyx no longer opens an extra "warm-up" connection.
+
 ## [3.2.10] - 2026-10-09
 
 ### Added

@@ -12,7 +12,10 @@
  * Security model:
  *   - ChaCha20 stream cipher with per-5-min-window WASM decryptor
  *   - CDN tokens are IP-bound; playback uses the same server via the stream proxy
- *   - API checks Referer header (cloudorchestranova.com)
+ *   - API checks Referer header (the player host)
+ *   - The player host rotates (cloudorchestranova.com → stellarconductornexus.com
+ *     in Oct 2026), so it is taken from vidsrc.sh's answer, structurally
+ *     validated, and every later hop is pinned to it (validatePlayerUrl)
  */
 
 import type { StreamSource, SubtitleTrack } from "@flyx/core";
@@ -23,7 +26,6 @@ import { MAX_WASM_BYTES, runWasmDecrypt } from "./wasm-sandbox";
 
 const API_BASE = "https://data.vidsrc.sh";
 const EMBED_BASE = "https://vidsrc.sh";
-const PLAYER_BASE = "https://cloudorchestranova.com";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
@@ -74,14 +76,39 @@ export function validateWasmUrl(raw: string): URL {
   return u;
 }
 
-async function fetchWasmBytes(url: URL): Promise<Uint8Array> {
+/**
+ * Pin an upstream-chosen player URL. The first hop (vidsrc.sh's `src`) may
+ * name any host — it rotates — as long as it is https on the default port,
+ * a DNS name (no IP literal, no localhost/.local) and an /embed/ path.
+ * Later hops pass `pinnedOrigin` and must stay on that exact origin.
+ */
+export function validatePlayerUrl(raw: string, pinnedOrigin?: string): URL {
+  const url = new URL(raw, pinnedOrigin);
+  const host = url.hostname.toLowerCase();
+  const bad =
+    url.protocol !== "https:" ||
+    (url.port !== "" && url.port !== "443") ||
+    !!url.username ||
+    !!url.password ||
+    !url.pathname.startsWith("/embed/") ||
+    (pinnedOrigin !== undefined && url.origin !== pinnedOrigin) ||
+    host.includes(":") ||
+    /^[\d.]+$/.test(host) ||
+    !/\.[a-z][a-z0-9-]*$/.test(host) ||
+    host === "localhost" ||
+    /\.(localhost|local|internal|lan|home|arpa)$/.test(host);
+  if (bad) throw new Error("Unexpected VidSrc player URL");
+  return url;
+}
+
+async function fetchWasmBytes(url: URL, referer: string): Promise<Uint8Array> {
   const c = new AbortController();
   const t = setTimeout(() => c.abort(), 15000);
   try {
     const r = await fetch(url, {
       headers: {
         "User-Agent": UA,
-        Referer: "https://cloudorchestranova.com/",
+        Referer: referer,
       },
       redirect: "error",
       signal: c.signal,
@@ -115,13 +142,13 @@ async function fetchWasmBytes(url: URL): Promise<Uint8Array> {
   }
 }
 
-function getWasmBytes(vs: VsDecryptor): Promise<Uint8Array> {
+function getWasmBytes(vs: VsDecryptor, referer: string): Promise<Uint8Array> {
   const key = String(vs.w);
   const cached = wasmCache.get(key);
   if (cached) return cached;
 
   const p = (async () => {
-    if (vs.wasm_url) return fetchWasmBytes(validateWasmUrl(vs.wasm_url));
+    if (vs.wasm_url) return fetchWasmBytes(validateWasmUrl(vs.wasm_url), referer);
     if (vs.wasm) {
       // Inline base64 fallback (rare)
       if (vs.wasm.length > Math.ceil((MAX_WASM_BYTES * 4) / 3) + 4) throw new Error("Inline WASM too large");
@@ -161,8 +188,9 @@ function getWasmBytes(vs: VsDecryptor): Promise<Uint8Array> {
 async function decryptStreamUrls(
   encB64: string,
   vs: VsDecryptor,
+  referer: string,
 ): Promise<string[]> {
-  const wasm = await getWasmBytes(vs);
+  const wasm = await getWasmBytes(vs, referer);
 
   // Base64 decode the encrypted blob
   const enc = new Uint8Array(Buffer.from(encB64, "base64"));
@@ -189,7 +217,7 @@ async function getStreamApi(
   mediaType: string,
   season?: number,
   episode?: number,
-): Promise<URL> {
+): Promise<{ api: URL; playerOrigin: string }> {
   const params = new URLSearchParams({ type: mediaType, id: String(tmdbId) });
   if (mediaType === "tv") {
     params.set("season", String(season ?? 1));
@@ -205,22 +233,16 @@ async function getStreamApi(
     if (!response.ok) throw new Error(`Player bootstrap HTTP ${response.status}`);
     return response.text();
   };
-  const pinPlayer = (raw: string) => {
-    const url = new URL(raw, PLAYER_BASE);
-    if (url.origin !== PLAYER_BASE || url.username || url.password || !url.pathname.startsWith("/embed/")) {
-      throw new Error("Unexpected VidSrc player URL");
-    }
-    return url;
-  };
   const frame = JSON.parse(await read(new URL(`${EMBED_BASE}/vs_src.php?${params}`), `${EMBED_BASE}/`)) as { src?: string };
   if (!frame.src) throw new Error("VidSrc embed did not return a player");
-  const innerUrl = pinPlayer(frame.src);
+  const innerUrl = validatePlayerUrl(frame.src);
+  const playerOrigin = innerUrl.origin;
   const inner = await read(innerUrl, `${EMBED_BASE}/`);
   const cfgMatch = inner.match(/window\.CFG\s*=\s*(\{[^\n]+?\});/);
   if (!cfgMatch) throw new Error("VidSrc player configuration missing");
   const cfg = JSON.parse(cfgMatch[1]!) as { playerUrl?: string };
   if (!cfg.playerUrl) throw new Error("VidSrc player URL missing");
-  const player = await read(pinPlayer(cfg.playerUrl), innerUrl.href);
+  const player = await read(validatePlayerUrl(cfg.playerUrl, playerOrigin), innerUrl.href);
   const configMatch = player.match(/window\.CONFIG\s*=\s*(\{[^\n]+?\});/);
   if (!configMatch) throw new Error("VidSrc stream configuration missing");
   const config = JSON.parse(configMatch[1]!) as { api?: string; streamBase?: string; apiToken?: string };
@@ -235,7 +257,7 @@ async function getStreamApi(
     api.searchParams.set("episode", String(episode ?? 1));
   }
   api.searchParams.set("api_token", config.apiToken);
-  return api;
+  return { api, playerOrigin };
 }
 
 export async function extractVidSrc(
@@ -247,13 +269,14 @@ export async function extractVidSrc(
   if (!tmdbId) return empty();
 
   try {
-    const apiUrl = await getStreamApi(tmdbId, mediaType, season, episode);
+    const { api: apiUrl, playerOrigin } = await getStreamApi(tmdbId, mediaType, season, episode);
+    const playerReferer = `${playerOrigin}/`;
 
     // 2. Fetch the stream-data API
     const r = await fetch(apiUrl, {
       headers: {
         "User-Agent": UA,
-        Referer: "https://cloudorchestranova.com/",
+        Referer: playerReferer,
         Accept: "application/json",
       },
       signal: AbortSignal.timeout(15000),
@@ -283,7 +306,7 @@ export async function extractVidSrc(
       json.data.stream_urls.length > 0 &&
       json.vs
     ) {
-      streamUrls = await decryptStreamUrls(json.data.stream_urls, json.vs);
+      streamUrls = await decryptStreamUrls(json.data.stream_urls, json.vs, playerReferer);
     } else {
       console.warn("[VidSrc] No stream_urls in API response");
       return empty();
@@ -326,8 +349,8 @@ export async function extractVidSrc(
         quality: isHls ? "Auto" : resolution ?? "Auto",
         type: isHls ? ("hls" as const) : ("mp4" as const),
         title: streamUrls.length > 1 ? `VidSrc ${i + 1}` : "VidSrc",
-        referer: "https://cloudorchestranova.com/",
-        origin: "https://cloudorchestranova.com",
+        referer: playerReferer,
+        origin: playerOrigin,
         requiresSegmentProxy: true,
         tokenUrl,
       };

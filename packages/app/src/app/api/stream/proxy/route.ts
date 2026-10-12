@@ -116,11 +116,15 @@ function parseToken(text: string): string {
   return t;
 }
 
+/** VidSrc's player host before it started rotating; used when a source carries no referer. */
+const VIDSRC_DEFAULT_PLAYER = "https://cloudorchestranova.com";
+
 /**
  * Fetch a fresh IP-bound token from a VidSrc stream host.
  * Cached per-host; tokens expire based on JWT `exp` claim when parseable.
+ * `referer`/`playerOrigin` are the source's own (the rotating player host).
  */
-async function getVidSrcToken(origin: string): Promise<string> {
+async function getVidSrcToken(origin: string, referer?: string, playerOrigin?: string): Promise<string> {
   const cached = tokenCache.get(origin);
   if (cached && Date.now() < cached.expiresAt) return cached.token;
 
@@ -142,8 +146,8 @@ async function getVidSrcToken(origin: string): Promise<string> {
         const r = await safeFetch(endpoint, {
           headers: {
             "User-Agent": UA,
-            Referer: "https://cloudorchestranova.com/",
-            Origin: "https://cloudorchestranova.com",
+            Referer: referer || `${VIDSRC_DEFAULT_PLAYER}/`,
+            Origin: playerOrigin || VIDSRC_DEFAULT_PLAYER,
           },
           signal: c.signal,
         });
@@ -221,7 +225,7 @@ async function handleGet(request: NextRequest): Promise<NextResponse> {
     if (isVidSrcCdn(decodedUrl)) {
       try {
         const hostOrigin = new URL(decodedUrl).origin;
-        vidToken = await getVidSrcToken(hostOrigin);
+        vidToken = await getVidSrcToken(hostOrigin, referer ?? undefined, origin);
         if (vidToken) {
           const authenticatedUrl = new URL(decodedUrl);
           authenticatedUrl.searchParams.set("token", vidToken);

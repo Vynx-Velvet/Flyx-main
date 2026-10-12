@@ -274,6 +274,22 @@ function fastStartRank(s: StreamSource): number {
   return q;
 }
 
+/**
+ * End of the buffered range the playhead is in — what the seek bar shows as
+ * "buffered". `buffered.end(length - 1)` is the LAST range, which after a
+ * seek, a skipped gap, or an MP4 whose index sits at the end of the file is
+ * far past anything playable: the bar claimed minutes of buffer while
+ * playback was starved. Nothing buffered at the playhead → the playhead.
+ */
+function playableBufferEnd(video: HTMLVideoElement): number {
+  const t = video.currentTime;
+  const ranges = video.buffered;
+  for (let i = 0; i < ranges.length; i++) {
+    if (ranges.start(i) <= t + 0.5 && ranges.end(i) >= t) return ranges.end(i);
+  }
+  return t;
+}
+
 /** Pick the source that will start playing soonest (not max quality). */
 function pickBestSource(
   list: StreamSource[],
@@ -1980,7 +1996,59 @@ function WatchInner() {
         quality: currentSource?.quality,
       }));
 
-      if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
+      // hls.js whenever MSE exists. Chromium (Electron 43 = Chrome 150) now
+      // answers "maybe" to canPlayType(HLS) too, and its built-in HLS player
+      // ignores our buffer config, ABR and recovery — it froze with media
+      // buffered. Only WebKit's mature native HLS (Safari/iOS) is preferred.
+      const nativeHls = isHls && !!video.canPlayType("application/vnd.apple.mpegurl");
+      const preferNativeHls = nativeHls && /^Apple/.test(navigator.vendor || "");
+      if (isHls && !preferNativeHls) {
+        try {
+          const Hls = (await import("hls.js")).default;
+          if (Hls.isSupported()) {
+            const hls = new Hls({
+              enableWorker: true,
+              lowLatencyMode: false,
+              // Start at lowest quality for fast first frame; ABR climbs after
+              startLevel: 0,
+              abrEwmaDefaultEstimate: 500000,
+              startFragPrefetch: true,
+              manifestLoadingTimeOut: 8000,
+              manifestLoadingMaxRetry: 2,
+              manifestLoadingRetryDelay: 500,
+              fragLoadingTimeOut: 12000,
+              fragLoadingMaxRetry: 3,
+              maxBufferLength: 20,
+              maxMaxBufferLength: 60,
+              // Referer/Origin are applied by the proxy — do not set on XHR
+              // (forbidden headers; browsers silently drop them).
+            });
+            hlsRef.current = hls;
+            hls.loadSource(playbackUrl);
+            hls.attachMedia(video as unknown as HTMLMediaElement);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+              consecutiveFailuresRef.current = 0;
+              console.log(`[Watch] ⏱️ HLS manifest parsed in ${(performance.now() - loadStartRef.current).toFixed(0)}ms`);
+              applyResumeAndPlay();
+            });
+            hls.on(
+              Hls.Events.ERROR,
+              (_e: unknown, data: { fatal?: boolean }) => {
+                // Stall → seek past it; bad fragment → skip it; media error →
+                // recover in place. Only a hopeless source reaches
+                // recoverPlayback (via recoverRef) and fails over.
+                if (data?.fatal) recovery.handleHlsError(hls, data as never);
+              },
+            );
+            return;
+          }
+        } catch (err) {
+          console.warn("[Watch] HLS.js load failed, falling through:", err);
+          /* fall through */
+        }
+      }
+
+      if (nativeHls) {
         video.src = playbackUrl;
         // Native HLS fires NO events for a slow/dead manifest or a stream
         // that stops progressing mid-play — the player used to sit on
@@ -2085,52 +2153,6 @@ function WatchInner() {
         return;
       }
 
-      if (isHls) {
-        try {
-          const Hls = (await import("hls.js")).default;
-          if (Hls.isSupported()) {
-            const hls = new Hls({
-              enableWorker: true,
-              lowLatencyMode: false,
-              // Start at lowest quality for fast first frame; ABR climbs after
-              startLevel: 0,
-              abrEwmaDefaultEstimate: 500000,
-              startFragPrefetch: true,
-              manifestLoadingTimeOut: 8000,
-              manifestLoadingMaxRetry: 2,
-              manifestLoadingRetryDelay: 500,
-              fragLoadingTimeOut: 12000,
-              fragLoadingMaxRetry: 3,
-              maxBufferLength: 20,
-              maxMaxBufferLength: 60,
-              // Referer/Origin are applied by the proxy — do not set on XHR
-              // (forbidden headers; browsers silently drop them).
-            });
-            hlsRef.current = hls;
-            hls.loadSource(playbackUrl);
-            hls.attachMedia(video as unknown as HTMLMediaElement);
-            hls.on(Hls.Events.MANIFEST_PARSED, () => {
-              consecutiveFailuresRef.current = 0;
-              console.log(`[Watch] ⏱️ HLS manifest parsed in ${(performance.now() - loadStartRef.current).toFixed(0)}ms`);
-              applyResumeAndPlay();
-            });
-            hls.on(
-              Hls.Events.ERROR,
-              (_e: unknown, data: { fatal?: boolean }) => {
-                // Stall → seek past it; bad fragment → skip it; media error →
-                // recover in place. Only a hopeless source reaches
-                // recoverPlayback (via recoverRef) and fails over.
-                if (data?.fatal) recovery.handleHlsError(hls, data as never);
-              },
-            );
-            return;
-          }
-        } catch (err) {
-          console.warn("[Watch] HLS.js load failed, falling through:", err);
-          /* fall through */
-        }
-      }
-
       // MP4: if the CDN needs a Referer, the browser can't send it — go
       // straight through the proxy. Use refs so Fast Refresh re-renders
       // don't abort in-flight proxy requests.
@@ -2161,8 +2183,7 @@ function WatchInner() {
 
       const onProg = () => {
         const now = performance.now();
-        const buf = video.buffered;
-        const end = buf.length > 0 ? buf.end(buf.length - 1) : 0;
+        const end = playableBufferEnd(video);
         setBuffered(end); // update player UI in real-time
         if (now - lastProgress > 2000) {
           lastProgress = now;
@@ -2196,11 +2217,10 @@ function WatchInner() {
       video.addEventListener("loadedmetadata", onMeta);
       video.addEventListener("error", onErr);
       video.addEventListener("progress", onProg);
-      // Pre-warm: fire a no-cache fetch to the proxy so the CDN connection
-      // is established before the video element starts its request.
-      if (needsProxy) {
-        fetch(mp4Src, { cache: "no-store", headers: { Range: "bytes=0-0" } }).catch(() => {});
-      }
+      // No pre-warm request: it raced the element's own request, so the CDN
+      // saw two connections at once — and MP4 hosts like ravenflix throttle
+      // per IP, starving every concurrent connection (measured 2026-10-10:
+      // one 4 MB range ≈ 10 Mbit/s; four in parallel ≈ 0.8 Mbit/s total).
       video.src = mp4Src;
       video.load();
       const mp4Timeout = setTimeout(onTimeout, mp4TimeoutMs);
@@ -2325,19 +2345,20 @@ function WatchInner() {
       setPlaying(true);
     };
     const onPause = () => setPlaying(false);
-    const onTime = () => {
-      if (!seeking) setCurrentTime(video.currentTime);
-    };
-    const onMeta = () => setDuration(video.duration || 0);
     const onProgress = () => {
       try {
-        if (video.buffered.length > 0) {
-          setBuffered(video.buffered.end(video.buffered.length - 1));
-        }
+        setBuffered(playableBufferEnd(video));
       } catch {
         /* */
       }
     };
+    const onTime = () => {
+      if (!seeking) setCurrentTime(video.currentTime);
+      // The playable range moves with the playhead (and jumps on seeks),
+      // not only when bytes arrive.
+      onProgress();
+    };
+    const onMeta = () => setDuration(video.duration || 0);
     const onVol = () => {
       setVolume(video.volume);
       setMuted(video.muted);

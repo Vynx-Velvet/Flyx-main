@@ -7,8 +7,7 @@ import {
   type RecoveryMedia,
 } from "./recovery-controller";
 
-function fakeVideo(over: Partial<RecoveryMedia> = {}) {
-  const ranges: Array<[number, number]> = [[0, 100]];
+function fakeVideo(over: Partial<RecoveryMedia> = {}, ranges: Array<[number, number]> = [[0, 130]]) {
   const video: RecoveryMedia & { seeks: number[]; plays: number } = {
     currentTime: 100,
     paused: false,
@@ -47,8 +46,11 @@ function fakeHls() {
   return { startLoad: vi.fn(), recoverMediaError: vi.fn() };
 }
 
-function setup(over: { now?: () => number; stallMs?: number; maxAttemptsPerSpot?: number } = {}) {
-  const video = fakeVideo();
+function setup(
+  over: { now?: () => number; stallMs?: number; maxAttemptsPerSpot?: number; starvedGiveUpMs?: number } = {},
+  ranges?: Array<[number, number]>,
+) {
+  const video = fakeVideo({}, ranges);
   const hls = fakeHls();
   const onSkip = vi.fn();
   const onGiveUp = vi.fn();
@@ -60,6 +62,15 @@ function setup(over: { now?: () => number; stallMs?: number; maxAttemptsPerSpot?
     ...over,
   });
   return { video, hls, onSkip, onGiveUp, controller };
+}
+
+/** Two watchdog ticks of normal forward playback ending at `to` (test writes are then forgotten). */
+function playTo(controller: { tick(): void }, video: ReturnType<typeof fakeVideo>, to: number) {
+  video.currentTime = to - 0.5;
+  controller.tick();
+  video.currentTime = to;
+  controller.tick();
+  video.seeks.length = 0;
 }
 
 describe("recovery controller: hls.js fatal errors", () => {
@@ -82,6 +93,7 @@ describe("recovery controller: hls.js fatal errors", () => {
 
   it("skips just past a fragment that cannot be loaded and resumes loading there", () => {
     const { video, hls, controller } = setup();
+    playTo(controller, video, 100);
     controller.handleHlsError({
       fatal: true,
       type: HLS_NETWORK_ERROR,
@@ -97,6 +109,63 @@ describe("recovery controller: hls.js fatal errors", () => {
     controller.handleHlsError({ fatal: true, type: HLS_NETWORK_ERROR, details: "levelLoadError" });
     expect(video.seeks).toEqual([]);
     expect(hls.startLoad).toHaveBeenCalledWith(100);
+  });
+
+  it("gives up after repeated network resumes without progress, and forgives them once playing", () => {
+    const { video, hls, onGiveUp, controller } = setup();
+    const err = { fatal: true, type: HLS_NETWORK_ERROR, details: "levelLoadError" };
+    controller.handleHlsError(err);
+    controller.handleHlsError(err);
+    playTo(controller, video, 120); // recovered — budget refills
+    controller.handleHlsError(err);
+    controller.handleHlsError(err);
+    expect(hls.startLoad).toHaveBeenCalledTimes(4);
+    expect(onGiveUp).not.toHaveBeenCalled();
+    controller.handleHlsError(err);
+    expect(onGiveUp).toHaveBeenCalledWith(120, expect.stringContaining("levelLoadError"));
+  });
+
+  it("fails over at once when the manifest cannot be loaded", () => {
+    const { hls, onGiveUp, controller } = setup();
+    controller.handleHlsError({ fatal: true, type: HLS_NETWORK_ERROR, details: "manifestLoadError" });
+    expect(hls.startLoad).not.toHaveBeenCalled();
+    expect(onGiveUp).toHaveBeenCalledWith(100, expect.stringContaining("manifestLoadError"));
+  });
+
+  it("fails over when a fragment dies before the source ever played (every segment refused)", () => {
+    const { video, hls, onGiveUp, controller } = setup();
+    controller.handleHlsError({
+      fatal: true,
+      type: HLS_NETWORK_ERROR,
+      details: "fragLoadError",
+      frag: { start: 96, duration: 6 },
+    });
+    expect(video.seeks).toEqual([]);
+    expect(hls.startLoad).not.toHaveBeenCalled();
+    expect(onGiveUp).toHaveBeenCalledWith(100, expect.stringContaining("before playback started"));
+  });
+
+  it("stops skipping dead fragments after MAX_FRAGMENT_SKIPS and fails over", () => {
+    const { video, onSkip, onGiveUp, controller } = setup();
+    playTo(controller, video, 100);
+    for (let i = 0; i < 3; i++) {
+      const at = video.currentTime;
+      controller.handleHlsError({
+        fatal: true,
+        type: HLS_NETWORK_ERROR,
+        details: "fragLoadError",
+        frag: { start: at, duration: 6 },
+      });
+    }
+    expect(onSkip).toHaveBeenCalledTimes(3);
+    expect(onGiveUp).not.toHaveBeenCalled();
+    controller.handleHlsError({
+      fatal: true,
+      type: HLS_NETWORK_ERROR,
+      details: "fragLoadError",
+      frag: { start: video.currentTime, duration: 6 },
+    });
+    expect(onGiveUp).toHaveBeenCalledWith(expect.any(Number), expect.stringContaining("fragment skips did not help"));
   });
 
   it("recovers media errors in place at most twice, then gives up at position", () => {
@@ -182,6 +251,25 @@ describe("recovery controller: watchdog", () => {
     now += 3100;
     controller.tick(); // no further action once given up
     expect(onGiveUp).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a starved playhead to the loader, then fails over at the same spot", () => {
+    let now = 0;
+    const { video, hls, onSkip, onGiveUp, controller } = setup(
+      { now: () => now, stallMs: 3000, starvedGiveUpMs: 30_000 },
+      [[0, 100]], // playhead at the end of its buffer
+    );
+    controller.tick();
+    for (let i = 0; i < 59; i++) {
+      now += 500;
+      controller.tick();
+    }
+    expect(video.seeks).toEqual([]);
+    expect(hls.startLoad).not.toHaveBeenCalled();
+    expect(onSkip).not.toHaveBeenCalled();
+    now += 600;
+    controller.tick();
+    expect(onGiveUp).toHaveBeenCalledWith(100, expect.stringContaining("starved"));
   });
 
   it("does nothing while playback is progressing normally", () => {

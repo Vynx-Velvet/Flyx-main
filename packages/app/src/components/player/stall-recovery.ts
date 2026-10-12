@@ -7,7 +7,9 @@
  * always fixed it by hand, so the players now do that themselves:
  *
  *   1. A watchdog (`StallRecovery.observe`) notices the playhead has not
- *      moved for `stallMs` while the video is supposed to be playing.
+ *      moved for `stallMs` while the video is supposed to be playing AND
+ *      there is media buffered ahead of it (or a hole just ahead) — i.e.
+ *      the player is stuck on bytes it already has.
  *   2. It picks a target: the start of the next buffered range if there is
  *      a hole just ahead, otherwise the stall point plus an escalating
  *      offset (1s, 2s, 4s, 8s, 10s) so a repeat stall at the same spot
@@ -15,6 +17,12 @@
  *   3. After `maxAttemptsPerSpot` jumps around the same spot it gives up
  *      and lets the player fail over to another source — resuming there,
  *      not from the beginning.
+ *
+ * A playhead waiting at the end of its buffer is starved, not stuck: the
+ * loader is still downloading the next bytes, and a seek would throw that
+ * download away and cut content (on a slow CDN that turned every rebuffer
+ * into a chain of skips). Starvation is left alone; only one that makes no
+ * progress for `starvedGiveUpMs` fails over, resuming at the same spot.
  *
  * hls.js's own fatal stall / fragment errors feed the same planner
  * (`planSkip`, `fragmentSkipTarget`) so those paths seek forward too
@@ -44,7 +52,7 @@ export type SkipReason = "hole" | "skip";
 
 export type StallPlan =
   | { kind: "seek"; target: number; from: number; reason: SkipReason; attempt: number }
-  | { kind: "give-up"; from: number; attempts: number };
+  | { kind: "give-up"; from: number; attempts: number; starved?: boolean };
 
 export interface StallRecoveryOptions {
   /** How long the playhead may sit still (while playing) before we act. */
@@ -57,6 +65,8 @@ export interface StallRecoveryOptions {
   recoveredAfterSec?: number;
   /** Look this far ahead for the next buffered range when skipping a hole. */
   holeLookaheadSec?: number;
+  /** A starved playhead (nothing buffered ahead) that makes no progress this long fails over. */
+  starvedGiveUpMs?: number;
   now?: () => number;
 }
 
@@ -66,8 +76,12 @@ const DEFAULTS: Required<StallRecoveryOptions> = {
   spotToleranceSec: 2,
   recoveredAfterSec: 5,
   holeLookaheadSec: 8,
+  starvedGiveUpMs: 30_000,
   now: () => Date.now(),
 };
+
+/** Buffered media past the playhead that counts as "has data" (seconds). */
+const MIN_DATA_AHEAD_SEC = 0.5;
 
 /** Escalating forward jump for the nth attempt at the same spot (1-based). */
 export function skipOffset(attempt: number): number {
@@ -88,6 +102,23 @@ export function readBuffered(ranges: { length: number; start(i: number): number;
     }
   }
   return out;
+}
+
+/**
+ * True when there is media to play past `currentTime`: the range under the
+ * playhead extends at least MIN_DATA_AHEAD_SEC further, or another range
+ * starts within the hole lookahead. False means the player is starved.
+ */
+export function hasDataAhead(
+  currentTime: number,
+  buffered: BufferedRange[],
+  holeLookaheadSec = DEFAULTS.holeLookaheadSec,
+): boolean {
+  return buffered.some(
+    (r) =>
+      (r.start <= currentTime + 0.1 && r.end >= currentTime + MIN_DATA_AHEAD_SEC) ||
+      (r.start > currentTime + 0.2 && r.start <= currentTime + holeLookaheadSec),
+  );
 }
 
 /**
@@ -194,7 +225,16 @@ export class StallRecovery {
       return null;
     }
 
-    if (now - this.lastAdvanceAt < this.opts.stallMs) return null;
+    const stalledFor = now - this.lastAdvanceAt;
+    if (stalledFor < this.opts.stallMs) return null;
+
+    if (!hasDataAhead(t, snap.buffered, this.opts.holeLookaheadSec)) {
+      // Starved: the next bytes are still downloading. Seeking would abort
+      // that download, so wait — and only fail over if nothing arrives.
+      if (stalledFor < this.opts.starvedGiveUpMs) return null;
+      this.lastAdvanceAt = now;
+      return { kind: "give-up", from: t, attempts: this.attempts, starved: true };
+    }
 
     // Stuck. Restart the clock so we don't fire every tick while the seek lands.
     this.lastAdvanceAt = now;

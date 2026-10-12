@@ -601,10 +601,133 @@ export async function extractMultiEmbed(
         return s;
       });
 
-    return { sources: deduped, subtitles: allSubtitles };
+    // ── Keep only servers that actually serve media ──
+    // Most XPS backups answer with a valid playlist and then 403 every
+    // segment (or wrap it in a PNG); each one listed cost the player a
+    // timeout before it could fail over.
+    const verdicts = await probePlayable(deduped);
+    const playable = deduped.filter((_, i) => verdicts[i]);
+    if (playable.length < deduped.length) {
+      const dropped = deduped.filter((_, i) => !verdicts[i]).map((s) => s.title || new URL(s.url).host);
+      console.log(`[MultiEmbed] ${playable.length}/${deduped.length} servers playable; dropped ${dropped.join(", ")}`);
+    }
+
+    return { sources: playable, subtitles: allSubtitles };
   } catch (error) {
     console.warn(`[MultiEmbed] Extraction failed: ${(error as Error).message}`);
     return empty;
+  }
+}
+
+// ── Playability probe ────────────────────────────────────────
+
+/** Time one source gets to prove it plays (playlist → variant → first segment). */
+const PROBE_BUDGET_MS = 6000;
+/** Once one server proves playable, the rest get this long to catch up. */
+const PROBE_GRACE_MS = 2000;
+
+/** First bytes of a playable HLS segment: MPEG-TS sync, ID3-tagged audio or an fMP4 box. */
+export function looksLikeMediaSegment(head: Uint8Array): boolean {
+  if (head[0] === 0x47) return true; // MPEG-TS sync byte
+  if (head.length >= 3 && head[0] === 0x49 && head[1] === 0x44 && head[2] === 0x33) return true; // "ID3"
+  if (head.length >= 8) {
+    const box = String.fromCharCode(head[4]!, head[5]!, head[6]!, head[7]!);
+    if (["ftyp", "styp", "moof", "sidx", "mdat"].includes(box)) return true;
+  }
+  return false;
+}
+
+/** Read at most the first `max` bytes of a body, then drop the rest of the transfer. */
+async function readHead(res: Response, max: number): Promise<Uint8Array> {
+  if (!res.body) return new Uint8Array(0);
+  const reader = res.body.getReader();
+  const out = new Uint8Array(max);
+  let got = 0;
+  try {
+    while (got < max) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const n = Math.min(value.byteLength, max - got);
+      out.set(value.subarray(0, n), got);
+      got += n;
+    }
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+  return out.subarray(0, got);
+}
+
+/**
+ * Follow an HLS source the way the player will — master → first variant →
+ * first segment, same Referer/Origin, from this server's IP — and report
+ * whether that segment is real media. Encrypted segments (EXT-X-KEY) can't
+ * be sniffed, so for those a 2xx is enough.
+ */
+export async function probeHlsSource(
+  source: StreamSource,
+  fetchImpl: typeof fetch = fetch,
+  stop?: AbortSignal,
+): Promise<boolean> {
+  const headers: Record<string, string> = { "User-Agent": UA };
+  if (source.referer) headers.Referer = source.referer;
+  if (source.origin) headers.Origin = source.origin;
+  const budget = AbortSignal.timeout(PROBE_BUDGET_MS);
+  const signal = stop ? AbortSignal.any([budget, stop]) : budget;
+  try {
+    let url = source.url;
+    for (let hop = 0; hop < 3; hop++) {
+      const res = await fetchImpl(url, { headers, signal });
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
+        return false;
+      }
+      const lines = (await res.text()).split("\n").map((l) => l.trim());
+      if (!lines[0]?.replace(/^\uFEFF/, "").startsWith("#EXTM3U")) return false;
+      const uri = lines.find((l) => l && !l.startsWith("#"));
+      if (!uri) return false;
+      const next = new URL(uri, url).href;
+      if (lines.some((l) => l.startsWith("#EXT-X-STREAM-INF"))) {
+        url = next;
+        continue;
+      }
+      const encrypted = lines.some((l) => /^#EXT-X-KEY:.*METHOD=(?!NONE)/i.test(l));
+      const seg = await fetchImpl(next, { headers: { ...headers, Range: "bytes=0-1023" }, signal });
+      if (!seg.ok) {
+        await seg.body?.cancel().catch(() => {});
+        return false;
+      }
+      const head = await readHead(seg, 16);
+      return head.byteLength > 0 && (encrypted || looksLikeMediaSegment(head));
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Probe every HLS source in parallel (non-HLS pass). Dead servers would
+ * otherwise hold extraction for the whole budget: as soon as one server
+ * proves playable, the others get PROBE_GRACE_MS and are then dropped.
+ */
+export async function probePlayable(
+  sources: StreamSource[],
+  fetchImpl: typeof fetch = fetch,
+  graceMs = PROBE_GRACE_MS,
+): Promise<boolean[]> {
+  const stop = new AbortController();
+  let grace: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.all(
+      sources.map(async (s) => {
+        if (s.type !== "hls") return true;
+        const ok = await probeHlsSource(s, fetchImpl, stop.signal);
+        if (ok && !grace) grace = setTimeout(() => stop.abort(), graceMs);
+        return ok;
+      }),
+    );
+  } finally {
+    clearTimeout(grace);
   }
 }
 
