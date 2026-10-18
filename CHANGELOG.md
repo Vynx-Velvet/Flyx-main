@@ -2,6 +2,17 @@
 
 All notable changes to Flyx are documented in this file.
 
+## [3.2.12] - 2026-10-17
+
+### Fixed
+
+- **Live TV plays again.** The live TV source started requiring a short-lived pass for every channel before it sends any video. Flyx didn't have one, so every stream was refused and the player said all streams were offline. Flyx now gets that pass the same way the source's own player does, and renews it in the background while you watch.
+- **Flyx no longer gets your connection blocked by the live TV source.** With streams being refused, Flyx fell back to looking up every channel on the source's main website, up to 60 times each time you opened Live TV. The site responds to that by blocking your address for a while. Flyx now checks channels directly on the video server, so opening Live TV makes about one request to the main site instead of dozens. If the site does block you, channels still play because Flyx goes straight to the player, and Flyx stops retrying the blocked site for a few minutes instead of making you wait about 90 seconds per channel.
+- **"Can't reach the source" is no longer reported as "off air".** When Flyx couldn't reach the live TV source at all, it said every stream was offline. It now says it can't reach the source and to try again in a minute. Channels it couldn't check are no longer labelled Off air.
+- **Channels nobody else is watching start reliably.** The first time anyone opens a quiet channel, the source can take several seconds to start it. Flyx used to give up before then; it now waits up to 30 seconds, as the source's own player does.
+- **Upcoming events no longer show as live.** Events weeks away, such as the F1 Mexican Grand Prix or Fury vs Joshua, were marked LIVE every evening because the schedule lists only a time and puts the date in the title. Flyx now reads the date and lists them under Up next with the right countdown.
+- **The Live TV schedule loads faster and survives outages.** Flyx keeps the schedule for five minutes instead of downloading it on every visit. If the source's website goes down, Flyx keeps showing the last schedule it got.
+
 ## [3.2.11] - 2026-10-11
 
 ### Fixed

@@ -6,13 +6,14 @@
  * player we can't extract. The Live TV page asks here for the channels of
  * the on-air events so it can put playable ones first and label the rest.
  *
- * Per channel: resolve (cached 10 min by the extractor) then a quick GET of
- * the playlist. Results are cached for 3 minutes. Never throws; unknown
- * channels come back "unknown".
+ * Per channel: one token + playlist request on the known edge, else a full
+ * resolve (cached 10 min by the extractor) then a quick GET of the playlist.
+ * Results are cached for 3 minutes. Never throws; unknown channels come back
+ * "unknown".
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { extractDLHD, probeDLHDEdge } from "@flyx/extractors/services";
+import { extractDLHD, probeDLHDEdge, withDLHDPlaylistToken } from "@flyx/extractors/services";
 import { relaxedFetch } from "@flyx/core/utils";
 
 export const runtime = "nodejs";
@@ -36,13 +37,18 @@ async function probe(channelId: string): Promise<Availability> {
     if (quick) return quick;
     const result = await extractDLHD(channelId);
     if (!result.sources.length) {
-      return result.reason === "unsupported" ? "unsupported" : "offline";
+      if (result.reason === "unsupported") return "unsupported";
+      // Couldn't reach DLHD at all: that says nothing about the channel.
+      return result.reason === "unreachable" ? "unknown" : "offline";
     }
     const src = result.sources[0]!;
     const c = new AbortController();
-    const t = setTimeout(() => c.abort(), 6000);
+    // Cold channels take several seconds to answer their first playlist.
+    const t = setTimeout(() => c.abort(), 15000);
     try {
-      const r = await relaxedFetch(`${src.url}${src.url.includes("?") ? "&" : "?"}_=${Date.now()}`, {
+      // Edge playlists need a per-channel token (see dlhd.ts).
+      const url = await withDLHDPlaylistToken(src.url, src.origin);
+      const r = await relaxedFetch(`${url}${url.includes("?") ? "&" : "?"}_=${Date.now()}`, {
         headers: {
           "User-Agent": UA,
           Accept: "*/*",

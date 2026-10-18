@@ -129,8 +129,13 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
   const selectedChannelIndexRef = useRef(0);
   selectedChannelIndexRef.current = selectedChannelIndex;
   const offlineTriedRef = useRef<Set<number>>(new Set());
+  // Set when a stream failed because the source couldn't be reached (proxy
+  // 502/504, resolve "unreachable") rather than being off air — the final
+  // message must not call that "offline".
+  const unreachableSeenRef = useRef(false);
   useEffect(() => {
     offlineTriedRef.current = new Set();
+    unreachableSeenRef.current = false;
   }, [event?.id, channel?.id]);
 
   // Get stream URL — routes to correct provider extractor
@@ -202,6 +207,11 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
         manifestLoadingMaxRetry: 2,
         manifestLoadingRetryDelay: 600,
         manifestLoadingMaxRetryTimeout: 4000,
+        // ...but give the first load time: a channel nobody is watching only
+        // answers once the upstream edge has started publishing it (several
+        // seconds; the upstream player allows 30 s). A 404 still comes back
+        // immediately.
+        manifestLoadingTimeOut: 30000,
         levelLoadingMaxRetry: 2,
         levelLoadingRetryDelay: 600,
         levelLoadingMaxRetryTimeout: 4000,
@@ -286,12 +296,14 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
           if (isPlaylistError && (code === 404 || code === 410 || code === 502 || code === 504)) {
             const channels = eventChannelsRef.current;
             const idx = selectedChannelIndexRef.current;
+            const unreachable = code === 502 || code === 504;
+            if (unreachable) unreachableSeenRef.current = true;
             offlineTriedRef.current.add(idx);
             const next = channels.findIndex((_, i) => !offlineTriedRef.current.has(i));
             if (channels.length > 1 && next !== -1) {
               const label = channels[next]?.name || `stream ${next + 1}`;
-              console.warn(`[VideoPlayer] stream ${idx + 1} offline (${code}) — switching to ${label}`);
-              setRecoveryStatus(`That stream is offline — trying ${label}…`);
+              console.warn(`[VideoPlayer] stream ${idx + 1} ${unreachable ? 'unreachable' : 'offline'} (${code}) — switching to ${label}`);
+              setRecoveryStatus(`${unreachable ? "That stream didn't load" : 'That stream is offline'} — trying ${label}…`);
               setSelectedChannelIndex(next);
               setRetryCount(0);
               setSelectedBackend(undefined);
@@ -299,8 +311,11 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
               stallCountRef.current = 0;
               return;
             }
-            const msg =
-              channels.length > 1
+            const msg = unreachableSeenRef.current
+              ? channels.length > 1
+                ? "Couldn't load this event's streams from the live TV source right now. Try again in a minute."
+                : "Couldn't load this channel from the live TV source right now. Try again in a minute."
+              : channels.length > 1
                 ? 'All streams for this event are offline right now. Try again closer to kick-off or pick another event.'
                 : 'This channel is offline right now. Event channels only go live while the event is on.';
             setError(msg);
@@ -486,6 +501,7 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
           // several streams, move on to the next one before giving up.
           const channels = eventChannelsRef.current;
           const idx = selectedChannelIndexRef.current;
+          if (data.reason === 'unreachable') unreachableSeenRef.current = true;
           offlineTriedRef.current.add(idx);
           const next = channels.findIndex((_, i) => !offlineTriedRef.current.has(i));
           if (channels.length > 1 && next !== -1) {
@@ -497,7 +513,9 @@ export function VideoPlayer({ event, channel, isOpen, onClose }: VideoPlayerProp
           }
           const msg =
             channels.length > 1
-              ? 'None of the streams for this event are available right now.'
+              ? unreachableSeenRef.current
+                ? "Flyx can't reach the live TV source right now. Try again in a minute."
+                : 'None of the streams for this event are available right now.'
               : data.error || 'Failed to get stream from API';
           setError(msg);
           errorRef.current = msg;

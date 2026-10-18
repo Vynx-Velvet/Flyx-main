@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { relaxedFetch } from '@flyx/core/utils';
 import { isWithinLiveWindow, londonClockToDate, londonClockToIso } from '@/lib/livetv/uk-time';
+import { datedEventStart } from '@/lib/livetv/event-dates';
 
 /** Decode the HTML entities the schedule markup uses in names (&#039; &amp; …). */
 const NAMED_ENTITIES: Record<string, string> = {
@@ -163,9 +164,16 @@ function parseEvents(html: string): SportEvent[] {
         eventHtml,
       );
 
-    const isLive = isEventLive(dataTime, time, htmlIndicatesLive);
+    let isLive = isEventLive(dataTime, time, htmlIndicatesLive);
 
-    const isoTime = toISOTimestamp(time);
+    let isoTime = toISOTimestamp(time);
+    // A title that names another day ("… | 1 November 2026") is not on now,
+    // whatever its clock time says.
+    const datedStart = datedEventStart(title, time);
+    if (datedStart) {
+      isoTime = datedStart;
+      isLive = false;
+    }
 
     const channels: {
       name: string;
@@ -315,7 +323,7 @@ async function fetchScheduleHTML(
       const controller = new AbortController();
       const timeoutId = setTimeout(
         () => controller.abort(),
-        15000,
+        10000,
       );
 
       const res = await relaxedFetch(url, {
@@ -324,7 +332,7 @@ async function fetchScheduleHTML(
           Accept: 'text/html,application/json',
         },
         signal: controller.signal,
-        timeout: 15000,
+        timeout: 10000,
       });
       clearTimeout(timeoutId);
 
@@ -404,6 +412,48 @@ async function fetchScheduleHTML(
   return '';
 }
 
+// The front domain bans IPs that hit it hard, and every Live TV visit used to
+// re-download its (0.4–1.7 MB) homepage. Keep the raw HTML for a few minutes
+// (events are re-parsed per request, so "live" flags stay current), share one
+// fetch between concurrent visitors, keep serving the last good copy while
+// the front is down, and don't retry a dead front on every visit.
+const SCHEDULE_FRESH_MS = 5 * 60 * 1000;
+const SCHEDULE_STALE_MAX_MS = 12 * 60 * 60 * 1000;
+const SCHEDULE_RETRY_MS = 2 * 60 * 1000;
+const scheduleCache = new Map<string, { html: string; at: number }>();
+const scheduleFlight = new Map<string, Promise<string>>();
+const scheduleFailedAt = new Map<string, number>();
+
+async function getScheduleHTML(source?: string): Promise<{ html: string; stale: boolean }> {
+  const key = source ?? '';
+  const now = Date.now();
+  const cached = scheduleCache.get(key);
+  if (cached && now - cached.at < SCHEDULE_FRESH_MS) return { html: cached.html, stale: false };
+
+  const usable = cached && now - cached.at < SCHEDULE_STALE_MAX_MS ? cached.html : '';
+  if (now - (scheduleFailedAt.get(key) ?? 0) < SCHEDULE_RETRY_MS) return { html: usable, stale: !!usable };
+
+  let flight = scheduleFlight.get(key);
+  if (!flight) {
+    flight = fetchScheduleHTML(source)
+      .catch((err) => {
+        console.error('[Schedule API] Fetch error:', err);
+        return '';
+      })
+      .finally(() => scheduleFlight.delete(key));
+    scheduleFlight.set(key, flight);
+  }
+  const html = await flight;
+  if (html) {
+    scheduleCache.set(key, { html, at: Date.now() });
+    scheduleFailedAt.delete(key);
+    return { html, stale: false };
+  }
+  scheduleFailedAt.set(key, Date.now());
+  if (usable) console.warn('[Schedule] Front unreachable — serving the last schedule we fetched');
+  return { html: usable, stale: !!usable };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -412,12 +462,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const liveOnly = searchParams.get('live') === 'true';
 
-    let html = '';
-    try {
-      html = await fetchScheduleHTML(source || undefined);
-    } catch (fetchErr) {
-      console.error('[Schedule API] Fetch error:', fetchErr);
-    }
+    const { html, stale } = await getScheduleHTML(source || undefined);
 
     if (!html) {
       return NextResponse.json(
@@ -519,6 +564,7 @@ export async function GET(request: NextRequest) {
             count: cat.events.length,
           })),
         },
+        ...(stale ? { warning: 'Schedule source unreachable — showing the last schedule fetched' } : {}),
       },
       {
         headers: {

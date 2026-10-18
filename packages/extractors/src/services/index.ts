@@ -32,7 +32,7 @@ export {
 } from "./weebcentral";
 
 // Live TV Extractors
-export { extractDLHD, probeDLHDEdge } from "./dlhd";
+export { extractDLHD, probeDLHDEdge, getDLHDPlaylistToken, withDLHDPlaylistToken, dlhdChannelSlug } from "./dlhd";
 
 // Subtitle Extractors
 export { extractOpenSubtitles } from "./opensubtitles";

@@ -51,6 +51,23 @@ export function londonClockToDate(time24: string, now: Date = new Date()): Date 
   return new Date(naive - offset);
 }
 
+/** London's calendar day at `now` as { y, m (1-12), d }. */
+export function londonToday(now: Date = new Date()): { y: number; m: number; d: number } {
+  const p = londonParts(now);
+  return { y: p.y, m: p.m, d: p.d };
+}
+
+/** The instant for London wall time `HH:MM` on a given London calendar day. */
+export function londonDateTimeToDate(y: number, m: number, d: number, time24: string): Date | null {
+  const t = time24.trim().match(/^(\d{1,2}):(\d{2})$/);
+  const hours = t ? parseInt(t[1]!, 10) : 0;
+  const minutes = t ? parseInt(t[2]!, 10) : 0;
+  if (hours > 23 || minutes > 59 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const naive = Date.UTC(y, m - 1, d, hours, minutes, 0, 0);
+  const offset = londonOffsetMs(new Date(naive));
+  return new Date(naive - offset);
+}
+
 /** ISO instant for a London clock time, or "" when unparseable. */
 export function londonClockToIso(time24: string, now: Date = new Date()): string {
   return londonClockToDate(time24, now)?.toISOString() ?? "";

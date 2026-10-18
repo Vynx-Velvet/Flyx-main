@@ -24,6 +24,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { get as httpsGet } from "https";
 import { get as httpGet } from "http";
 import { needsRelaxedTLS } from "@flyx/core/utils";
+import { dlhdChannelSlug, withDLHDPlaylistToken } from "@flyx/extractors/services";
 import { prefetchSegments, safeRelaxedFetch } from "@/lib/livetv/segment-cache";
 import { proxyAuthorization, signProxyUrl } from "@/lib/security/proxy-sign";
 import { BlockedUrlError, assertPublicUrl, guardedLookup, readTextLimited } from "@/lib/security/safe-fetch";
@@ -189,6 +190,13 @@ async function fetchPlaylist(
   const baseHeaders: Record<string, string> = { "User-Agent": UA, Referer: cdnOrigin, Origin: cdnOrigin, Accept: "*/*" };
   if (cookies) baseHeaders["Cookie"] = cookies;
 
+  // DLHD's edge only serves a channel playlist with a short-lived per-channel
+  // token (`t=`), minted with the player origin. Without one every strategy
+  // below gets 403 "token required".
+  const isDlhdEdge = dlhdChannelSlug(url) !== null;
+  const tokenOpts = { fetchImpl: safeRelaxedFetch };
+  if (isDlhdEdge) url = await withDLHDPlaylistToken(url, origin, tokenOpts);
+
   // Strategy 1: Python curl_cffi service (Chrome TLS, best chance)
   console.log(`[Playlist] Strategy 1: Python service for ${url.substring(0, 60)}...`);
   const svcResult = await fetchViaService(url, cdnOrigin);
@@ -207,11 +215,14 @@ async function fetchPlaylist(
   // relaxedFetch uses undici Agent with rejectUnauthorized:false to bypass
   // TLS fingerprint blocking on Cloudflare-backed pirate CDNs.
   console.log(`[Playlist] Strategy 2: Relaxed-TLS fetch with ${cookies ? "cookies + " : ""}Referer/Origin`);
+  // A cold DLHD channel answers its first playlist only once the edge has
+  // started publishing it (the upstream player allows 30 s).
+  const strategy2TimeoutMs = isDlhdEdge ? 25000 : 12000;
   for (let attempt = 0; attempt < 2; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
     try {
       const c = new AbortController();
-      const t = setTimeout(() => c.abort(), 12000);
+      const t = setTimeout(() => c.abort(), strategy2TimeoutMs);
       const r = await safeRelaxedFetch(url, {
         headers: baseHeaders,
         signal: c.signal,
@@ -234,6 +245,17 @@ async function fetchPlaylist(
         // (event channels only exist while the event runs) — don't burn
         // 20+ seconds on the other strategies.
         if (r.status === 404) return { text: "", strategy: "offline" };
+        if (isDlhdEdge && r.status === 403) {
+          await r.body?.cancel().catch(() => undefined);
+          // The token expired or was refused: mint a fresh one and retry.
+          if (attempt === 0) {
+            url = await withDLHDPlaylistToken(url, origin, { ...tokenOpts, force: true });
+            continue;
+          }
+          // Still refused with a fresh token — the anonymous strategies below
+          // can only be refused too.
+          return null;
+        }
       }
     } catch (err) {
       console.warn(`[Playlist] ✗ Relaxed-TLS fetch error (attempt ${attempt + 1}): ${(err as Error).message}`);

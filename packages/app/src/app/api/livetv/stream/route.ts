@@ -59,8 +59,10 @@ export async function GET(request: NextRequest) {
           ? `This stream uses an external player (${result.unsupportedEmbed ?? "third-party"}) that Flyx can't play yet.`
           : reason === "offline"
             ? "This stream is off air right now."
-            : `No stream found for "${channelId}" — channel may be offline or geo-blocked.`;
-      return NextResponse.json({ success: false, error, reason }, { status: 404 });
+            : reason === "unreachable"
+              ? "Flyx can't reach the live TV source right now. Try again in a minute."
+              : `No stream found for "${channelId}" — channel may be offline or geo-blocked.`;
+      return NextResponse.json({ success: false, error, reason }, { status: reason === "unreachable" ? 503 : 404 });
     }
 
     const source = result.sources[0];

@@ -26,7 +26,7 @@ import { PROXY_SECURITY_HEADERS, applySignedCors, proxyJsonError, proxyUnauthori
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
-const DEFAULT_PLAYER_ORIGIN = "https://daddyliveplayer.st";
+const DEFAULT_PLAYER_ORIGIN = "https://dembed.st";
 
 export async function GET(request: NextRequest) {
   const via = await proxyAuthorization(request);
